@@ -1,1 +1,13 @@
 fastapi
+uvicorn[standard]
+pydantic-settings
+sqlalchemy[asyncio]
+asyncpg
+psycopg2-binary
+langchain
+langchain-google-genai
+google-generativeai
+SpeechRecognition
+gTTS
+python-multipart
+aiofiles
