@@ -11,3 +11,5 @@ SpeechRecognition
 gTTS
 python-multipart
 aiofiles
+langchain-groq
+langchain-openai
