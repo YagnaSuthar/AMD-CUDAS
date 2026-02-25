@@ -1,0 +1,18 @@
+Verification of 'verification_token_expiry': FOUND
+
+Columns in 'auth_users' table:
+  - created_at (timestamp with time zone)
+  - department (character varying)
+  - email (character varying)
+  - hashed_password (text)
+  - id (uuid)
+  - is_verified (boolean)
+  - name (character varying)
+  - parent_id (uuid)
+  - reset_token (character varying)
+  - reset_token_expiry (timestamp with time zone)
+  - role (USER-DEFINED)
+  - roll_number (character varying)
+  - semester (integer)
+  - verification_token (character varying)
+  - verification_token_expiry (timestamp with time zone)

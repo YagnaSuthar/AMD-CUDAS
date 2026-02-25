@@ -1,6 +1,7 @@
 fastapi
 uvicorn[standard]
 pydantic-settings
+pydantic[email]
 sqlalchemy[asyncio]
 asyncpg
 psycopg2-binary
@@ -14,3 +15,5 @@ aiofiles
 langchain-groq
 langchain-openai
 pandas
+python-jose[cryptography]
+passlib[bcrypt]

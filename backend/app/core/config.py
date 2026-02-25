@@ -37,5 +37,21 @@ class Settings(BaseSettings):
     DEFAULT_DIFFICULTY: str = "medium"
     MAX_QUESTIONS_PER_SESSION: int = 15
 
+    # ── JWT Authentication ────────────────────────────────────────────────
+    JWT_SECRET_KEY: str = "change-me-super-secret-key"
+    JWT_REFRESH_SECRET: str = "change-me-refresh-secret-key"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # ── SMTP Email ────────────────────────────────────────────────────────
+    SMTP_EMAIL: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_SERVER: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+
+    # ── Static CUDAS Admin ────────────────────────────────────────────────
+    CUDAS_ADMIN_EMAIL: str = "admin@cudas.com"
+    CUDAS_ADMIN_PASSWORD: str = "admin123"
+
 
 settings = Settings()

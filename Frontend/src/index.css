@@ -1,0 +1,233 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   CUDAS — Global Root Styles & Variables
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Reset ──────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* ── Font ──────────────────────────────────────────────────────────── */
+  --font-heading: 'Orbitron', sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* ── Primary (Light Gray Based) ────────────────────────────────────── */
+  --color-primary: #f4f6f9;
+  --color-primary-100: #ffffff;
+  --color-primary-200: #e9edf3;
+  --color-primary-300: #d8dee9;
+
+  /* ── Secondary (Cyan Blue) ─────────────────────────────────────────── */
+  --color-secondary: #00bcd4;
+  --color-secondary-dark: #0097a7;
+  --color-secondary-light: #4dd0e1;
+
+  /* ── Accent (Yellow-Orange) ────────────────────────────────────────── */
+  --color-accent: #ffb703;
+  --color-accent-light: #ffd166;
+  --color-accent-dark: #fb8500;
+
+  /* ── Text Colors ───────────────────────────────────────────────────── */
+  --color-text-primary: #1e293b;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+
+  /* ── Background ────────────────────────────────────────────────────── */
+  --color-bg-main: #f8fafc;
+  --color-bg-card: #ffffff;
+
+  /* ── Border ────────────────────────────────────────────────────────── */
+  --color-border: #e2e8f0;
+
+  /* ── Status Colors ─────────────────────────────────────────────────── */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+
+  /* ── Gradient ──────────────────────────────────────────────────────── */
+  --gradient-primary: linear-gradient(135deg, #00bcd4 0%, #a87ef0 50%, #1291c7d2 100%);
+  --gradient-secondary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gradient-accent: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+
+  /* ── Shadow ────────────────────────────────────────────────────────── */
+  --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.05);
+  --shadow-medium: 0 8px 30px rgba(0, 0, 0, 0.08);
+  --shadow-heavy: 0 12px 40px rgba(0, 0, 0, 0.15);
+
+  /* ── Glass ──────────────────────────────────────────────────────────── */
+  --glass-bg: rgba(255, 255, 255, 0.15);
+  --glass-border: rgba(255, 255, 255, 0.25);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+
+  /* ── Sidebar ───────────────────────────────────────────────────────── */
+  --sidebar-width: 260px;
+  --header-height: 64px;
+
+  /* ── Radius ────────────────────────────────────────────────────────── */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-full: 9999px;
+}
+
+/* ── Dark Theme ──────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --color-primary: #1e1e2f;
+  --color-primary-100: #25253a;
+  --color-primary-200: #2f2f45;
+  --color-primary-300: #3a3a55;
+
+  --color-secondary: #00e5ff;
+  --color-secondary-dark: #00bcd4;
+  --color-secondary-light: #4dd0e1;
+
+  --color-accent: #ffb703;
+  --color-accent-light: #ffd166;
+  --color-accent-dark: #fb8500;
+
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #cbd5e1;
+  --color-text-muted: #94a3b8;
+
+  --color-bg-main: #0f0f1a;
+  --color-bg-card: #1e1e2f;
+
+  --color-border: #2d2d3f;
+
+  --color-success: #22c55e;
+  --color-warning: #facc15;
+  --color-error: #f87171;
+
+  --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --shadow-medium: 0 8px 30px rgba(0, 0, 0, 0.5);
+
+  --glass-bg: rgba(30, 30, 47, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.08);
+}
+
+/* ── Global Styles ───────────────────────────────────────────────────── */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--color-text-primary);
+  background: var(--color-bg-main);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+a {
+  text-decoration: none;
+  color: var(--color-secondary);
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--color-secondary-dark);
+}
+
+/* ── Utility: Gradient Text ──────────────────────────────────────────── */
+
+.gradient-text {
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-secondary {
+  background: var(--gradient-secondary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Utility: Glassmorphism ──────────────────────────────────────────── */
+
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--glass-shadow);
+}
+
+/* ── Utility: Button ─────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background: var(--gradient-primary);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(0, 188, 212, 0.3);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 188, 212, 0.5);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--color-secondary);
+  border: 2px solid var(--color-secondary);
+}
+
+.btn-secondary:hover {
+  background: var(--color-secondary);
+  color: #fff;
+  transform: translateY(-2px);
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-primary-300);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-secondary);
+}

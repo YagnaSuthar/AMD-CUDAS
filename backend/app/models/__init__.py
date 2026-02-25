@@ -15,3 +15,11 @@ from app.models.interview import (  # noqa: F401
     User,
     UserRole,
 )
+
+from app.models.auth import (  # noqa: F401
+    AuthUser,
+    AuthUserRole,
+    College,
+    CollegeStatus,
+    Company,
+)

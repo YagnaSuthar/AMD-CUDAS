@@ -1,0 +1,308 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Dashboard — Stats Cards, Tables, Management  
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Page Header ─────────────────────────────────────────────────────── */
+
+.page-header {
+    margin-bottom: 32px;
+}
+
+.page-header h1 {
+    font-size: 1.8rem;
+    margin-bottom: 4px;
+}
+
+.page-header p {
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+}
+
+/* ── Stats Grid ──────────────────────────────────────────────────────── */
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 24px;
+    margin-bottom: 32px;
+}
+
+.stat-card {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 24px;
+    transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-medium);
+}
+
+.stat-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.stat-card-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    color: #fff;
+    background: var(--gradient-primary);
+}
+
+.stat-card-label {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.stat-card-value {
+    font-family: var(--font-heading);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+/* ── Data Table ──────────────────────────────────────────────────────── */
+
+.data-table-container {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.data-table-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.data-table-header h3 {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th {
+    padding: 12px 24px;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-muted);
+    background: var(--color-primary);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.data-table td {
+    padding: 14px 24px;
+    font-size: 0.9rem;
+    color: var(--color-text-primary);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.data-table tr:hover {
+    background: var(--color-primary-200);
+}
+
+.data-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* ── Status Badge ────────────────────────────────────────────────────── */
+
+.status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.status-badge-approved {
+    background: rgba(34, 197, 94, 0.12);
+    color: var(--color-success);
+}
+
+.status-badge-pending {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--color-warning);
+}
+
+.status-badge-rejected {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--color-error);
+}
+
+/* ── Dashboard Card (glass) ──────────────────────────────────────────── */
+
+.dashboard-card {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.dashboard-card h3 {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    margin-bottom: 16px;
+}
+
+/* ── Upload Area ─────────────────────────────────────────────────────── */
+
+.upload-zone {
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 48px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--color-primary);
+}
+
+.upload-zone:hover {
+    border-color: var(--color-secondary);
+    background: rgba(0, 188, 212, 0.05);
+}
+
+.upload-zone-active {
+    border-color: var(--color-secondary);
+    background: rgba(0, 188, 212, 0.08);
+}
+
+.upload-zone-icon {
+    font-size: 3rem;
+    color: var(--color-secondary);
+    margin-bottom: 16px;
+}
+
+.upload-zone h3 {
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+    color: var(--color-text-primary);
+}
+
+.upload-zone p {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+
+/* ── Action Buttons Row ──────────────────────────────────────────────── */
+
+.actions-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+}
+
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.action-btn-primary {
+    background: var(--color-secondary);
+    color: #fff;
+}
+
+.action-btn-primary:hover {
+    background: var(--color-secondary-dark);
+    transform: translateY(-1px);
+}
+
+.action-btn-outline {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+}
+
+.action-btn-outline:hover {
+    border-color: var(--color-secondary);
+    color: var(--color-secondary);
+}
+
+.action-btn-success {
+    background: var(--color-success);
+    color: #fff;
+}
+
+.action-btn-success:hover {
+    opacity: 0.9;
+}
+
+.action-btn-danger {
+    background: var(--color-error);
+    color: #fff;
+}
+
+.action-btn-danger:hover {
+    opacity: 0.9;
+}
+
+/* ── Empty State ─────────────────────────────────────────────────────── */
+
+.empty-state {
+    text-align: center;
+    padding: 64px 32px;
+    color: var(--color-text-muted);
+}
+
+.empty-state-icon {
+    font-size: 4rem;
+    margin-bottom: 16px;
+    opacity: 0.4;
+}
+
+.empty-state h3 {
+    font-size: 1.2rem;
+    margin-bottom: 8px;
+    color: var(--color-text-secondary);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .data-table-container {
+        overflow-x: auto;
+    }
+
+    .data-table {
+        min-width: 600px;
+    }
+}

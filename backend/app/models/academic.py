@@ -7,7 +7,7 @@ Subjects, StudyProgress, and StudyPlan for adaptive academic coaching.
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import DateTime, Date, Float, ForeignKey, Integer, String
+from sqlalchemy import DateTime, Date, Float, ForeignKey, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -20,7 +20,7 @@ class Subject(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
-        server_default="gen_random_uuid()",
+        server_default=text("gen_random_uuid()"),
     )
     student_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -33,7 +33,7 @@ class Subject(Base):
     marks: Mapped[float] = mapped_column(Float, nullable=False)
     exam_date: Mapped[date] = mapped_column(Date, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default="now()"
+        DateTime(timezone=True), server_default=text("now()")
     )
 
 
@@ -43,7 +43,7 @@ class StudyProgress(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
-        server_default="gen_random_uuid()",
+        server_default=text("gen_random_uuid()"),
     )
     student_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -58,7 +58,7 @@ class StudyProgress(Base):
         index=True,
     )
     completed_hours: Mapped[float] = mapped_column(Float, nullable=False)
-    study_date: Mapped[date] = mapped_column(Date, server_default="now()")
+    study_date: Mapped[date] = mapped_column(Date, server_default=text("now()"))
 
 
 class StudyPlan(Base):
@@ -67,7 +67,7 @@ class StudyPlan(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
-        server_default="gen_random_uuid()",
+        server_default=text("gen_random_uuid()"),
     )
     student_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -77,5 +77,5 @@ class StudyPlan(Base):
     )
     plan_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default="now()"
+        DateTime(timezone=True), server_default=text("now()")
     )
