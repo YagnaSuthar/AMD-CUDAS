@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import AnimatedBackground from '../components/AnimatedBackground';
 import { FiArrowRight, FiShield, FiTrendingUp, FiCpu } from 'react-icons/fi';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function Landing() {
     const { user } = useAuth();
@@ -19,6 +20,7 @@ export default function Landing() {
                         </Link>
                     ) : (
                         <>
+                            <ThemeToggle />
                             <Link to="/login" className="btn btn-secondary">Login</Link>
                             <Link to="/register" className="btn btn-primary">Register College</Link>
                         </>

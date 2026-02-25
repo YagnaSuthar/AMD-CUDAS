@@ -35,7 +35,7 @@ class AuthUserRole(str, enum.Enum):
     RECRUITER = "RECRUITER"
 
 
-class CollegeStatus(str, enum.Enum):
+class ApprovalStatus(str, enum.Enum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
@@ -78,6 +78,8 @@ class AuthUser(Base):
     department: Mapped[str | None] = mapped_column(String(255), nullable=True)
     semester: Mapped[int | None] = mapped_column(Integer, nullable=True)
     roll_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    phone_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    company_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow
@@ -105,8 +107,8 @@ class College(Base):
         nullable=False,
     )
     status: Mapped[str] = mapped_column(
-        SAEnum(CollegeStatus, name="college_status_enum", create_constraint=True),
-        default=CollegeStatus.PENDING,
+        String(20),
+        default=ApprovalStatus.PENDING,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow
@@ -131,6 +133,10 @@ class Company(Base):
         UUID(as_uuid=True),
         ForeignKey("auth_users.id", ondelete="CASCADE"),
         nullable=False,
+    )
+    status: Mapped[str] = mapped_column(
+        String(20),
+        default=ApprovalStatus.PENDING,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow

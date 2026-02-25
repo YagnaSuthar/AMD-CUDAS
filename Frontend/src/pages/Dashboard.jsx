@@ -52,19 +52,28 @@ export default function Dashboard({ analytics = false }) {
                         <div className="stat-card-header">
                             <span className="stat-card-label">Total Colleges</span>
                             <div className="stat-card-icon" style={{ background: 'var(--gradient-primary)' }}>
-                                <FiUsers />
+                                <FiBriefcase />
                             </div>
                         </div>
                         <div className="stat-card-value">{data?.total_colleges || 0}</div>
                     </div>
                     <div className="stat-card">
                         <div className="stat-card-header">
-                            <span className="stat-card-label">Approved Colleges</span>
-                            <div className="stat-card-icon" style={{ background: 'var(--color-success)' }}>
-                                <FiCheckSquare />
+                            <span className="stat-card-label">Total Companies</span>
+                            <div className="stat-card-icon" style={{ background: 'var(--gradient-secondary)' }}>
+                                <FiBriefcase />
                             </div>
                         </div>
-                        <div className="stat-card-value">{data?.approved_colleges || 0}</div>
+                        <div className="stat-card-value">{data?.total_companies || 0}</div>
+                    </div>
+                    <div className="stat-card">
+                        <div className="stat-card-header">
+                            <span className="stat-card-label">Total Users</span>
+                            <div className="stat-card-icon" style={{ background: 'var(--color-success)' }}>
+                                <FiUsers />
+                            </div>
+                        </div>
+                        <div className="stat-card-value">{data?.total_users || 0}</div>
                     </div>
                     <div className="stat-card">
                         <div className="stat-card-header">
@@ -73,16 +82,7 @@ export default function Dashboard({ analytics = false }) {
                                 <FiAlertTriangle />
                             </div>
                         </div>
-                        <div className="stat-card-value">{data?.pending_colleges || 0}</div>
-                    </div>
-                    <div className="stat-card">
-                        <div className="stat-card-header">
-                            <span className="stat-card-label">Total Users</span>
-                            <div className="stat-card-icon" style={{ background: 'var(--gradient-secondary)' }}>
-                                <FiUsers />
-                            </div>
-                        </div>
-                        <div className="stat-card-value">{data?.total_users || 0}</div>
+                        <div className="stat-card-value">{data?.pending_approvals || 0}</div>
                     </div>
                 </div>
 

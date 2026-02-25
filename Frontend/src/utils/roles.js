@@ -38,6 +38,7 @@ export const SIDEBAR_ROUTES = {
     CUDAS_ADMIN: [
         { path: '/dashboard', label: 'Dashboard', icon: FiHome },
         { path: '/dashboard/colleges', label: 'Manage Colleges', icon: FiCheckSquare },
+        { path: '/dashboard/companies', label: 'Manage Companies', icon: FiBriefcase },
         { path: '/dashboard/analytics', label: 'Analytics', icon: FiBarChart2 },
     ],
     COLLEGE_PRINCIPAL: [

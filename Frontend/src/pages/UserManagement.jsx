@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { ROLE_LABELS, CHILD_ROLE_MAP } from '../utils/roles';
 import api from '../utils/api';
 import { FiTrash2, FiCheckCircle, FiXCircle } from 'react-icons/fi';
+import { toast } from 'react-toastify';
 
 export default function UserManagement({ allUsers = false, colleges = false }) {
     const { user } = useAuth();
@@ -38,9 +39,10 @@ export default function UserManagement({ allUsers = false, colleges = false }) {
     const handleCollegeAction = async (id, action) => {
         try {
             await api.put(`/admin/${action}-college/${id}`);
+            toast.success(`College ${action === 'verify' ? 'approved' : 'rejected'}`);
             fetchData();
         } catch (err) {
-            alert('Action failed');
+            toast.error(`Action failed: ${err.response?.data?.detail || 'Unknown error'}`);
         }
     };
 

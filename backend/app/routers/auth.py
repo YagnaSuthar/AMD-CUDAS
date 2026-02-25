@@ -21,7 +21,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
-from app.models.auth import AuthUser, AuthUserRole, College
+from app.models.auth import AuthUser, AuthUserRole, College, ApprovalStatus
 from app.schemas.auth import (
     ForgotPasswordRequest,
     LoginRequest,
@@ -65,10 +65,18 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     if not user.is_verified:
+        # Generate OTP
+        otp = str(random.randint(100000, 999999))
+        user.verification_token = otp
+        user.verification_token_expiry = datetime.now(timezone.utc) + timedelta(minutes=15)
+        
+        # Send OTP email
+        send_verification_email(user.email, otp)
+        
         # Return a custom error that the frontend can catch to redirect to OTP page
         return JSONResponse(
             status_code=403, 
-            content={"detail": "Email not verified.", "unverified": True, "email": user.email}
+            content={"detail": "Email not verified. A new OTP has been sent to your email.", "unverified": True, "email": user.email}
         )
 
     # Check if college principal and college is approved
@@ -77,10 +85,33 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
             select(College).where(College.principal_id == user.id)
         )
         college = college_result.scalar_one_or_none()
-        if college and college.status == "pending":
+        if college and college.status == ApprovalStatus.PENDING:
             raise HTTPException(
                 status_code=403,
                 detail="Your college registration is pending admin approval.",
+            )
+        if college and college.status == ApprovalStatus.REJECTED:
+            raise HTTPException(
+                status_code=403,
+                detail="Your college registration has been rejected.",
+            )
+
+    # Check if company admin and company is approved
+    if user.role == AuthUserRole.COMPANY_ADMIN:
+        from app.models.auth import Company
+        company_result = await db.execute(
+            select(Company).where(Company.company_admin_id == user.id)
+        )
+        company = company_result.scalar_one_or_none()
+        if company and company.status == ApprovalStatus.PENDING:
+            raise HTTPException(
+                status_code=403,
+                detail="Your company registration is pending admin approval.",
+            )
+        if company and company.status == ApprovalStatus.REJECTED:
+            raise HTTPException(
+                status_code=403,
+                detail="Your company registration has been rejected.",
             )
 
     token_data = {"sub": user.email, "role": user.role, "user_id": str(user.id)}
@@ -115,8 +146,8 @@ async def register_principal(
         hashed_password=hash_password(body.password),
         role=AuthUserRole.COLLEGE_PRINCIPAL,
         is_verified=False,
-        verification_token=otp,
-        verification_token_expiry=expiry,
+        phone_number=body.phone_number,
+        company_name=body.company_name,
     )
     db.add(user)
     await db.flush()
@@ -127,10 +158,7 @@ async def register_principal(
     )
     db.add(college)
 
-    # Send verification email with OTP
-    send_verification_email(body.email, otp)
-
-    return MessageResponse(message="Registration successful! Please check your email for the OTP.")
+    return MessageResponse(message="Registration successful! Please login to verify your account.")
 
 
 # ── Verify Email ──────────────────────────────────────────────────────────

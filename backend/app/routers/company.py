@@ -38,15 +38,13 @@ async def register_company(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Email already registered")
 
-    verification_token = str(uuid.uuid4())
-
     admin_user = AuthUser(
         name=body.name,
         email=body.email,
         hashed_password=hash_password(body.password),
         role=AuthUserRole.COMPANY_ADMIN,
         is_verified=False,
-        verification_token=verification_token,
+        phone_number=body.phone_number,
     )
     db.add(admin_user)
     await db.flush()
@@ -57,10 +55,7 @@ async def register_company(
     )
     db.add(company)
 
-    base_url = str(request.base_url).rstrip("/").replace(":8000", ":5173")
-    send_verification_email(body.email, verification_token, base_url)
-
-    return MessageResponse(message="Company registered! Please verify your email.")
+    return MessageResponse(message="Company registered! Please login to verify your email.")
 
 
 # ── List Recruiters ───────────────────────────────────────────────────────

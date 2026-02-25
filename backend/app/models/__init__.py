@@ -20,6 +20,6 @@ from app.models.auth import (  # noqa: F401
     AuthUser,
     AuthUserRole,
     College,
-    CollegeStatus,
+    ApprovalStatus,
     Company,
 )

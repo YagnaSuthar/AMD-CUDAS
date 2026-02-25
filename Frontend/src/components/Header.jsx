@@ -2,6 +2,7 @@ import { FiMenu, FiLogOut, FiUser } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import { ROLE_LABELS } from '../utils/roles';
 import { useNavigate } from 'react-router-dom';
+import ThemeToggle from './ThemeToggle';
 
 export default function Header({ onMenuClick }) {
     const { user, logout } = useAuth();
@@ -33,6 +34,7 @@ export default function Header({ onMenuClick }) {
                         </div>
                     </div>
                 )}
+                <ThemeToggle />
                 <button className="header-logout-btn" onClick={handleLogout} title="Logout">
                     <FiLogOut />
                     <span className="logout-text">Logout</span>

@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import api from '../utils/api';
 import AnimatedBackground from '../components/AnimatedBackground';
 import AuthNavbar from '../components/AuthNavbar';
+import { toast } from 'react-toastify';
 
 export default function ResetPassword() {
     const [searchParams] = useSearchParams();
@@ -11,32 +12,27 @@ export default function ResetPassword() {
 
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [status, setStatus] = useState({ type: '', msg: '' });
     const [isLoading, setIsLoading] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
         if (password !== confirmPassword) {
-            setStatus({ type: 'error', msg: 'Passwords do not match.' });
+            toast.error('Passwords do not match.');
             return;
         }
 
         setIsLoading(true);
-        setStatus({ type: '', msg: '' });
 
         try {
             const res = await api.post('/auth/reset-password', {
                 token,
                 new_password: password
             });
-            setStatus({ type: 'success', msg: res.data.message });
+            toast.success(res.data.message);
             setTimeout(() => navigate('/login'), 2000);
         } catch (err) {
-            setStatus({
-                type: 'error',
-                msg: err.response?.data?.detail || 'Reset failed. Token may be expired.'
-            });
+            toast.error(err.response?.data?.detail || 'Reset failed. Token may be expired.');
         } finally {
             setIsLoading(false);
         }
@@ -67,12 +63,6 @@ export default function ResetPassword() {
                     <h1 className="gradient-text">Reset Password</h1>
                     <p>Please enter your new password.</p>
                 </div>
-
-                {status.msg && (
-                    <div className={`alert alert-${status.type}`} style={{ marginBottom: '16px' }}>
-                        {status.msg}
-                    </div>
-                )}
 
                 <form onSubmit={handleSubmit} className="auth-form">
                     <div className="form-group">

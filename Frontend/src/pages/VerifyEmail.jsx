@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import api from '../utils/api';
 import AnimatedBackground from '../components/AnimatedBackground';
 import AuthNavbar from '../components/AuthNavbar';
+import { toast } from 'react-toastify';
 
 export default function VerifyEmail() {
     const [searchParams] = useSearchParams();
@@ -13,8 +14,6 @@ export default function VerifyEmail() {
     const [otp, setOtp] = useState('');
 
     // UI states
-    const [error, setError] = useState('');
-    const [successMsg, setSuccessMsg] = useState('');
     const [isVerifying, setIsVerifying] = useState(false);
     const [isResending, setIsResending] = useState(false);
 
@@ -27,23 +26,21 @@ export default function VerifyEmail() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError('');
-        setSuccessMsg('');
 
         if (!email) {
-            setError('Email is required to verify OTP.');
+            toast.error('Email is required to verify OTP.');
             return;
         }
 
         if (otp.length !== 6) {
-            setError('OTP must be exactly 6 digits.');
+            toast.error('OTP must be exactly 6 digits.');
             return;
         }
 
         setIsVerifying(true);
         try {
             const res = await api.post('/auth/verify-email', { email, otp });
-            setSuccessMsg(res.data.message || 'Email verified successfully!');
+            toast.success(res.data.message || 'Email verified successfully!');
             // clear form
             setOtp('');
 
@@ -52,7 +49,7 @@ export default function VerifyEmail() {
                 navigate('/login');
             }, 2000);
         } catch (err) {
-            setError(err.response?.data?.detail || 'Verification failed. Invalid or expired OTP.');
+            toast.error(err.response?.data?.detail || 'Verification failed. Invalid or expired OTP.');
         } finally {
             setIsVerifying(false);
         }
@@ -60,19 +57,17 @@ export default function VerifyEmail() {
 
     const handleResend = async () => {
         if (!email) {
-            setError('Please enter your email to request a new OTP.');
+            toast.error('Please enter your email to request a new OTP.');
             return;
         }
 
-        setError('');
-        setSuccessMsg('');
         setIsResending(true);
 
         try {
             const res = await api.post('/auth/resend-verification', { email });
-            setSuccessMsg(res.data.message || 'A new OTP has been sent to your email.');
+            toast.success(res.data.message || 'A new OTP has been sent to your email.');
         } catch (err) {
-            setError(err.response?.data?.detail || 'Failed to resend OTP. Please try again later.');
+            toast.error(err.response?.data?.detail || 'Failed to resend OTP. Please try again later.');
         } finally {
             setIsResending(false);
         }
@@ -89,9 +84,6 @@ export default function VerifyEmail() {
                     <p>Enter the 6-digit code sent to your email.</p>
                 </div>
 
-                {error && <div className="alert alert-error" style={{ marginBottom: '16px' }}>{error}</div>}
-                {successMsg && <div className="alert alert-success" style={{ marginBottom: '16px' }}>{successMsg}</div>}
-
                 <form onSubmit={handleSubmit} className="auth-form">
                     <div className="form-group">
                         <label className="form-label">Email Address</label>
@@ -102,6 +94,7 @@ export default function VerifyEmail() {
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="name@cudas.edu"
                             required
+                            readOnly
                         />
                     </div>
 

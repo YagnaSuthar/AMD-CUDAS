@@ -17,6 +17,8 @@ class RegisterPrincipalRequest(BaseModel):
     email: EmailStr
     password: str
     college_name: str
+    phone_number: Optional[str] = None
+    company_name: Optional[str] = None
 
 
 class VerifyEmailRequest(BaseModel):
@@ -46,6 +48,7 @@ class RegisterCompanyRequest(BaseModel):
     email: EmailStr
     password: str
     company_name: str
+    phone_number: Optional[str] = None
 
 
 # ── Response Schemas ──────────────────────────────────────────────────────
@@ -95,6 +98,7 @@ class CompanyResponse(BaseModel):
     name: str
     admin_name: str
     admin_email: str
+    status: str
     created_at: str
 
     class Config:
@@ -103,8 +107,7 @@ class CompanyResponse(BaseModel):
 
 class AnalyticsResponse(BaseModel):
     total_colleges: int
-    approved_colleges: int
-    pending_colleges: int
     total_companies: int
     total_users: int
+    pending_approvals: int
     users_by_role: dict

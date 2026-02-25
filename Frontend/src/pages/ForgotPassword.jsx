@@ -3,23 +3,22 @@ import { Link } from 'react-router-dom';
 import api from '../utils/api';
 import AnimatedBackground from '../components/AnimatedBackground';
 import AuthNavbar from '../components/AuthNavbar';
+import { toast } from 'react-toastify';
 
 export default function ForgotPassword() {
     const [email, setEmail] = useState('');
-    const [status, setStatus] = useState({ type: '', msg: '' });
     const [isLoading, setIsLoading] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsLoading(true);
-        setStatus({ type: '', msg: '' });
 
         try {
             const res = await api.post('/auth/forgot-password', { email });
-            setStatus({ type: 'success', msg: res.data.message });
+            toast.success(res.data.message);
             setEmail('');
         } catch (err) {
-            setStatus({ type: 'error', msg: 'Something went wrong. Please try again later.' });
+            toast.error('Something went wrong. Please try again later.');
         } finally {
             setIsLoading(false);
         }
@@ -35,12 +34,6 @@ export default function ForgotPassword() {
                     <h1 className="gradient-text">Forgot Password</h1>
                     <p>Enter your email to receive a reset link.</p>
                 </div>
-
-                {status.msg && (
-                    <div className={`alert alert-${status.type}`} style={{ marginBottom: '16px' }}>
-                        {status.msg}
-                    </div>
-                )}
 
                 <form onSubmit={handleSubmit} className="auth-form">
                     <div className="form-group">
