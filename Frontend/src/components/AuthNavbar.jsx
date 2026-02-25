@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiSun, FiMoon } from 'react-icons/fi';
 
-export default function AuthNavbar() {
+export default function AuthNavbar({ rightContent = null }) {
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
 
     useEffect(() => {
@@ -35,24 +35,27 @@ export default function AuthNavbar() {
             }}>
                 CUDAS
             </Link>
-            <button
-                onClick={toggleTheme}
-                style={{
-                    background: 'transparent',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '50%',
-                    width: '40px',
-                    height: '40px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    color: 'var(--text-primary)',
-                    transition: 'all 0.3s ease'
-                }}
-            >
-                {theme === 'light' ? <FiMoon size={20} /> : <FiSun size={20} />}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {rightContent}
+                <button
+                    onClick={toggleTheme}
+                    style={{
+                        background: 'transparent',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '50%',
+                        width: '40px',
+                        height: '40px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        color: 'var(--text-primary)',
+                        transition: 'all 0.3s ease'
+                    }}
+                >
+                    {theme === 'light' ? <FiMoon size={20} /> : <FiSun size={20} />}
+                </button>
+            </div>
         </nav>
     );
 }

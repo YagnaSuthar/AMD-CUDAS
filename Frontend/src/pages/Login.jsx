@@ -61,33 +61,24 @@ export default function Login() {
                     </div>
 
                     <div className="form-group">
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <div className="form-label-row">
                             <label className="form-label">Password</label>
-                            <Link to="/forgot-password" style={{ fontSize: '0.8rem' }}>Forgot password?</Link>
+                            <Link to="/forgot-password" className="form-helper-link">Forgot password?</Link>
                         </div>
-                        <div style={{ position: 'relative' }}>
+                        <div className="input-with-icon">
                             <input
                                 type={showPassword ? "text" : "password"}
-                                className="form-input"
+                                className="form-input form-input-with-icon"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="••••••••"
                                 required
-                                style={{ paddingRight: '40px' }}
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                style={{
-                                    position: 'absolute',
-                                    right: '10px',
-                                    top: '50%',
-                                    transform: 'translateY(-50%)',
-                                    background: 'none',
-                                    border: 'none',
-                                    color: 'var(--color-text-muted)',
-                                    cursor: 'pointer'
-                                }}
+                                className="input-icon-btn"
+                                aria-label={showPassword ? 'Hide password' : 'Show password'}
                             >
                                 {showPassword ? <FaEyeSlash /> : <FaEye />}
                             </button>
