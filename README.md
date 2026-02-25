@@ -1,4 +1,4 @@
-# 🚀 CUDA's AI Agents – Full Stack FastAPI Backend
+# 🚀 CUDAS AI Agents – Full Stack FastAPI Backend
 
 A modular FastAPI backend containing multiple AI agents:  
 - Academic Agent  
