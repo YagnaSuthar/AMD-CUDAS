@@ -22,10 +22,10 @@ class Settings(BaseSettings):
     DATABASE_ECHO: bool = False
 
     # ── LLM Configuration ──────────────────────────────────────────────────
-    # GEMINI_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
     # GEMINI_MODEL_NAME: str = "gemini-2.5-flash"
-    GROQ_API_KEY: str = ""
-    GROQ_MODEL_NAME: str = "llama3-70b-8192"
+    # GROQ_API_KEY: str = ""
+    # GROQ_MODEL_NAME: str = "llama3-70b-8192"
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 4096
 
