@@ -20,6 +20,56 @@ from .validators import _validate_plan_schema, _validate_subjects_and_hours
 logger = logging.getLogger(__name__)
 
 
+def _format_hours_minutes(hours_float: float) -> str:
+    total_minutes = int(round(float(hours_float) * 60))
+    h = total_minutes // 60
+    m = total_minutes % 60
+    if h > 0 and m == 0:
+        return f"{h} hours"
+    if h == 0:
+        return f"{m} minutes"
+    return f"{h} hours {m} minutes"
+
+
+def _apply_display_formatting(plan: dict, structured_data: dict) -> None:
+    allocations = structured_data.get("allocations")
+    if not isinstance(allocations, list) or not allocations:
+        return
+
+    expected: dict[str, str] = {}
+    display: dict[str, str] = {}
+    for a in allocations:
+        if not isinstance(a, dict):
+            continue
+        subject = a.get("subject")
+        allocated = a.get("allocated_hours")
+        if not isinstance(subject, str) or not isinstance(allocated, (int, float)):
+            continue
+        hours_str = f"{float(allocated):.2f}"
+        expected[subject] = hours_str
+        display[subject] = _format_hours_minutes(float(allocated))
+
+    for day in plan.get("daily_plan", []):
+        tasks = day.get("tasks")
+        if not isinstance(tasks, list):
+            continue
+        new_tasks: list[str] = []
+        for t in tasks:
+            if not isinstance(t, str):
+                new_tasks.append(t)
+                continue
+            updated_t = t
+            for subject, hours_str in expected.items():
+                needle = f"{subject}: {hours_str}"
+                if needle in updated_t:
+                    updated_t = updated_t.replace(
+                        needle,
+                        f"{subject} – {display.get(subject, hours_str)}",
+                    )
+            new_tasks.append(updated_t)
+        day["tasks"] = new_tasks
+
+
 async def generate_study_plan(
     student_data: dict,
     daily_available_hours: int,
@@ -97,6 +147,7 @@ async def generate_study_plan(
 
             _validate_plan_schema(data)
             _validate_subjects_and_hours(data, structured_data)
+            _apply_display_formatting(data, structured_data)
             return data
         except Exception as exc:
             last_err = exc

@@ -48,21 +48,39 @@ def build_llm_messages(structured_data: dict) -> list[dict]:
     weak_subjects = ", ".join(perf.get("weak_subjects", [])) or "None"
     strong_subjects = ", ".join(perf.get("strong_subjects", [])) or "None"
     missed_subjects = ", ".join(perf.get("missed_subjects", [])) or "None"
+
+    # Detect revision mode subjects (days_left <= 3)
+    allocations = structured_data.get("allocations", [])
+    revision_subjects = [
+        a["subject"] for a in allocations if a.get("days_left", 0) <= 3
+    ]
+    revision_note = ""
+    if revision_subjects:
+        revision_note = (
+            "Revision Mode: Subjects with exams in ≤3 days should be prioritized for review. "
+            "For these subjects, format tasks as: "
+            "<Subject> – Revision + Previous Year Questions"
+        )
+
+    user_prompt = STUDY_PLAN_USER_PROMPT.format(
+        completion_ratio=completion_ratio,
+        weak_subjects=weak_subjects,
+        strong_subjects=strong_subjects,
+        missed_subjects=missed_subjects,
+        structured_data=json.dumps(
+            structured_data,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ),
+    )
+    if revision_note:
+        user_prompt = f"{revision_note}\n\n{user_prompt}"
+
     return [
         {"type": "system", "content": STUDY_PLAN_SYSTEM_PROMPT},
         {
             "type": "human",
-            "content": STUDY_PLAN_USER_PROMPT.format(
-                completion_ratio=completion_ratio,
-                weak_subjects=weak_subjects,
-                strong_subjects=strong_subjects,
-                missed_subjects=missed_subjects,
-                structured_data=json.dumps(
-                    structured_data,
-                    ensure_ascii=False,
-                    separators=(",", ":"),
-                    sort_keys=True,
-                )
-            ),
+            "content": user_prompt,
         },
     ]
