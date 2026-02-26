@@ -61,8 +61,18 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(AuthUser).where(AuthUser.email == body.email))
     user = result.scalar_one_or_none()
 
-    if not user or not verify_password(body.password, user.hashed_password):
+    if not user or (user.hashed_password and not verify_password(body.password, user.hashed_password)):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    if user.hashed_password is None or user.must_reset_password:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "detail": "Password reset required before login.",
+                "reset_required": True,
+                "email": user.email
+            }
+        )
 
     if not user.is_verified:
         # Generate OTP
@@ -253,6 +263,7 @@ async def reset_password(body: ResetPasswordRequest, db: AsyncSession = Depends(
         raise HTTPException(status_code=400, detail="Reset token has expired")
 
     user.hashed_password = hash_password(body.new_password)
+    user.must_reset_password = False
     user.reset_token = None
     user.reset_token_expiry = None
 

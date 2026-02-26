@@ -28,6 +28,9 @@ export default function Login() {
             if (err.response?.data?.unverified) {
                 toast.info('Please verify your email to continue.');
                 navigate(`/verify-email?email=${encodeURIComponent(email)}`);
+            } else if (err.response?.data?.reset_required) {
+                toast.info('Password reset required before login.');
+                navigate(`/forgot-password?email=${encodeURIComponent(email)}`);
             } else {
                 toast.error(err.response?.data?.detail || 'Login failed. Please check your credentials.');
             }

@@ -1,7 +1,4 @@
-"""
-College router — endpoints for principals to manage their college hierarchy.
-"""
-
+import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import RoleChecker, get_current_user
 from app.models.auth import AuthUser
-from app.schemas.auth import UserResponse
+from app.schemas.auth import UserResponse, MessageResponse
 from app.services.user_service import get_children
 
 router = APIRouter(prefix="/college", tags=["College Management"])
@@ -46,7 +43,34 @@ async def list_my_users(
     ]
 
 
-# ── Get all users under hierarchy (recursive) ────────────────────────────
+# ── Delete subordinate user ───────────────────────────────────────────────
+
+
+@router.delete("/users/{user_id}", response_model=MessageResponse)
+async def delete_subordinate_user(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Delete a user that was created by the current user."""
+    if isinstance(current_user, dict):
+        raise HTTPException(status_code=403, detail="CUDAS admin uses /admin routes")
+
+    # Verify the user is a child of the current user
+    result = await db.execute(
+        select(AuthUser).where(AuthUser.id == user_id, AuthUser.parent_id == current_user.id)
+    )
+    user_to_delete = result.scalar_one_or_none()
+
+    if not user_to_delete:
+        raise HTTPException(
+            status_code=404, detail="User not found or is not your subordinate."
+        )
+
+    await db.delete(user_to_delete)
+    await db.commit()
+
+    return MessageResponse(message="User deleted successfully.")
 
 
 @router.get("/all-users", response_model=list[UserResponse])

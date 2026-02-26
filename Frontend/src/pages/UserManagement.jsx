@@ -46,6 +46,17 @@ export default function UserManagement({ allUsers = false, colleges = false }) {
         }
     };
 
+    const handleDeleteUser = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
+        try {
+            await api.delete(`/college/users/${id}`);
+            toast.success('User deleted successfully');
+            fetchData();
+        } catch (err) {
+            toast.error(`Deletion failed: ${err.response?.data?.detail || 'Unknown error'}`);
+        }
+    };
+
     if (loading) return <div className="spinner" style={{ margin: '40px auto' }}></div>;
 
     // --- RENDERING ADMIN COLLEGE LIST ---
@@ -110,7 +121,9 @@ export default function UserManagement({ allUsers = false, colleges = false }) {
 
     // --- RENDERING USER LIST ---
     const targetRole = CHILD_ROLE_MAP[user.role] || 'Users';
-    const pageTitle = allUsers ? 'All Subordinate Users' : `Manage ${ROLE_LABELS[targetRole] || targetRole}s`;
+    // If current user is principal, targetRole is HOD
+    const isPrincipal = user.role === 'COLLEGE_PRINCIPAL';
+    const pageTitle = isPrincipal ? 'HOD Management' : (allUsers ? 'All Subordinate Users' : `Manage ${ROLE_LABELS[targetRole] || targetRole}s`);
 
     return (
         <div className="dashboard-content fade-in">
@@ -135,6 +148,7 @@ export default function UserManagement({ allUsers = false, colleges = false }) {
                                 <th>Role</th>
                                 <th>Contact</th>
                                 <th>Status</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -159,6 +173,15 @@ export default function UserManagement({ allUsers = false, colleges = false }) {
                                         <span className={`status-badge ${usr.is_verified ? 'status-badge-approved' : 'status-badge-pending'}`}>
                                             {usr.is_verified ? 'Verified' : 'Pending'}
                                         </span>
+                                    </td>
+                                    <td>
+                                        <button
+                                            onClick={() => handleDeleteUser(usr.id)}
+                                            className="action-btn action-btn-danger"
+                                            title="Delete User"
+                                        >
+                                            <FiTrash2 />
+                                        </button>
                                     </td>
                                 </tr>
                             ))}

@@ -101,29 +101,37 @@ async def process_csv_upload(
         if existing:
             continue
 
-        password = generate_password()
+        is_hod = target_role == "HOD"
+        password = None if is_hod else generate_password()
+        
         new_user = AuthUser(
             name=row["name"],
             email=row["email"],
-            hashed_password=hash_password(password),
+            hashed_password=hash_password(password) if password else None,
             role=target_role,
             parent_id=parent_id,
             is_verified=True,  # auto-verified when created by parent
             department=row.get("department"),
             semester=int(row["semester"]) if row.get("semester") else None,
             roll_number=row.get("roll_number"),
+            must_reset_password=True if is_hod else False,
         )
         db.add(new_user)
         created_count += 1
 
-        credentials.append({
-            "name": row["name"],
-            "email": row["email"],
-            "password": password,
-        })
+        if password:
+            credentials.append({
+                "name": row["name"],
+                "email": row["email"],
+                "password": password,
+            })
 
-        # Send credentials email
-        send_credentials_email(row["email"], row["name"], password, target_role)
+            # Send credentials email
+            send_credentials_email(row["email"], row["name"], password, target_role)
+        else:
+            # For HODs, send a different email or notify them to reset password
+            # Assuming send_credentials_email can handle None password or we update it
+            send_credentials_email(row["email"], row["name"], "RESET_REQUIRED", target_role)
 
     await db.flush()
 

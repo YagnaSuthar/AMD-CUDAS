@@ -54,7 +54,8 @@ class AuthUser(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    hashed_password: Mapped[str] = mapped_column(Text, nullable=False)
+    hashed_password: Mapped[str | None] = mapped_column(Text, nullable=True)
+    must_reset_password: Mapped[bool] = mapped_column(Boolean, default=False)
     role: Mapped[str] = mapped_column(
         SAEnum(AuthUserRole, name="auth_user_role_enum", create_constraint=True),
         nullable=False,
