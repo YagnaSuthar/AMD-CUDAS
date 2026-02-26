@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { FiAward, FiTrendingUp, FiHash, FiBarChart2 } from 'react-icons/fi';
+import { FiAward, FiTrendingUp, FiHash, FiBarChart2, FiMic } from 'react-icons/fi';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell } from 'recharts';
+import InterviewModal from '../components/InterviewModal';
+import '../style/interview.css';
 
 /* ── SVG Gauge ─────────────────────────────────────────────────────── */
 function Gauge({ value, max = 10, label, color = '#00bcd4', unit = '' }) {
@@ -38,6 +40,7 @@ export default function StudentDashboard() {
     const [data, setData] = useState(null);
     const [timetable, setTimetable] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [showInterview, setShowInterview] = useState(false);
 
     useEffect(() => {
         (async () => {
@@ -90,6 +93,20 @@ export default function StudentDashboard() {
                 <h1 className="gradient-text">Academic Overview</h1>
                 <p>Welcome, <strong>{user.name}</strong> | {user.department || 'N/A'}</p>
             </div>
+
+            {/* Technical Skills Section */}
+            {user.skills && user.skills.length > 0 && (
+                <div className="dashboard-card fade-in-up" style={{ marginBottom: '20px', padding: '15px' }}>
+                    <h4 style={{ marginBottom: '10px', fontSize: '0.9rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Technical Skills</h4>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {user.skills.map((skill, idx) => (
+                            <span key={idx} className="badge bg-secondary" style={{ padding: '6px 12px', borderRadius: '50px' }}>
+                                {skill}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <div className="stats-grid fade-in-up">
                 <div className="stat-card">

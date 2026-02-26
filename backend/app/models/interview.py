@@ -54,6 +54,12 @@ class Difficulty(str, enum.Enum):
     HARD = "hard"
 
 
+class BehaviorFlag(str, enum.Enum):
+    POLITE = "polite"
+    ARROGANT = "arrogant"
+    NEUTRAL = "neutral"
+
+
 # ── Models ────────────────────────────────────────────────────────────────
 
 
@@ -76,14 +82,6 @@ class User(Base):
         DateTime(timezone=True), default=datetime.utcnow
     )
 
-    # Relationships
-    profile: Mapped[Optional["StudentProfile"]] = relationship(
-        back_populates="student", uselist=False, cascade="all, delete-orphan"
-    )
-    sessions: Mapped[List["InterviewSession"]] = relationship(
-        back_populates="student", cascade="all, delete-orphan"
-    )
-
 
 class StudentProfile(Base):
     """Extended profile for a student user."""
@@ -92,15 +90,14 @@ class StudentProfile(Base):
 
     student_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("auth_users.id", ondelete="CASCADE"),
         primary_key=True,
     )
     resume_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     portfolio_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     experience_years: Mapped[int] = mapped_column(Integer, default=0)
 
-    # Relationships
-    student: Mapped["User"] = relationship(back_populates="profile")
+    # Relationships (no back_populates to AuthUser — separate model)
     skills: Mapped[List["Skill"]] = relationship(
         back_populates="profile", cascade="all, delete-orphan"
     )
@@ -136,7 +133,7 @@ class InterviewSession(Base):
     )
     student_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("auth_users.id", ondelete="CASCADE"),
         nullable=False,
     )
     job_role: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -156,9 +153,12 @@ class InterviewSession(Base):
     end_time: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    total_questions: Mapped[int] = mapped_column(Integer, default=0)
+    overall_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    communication_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    recommendation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    # Relationships
-    student: Mapped["User"] = relationship(back_populates="sessions")
+    # Relationships (student_id references auth_users, no ORM back_populates)
     questions: Mapped[List["Question"]] = relationship(
         back_populates="session", cascade="all, delete-orphan"
     )
@@ -187,6 +187,7 @@ class Question(Base):
         nullable=False,
     )
     question_text: Mapped[str] = mapped_column(Text, nullable=False)
+    question_order: Mapped[int] = mapped_column(Integer, default=0)
     topic: Mapped[str] = mapped_column(String(255), nullable=False)
     difficulty: Mapped[str] = mapped_column(
         SAEnum(Difficulty, name="difficulty_enum", create_constraint=True),
@@ -250,7 +251,13 @@ class AnswerScore(Base):
     clarity: Mapped[int] = mapped_column(Integer, nullable=False)
     depth: Mapped[int] = mapped_column(Integer, nullable=False)
     confidence: Mapped[int] = mapped_column(Integer, nullable=False)
+    technical_score: Mapped[int] = mapped_column(Integer, default=5)
     overall_score: Mapped[float] = mapped_column(Float, nullable=False)
+    behavior_flag: Mapped[str] = mapped_column(
+        SAEnum(BehaviorFlag, name="behavior_flag_enum", create_constraint=True),
+        nullable=False,
+        default=BehaviorFlag.NEUTRAL,
+    )
 
     # Relationships
     answer: Mapped["Answer"] = relationship(back_populates="score")
@@ -269,6 +276,8 @@ class InterviewMemory(Base):
     summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
     weak_areas: Mapped[list] = mapped_column(ARRAY(String), default=list)
     strong_areas: Mapped[list] = mapped_column(ARRAY(String), default=list)
+    last_behavior_state: Mapped[str] = mapped_column(String(50), default="neutral")
+    token_usage: Mapped[int] = mapped_column(Integer, default=0)
 
     # Relationships
     session: Mapped["InterviewSession"] = relationship(back_populates="memory")

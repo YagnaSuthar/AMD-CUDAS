@@ -1,7 +1,7 @@
 """
 Answer Evaluation Agent.
-Evaluates a candidate's answer against the question on multiple dimensions
-and recommends the next difficulty level.
+Evaluates a candidate's answer on clarity, depth, confidence, technical accuracy,
+and classifies behavioral tone (polite/arrogant/neutral).
 """
 
 import logging
@@ -19,11 +19,13 @@ async def evaluate_answer(
     llm: Any,
 ) -> Dict[str, Any]:
     """
-    Evaluate the candidate's answer for clarity, depth, and confidence.
+    Evaluate the candidate's answer for clarity, depth, confidence,
+    technical accuracy, and behavioral tone.
 
     Returns
     -------
-    dict   {"clarity": int, "depth": int, "confidence": int, "next_difficulty": str}
+    dict   {"clarity": int, "depth": int, "confidence": int,
+            "technical_score": int, "behavior_flag": str, "next_difficulty": str}
     """
     logger.info("AnswerEvaluatorAgent: evaluating answer")
 
@@ -36,13 +38,30 @@ async def evaluate_answer(
         response = await llm.ainvoke(prompt)
         content: str = getattr(response, "content", str(response))
         result = parse_json_response(content)
-        logger.info("AnswerEvaluatorAgent: scores c=%s d=%s conf=%s",
-                     result.get("clarity"), result.get("depth"), result.get("confidence"))
+
+        clarity = int(result.get("clarity", 5))
+        depth = int(result.get("depth", 5))
+        confidence = int(result.get("confidence", 5))
+        technical_score = int(result.get("technical_score", 5))
+        behavior_flag = result.get("behavior_flag", "neutral")
+        next_difficulty = result.get("next_difficulty", "medium")
+
+        # Validate behavior_flag
+        if behavior_flag not in ("polite", "arrogant", "neutral"):
+            behavior_flag = "neutral"
+
+        logger.info(
+            "AnswerEvaluatorAgent: c=%s d=%s conf=%s tech=%s behavior=%s",
+            clarity, depth, confidence, technical_score, behavior_flag,
+        )
+
         return {
-            "clarity": int(result.get("clarity", 5)),
-            "depth": int(result.get("depth", 5)),
-            "confidence": int(result.get("confidence", 5)),
-            "next_difficulty": result.get("next_difficulty", "medium"),
+            "clarity": clarity,
+            "depth": depth,
+            "confidence": confidence,
+            "technical_score": technical_score,
+            "behavior_flag": behavior_flag,
+            "next_difficulty": next_difficulty,
         }
     except Exception as exc:
         logger.error("AnswerEvaluatorAgent LLM error: %s", exc)

@@ -16,7 +16,10 @@ from sqlalchemy import (
     Text,
     Boolean,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+
+# ... (skipping some lines to replace the right section later, let's just do a clean replace)
+
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -81,6 +84,8 @@ class AuthUser(Base):
     roll_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     phone_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
     company_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    skills: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    resume_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow

@@ -1,116 +1,184 @@
 """
 Centralized LLM prompt templates for the interview system.
 All prompts are stored as constants — no hard-coded strings in agents.
+Optimized for Groq Llama-3.1-8b-instant: short system messages, structured JSON.
 """
 
 # ── Profile Intelligence ──────────────────────────────────────────────────
 
-PROFILE_ANALYSIS_PROMPT = """You are a senior technical recruiter analyzing a candidate profile.
+PROFILE_ANALYSIS_PROMPT = """Analyze this candidate profile. Return JSON only.
 
-Given the following candidate information, produce a JSON object with these fields:
-- "skills": a list of the candidate's key technical and soft skills
-- "experience_level": one of "junior", "mid", "senior", or "lead"
-- "domains": a list of professional domains the candidate is suited for
-
-CANDIDATE INFORMATION:
 Resume: {resume_text}
 Portfolio: {portfolio_text}
 Experience: {experience_years} years
-Known Skills: {skills}
+Skills: {skills}
 
-Respond ONLY with the JSON object.
-
-    CRITICAL INSTRUCTION: Output exactly one raw JSON object. Do NOT wrap it in ```json code fences. Do NOT add any conversational text before or after.
-    """
+Return JSON:
+{{"skills": ["skill1","skill2"], "experience_level": "junior|mid|senior|lead", "domains": ["domain1"], "has_projects": true, "project_summary": "brief summary of projects"}}"""
 
 
-# ── Question Generator ────────────────────────────────────────────────────
+# ── Question Generator (Dynamic, Context-Aware, Resume-Aware) ─────────────
 
-QUESTION_GENERATION_PROMPT = """You are a technical interviewer generating a single interview question.
+QUESTION_GENERATION_PROMPT = """Generate one interview question. Return JSON only.
 
-Context about the candidate and session:
-{context}
+Student skills: {skill_summary}
+Last question asked: {last_question}
+Summary of last answer: {last_answer_summary}
+Student behavior: {behavior}
+Difficulty: {difficulty}
+Resume context: {resume_context}
 
-Difficulty level requested: {difficulty}
+Rules:
+1. Question must relate to student's skills
+2. Must NOT repeat the last question topic
+3. If behavior is "arrogant", ask a harder probing question
+4. If last answer was short or weak, ask a deeper follow-up on the same topic
+5. If last answer was detailed, ask the next logical technical question
+6. Use a human, professional, conversational tone — NOT robotic
+7. Clear, specific, answerable in 2-3 minutes
 
-Generate a question that:
-1. Matches the requested difficulty level
-2. Is relevant to the candidate's domain and skills
-3. Tests real understanding, not just recall
-4. Is clear, specific, and answerable in 2-3 minutes
-
-    Respond ONLY with a JSON object containing:
-    - "question": the interview question text
-    - "topic": the specific topic being tested (e.g. "Python async programming")
-    - "difficulty": the actual difficulty ("easy", "medium", or "hard")
-
-    CRITICAL INSTRUCTION: Output exactly one raw JSON object. Do NOT wrap it in ```json code fences. Do NOT add any conversational text before or after.
-    """
+Return JSON:
+{{"question": "question text", "topic": "specific topic", "difficulty": "easy|medium|hard"}}"""
 
 
-# ── Answer Evaluation ─────────────────────────────────────────────────────
+# ── Resume-Aware First Question (with projects) ─────────────────────────
 
-ANSWER_EVALUATION_PROMPT = """You are a senior technical interviewer evaluating a candidate's answer.
+RESUME_PROJECT_QUESTION_PROMPT = """Generate the first interview question about the student's projects. Return JSON only.
+
+Student skills: {skill_summary}
+Project summary: {project_summary}
+Difficulty: {difficulty}
+
+Rules:
+1. Ask about a specific project from their resume
+2. Ask about technologies used, challenges faced, or a real-world problem they solved
+3. Tone must be human, professional, and friendly — like a real interviewer
+4. Example tone: "I noticed you have experience in web development. Can you explain one project where you solved a real-world problem?"
+
+Return JSON:
+{{"question": "question text", "topic": "specific topic", "difficulty": "easy|medium|hard"}}"""
+
+
+# ── Resume-Aware First Question (NO projects) ───────────────────────────
+
+RESUME_NO_PROJECT_QUESTION_PROMPT = """Generate the first interview question for a student without projects. Return JSON only.
+
+Student skills: {skill_summary}
+Difficulty: {difficulty}
+
+The student's resume does NOT include any project details. Your first question should politely ask why and whether they plan to start any.
+
+Example tone: "I see that your resume does not include any project details. Can you tell me why you haven't worked on projects yet? Are you planning to start any soon?"
+
+Rules:
+1. Be polite. Do NOT judge the student.
+2. Human, professional, conversational tone — NOT robotic
+3. Ask both: why no projects + future plans
+
+Return JSON:
+{{"question": "question text", "topic": "projects", "difficulty": "easy"}}"""
+
+
+# ── Answer Evaluation (with Behavior Classification) ─────────────────────
+
+ANSWER_EVALUATION_PROMPT = """Evaluate this interview answer. Return JSON only.
 
 QUESTION: {question}
+ANSWER: {answer}
 
-CANDIDATE'S ANSWER: {answer}
+Score each 0-10:
+- clarity: structure and communication
+- depth: understanding demonstrated
+- confidence: decisiveness
+- technical_score: technical accuracy
 
-Evaluate the answer on each criterion from 1 to 10:
-1. **clarity**: How clear and well-structured is the answer?
-2. **depth**: How deeply does it demonstrate understanding?
-3. **confidence**: How confident and decisive is the response?
+Classify behavior tone:
+- "polite": respectful, professional
+- "arrogant": dismissive, condescending, overconfident
+- "neutral": neither polite nor arrogant
 
-Also decide what difficulty the NEXT question should be:
-- If the answer is weak (avg < 4): "easy"
-- If the answer is moderate (avg 4-7): "medium"
-- If the answer is strong (avg > 7): "hard"
+Next difficulty: weak(<4)="easy", moderate(4-7)="medium", strong(>7)="hard"
 
-Respond ONLY with a JSON object containing:
-- "clarity": int (1-10)
-- "depth": int (1-10)
-- "confidence": int (1-10)
-- "next_difficulty": "easy" | "medium" | "hard"
-"""
+Return JSON:
+{{"clarity": 5, "depth": 5, "confidence": 5, "technical_score": 5, "behavior_flag": "neutral", "next_difficulty": "medium"}}"""
 
 
 # ── Memory / Context Agent ────────────────────────────────────────────────
 
-MEMORY_UPDATE_PROMPT = """You are maintaining a running assessment of a candidate during an interview.
+MEMORY_UPDATE_PROMPT = """Update interview assessment. Return JSON only.
 
-PREVIOUS SUMMARY: {previous_summary}
-PREVIOUS WEAK AREAS: {weak_areas}
-PREVIOUS STRONG AREAS: {strong_areas}
+Previous summary: {previous_summary}
+Weak areas: {weak_areas}
+Strong areas: {strong_areas}
+Latest answer: {answer}
+Current behavior: {behavior}
 
-LATEST ANSWER: {answer}
+Rules:
+1. Keep summary to 2-3 sentences max
+2. Update weak/strong areas based on latest answer
+3. Remove weak areas if candidate later showed strength
 
-Update the assessment:
-1. Incorporate the latest answer into the running summary.
-2. Identify any NEW weak areas revealed.
-3. Identify any NEW strong areas revealed.
-4. Remove areas from weak_areas if the candidate later demonstrated strength in them.
-
-Respond ONLY with a JSON object containing:
-- "summary": updated running summary (2-4 sentences)
-- "weak_areas": updated list of weak area strings
-- "strong_areas": updated list of strong area strings
-"""
+Return JSON:
+{{"summary": "updated summary", "weak_areas": ["area1"], "strong_areas": ["area1"]}}"""
 
 
 # ── Feedback & Report ─────────────────────────────────────────────────────
 
-FEEDBACK_REPORT_PROMPT = """You are producing a final interview assessment report.
+FEEDBACK_REPORT_PROMPT = """Generate final interview report. Return JSON only.
 
-SESSION SUMMARY: {session_summary}
-OVERALL SCORES: {score_summary}
-WEAK AREAS: {weak_areas}
-STRONG AREAS: {strong_areas}
+Session summary: {session_summary}
+Scores: {score_summary}
+Weak areas: {weak_areas}
+Strong areas: {strong_areas}
+Behavior history: {behavior_summary}
 
-Produce a comprehensive but concise interview report.
+Return JSON:
+{{"final_score": 7.5, "communication_score": 8.0, "strengths": ["s1"], "weaknesses": ["w1"], "behavior_summary": "summary", "recommendation": "strong_hire|hire|maybe|no_hire: justification"}}"""
 
-Respond ONLY with a JSON object containing:
-- "final_score": a float 0.0-10.0 representing overall performance
-- "strengths": list of the candidate's demonstrated strengths
-- "weaknesses": list of areas needing improvement
-- "recommendation": one of "strong_hire", "hire", "maybe", "no_hire" with a 1-2 sentence justification
-"""
+
+# ── Greeting Templates (No LLM call — pure Python) ────────────────────────
+
+GREETING_TEMPLATE = "Hello {student_name}, are you comfortable?"
+
+GREETING_COMFORTABLE_YES = "Great. Can we start the interview?"
+
+GREETING_COMFORTABLE_NO = (
+    "Okay, no problem. We will conduct the interview later. Have a great day."
+)
+
+GREETING_START_NO = "Alright, we will schedule it later."
+
+
+# ── Behavior-Reactive Response Templates (No LLM call) ───────────────────
+
+BEHAVIOR_RESPONSES = {
+    "arrogant_correct": (
+        "Thank you for your answer. That's technically correct. "
+        "Let me challenge you with something more nuanced."
+    ),
+    "arrogant_incorrect": (
+        "I appreciate your confidence, but let me clarify — the correct approach "
+        "involves a different perspective. Let's move to the next question."
+    ),
+    "polite_correct": (
+        "Excellent answer! You've demonstrated a strong understanding of this topic. "
+        "Well done. Let's continue."
+    ),
+    "polite_incorrect": (
+        "Good attempt! The concept you're thinking of is close, but there's a "
+        "subtle difference. Don't worry, let's move on to the next question."
+    ),
+    "neutral_correct": (
+        "That's correct. Good job. Let's proceed to the next question."
+    ),
+    "neutral_incorrect": (
+        "Not quite the answer I was looking for, but that's okay. "
+        "Let's move on to the next one."
+    ),
+    "no_answer": (
+        "Are you able to hear me? Would you like me to repeat the question?"
+    ),
+    "timeout_reminder": (
+        "Take your time. Whenever you're ready, you can share your answer."
+    ),
+}

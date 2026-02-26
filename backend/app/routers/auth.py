@@ -308,6 +308,10 @@ async def refresh_token(body: RefreshTokenRequest, db: AsyncSession = Depends(ge
 # ── Current User ──────────────────────────────────────────────────────────
 
 
+import os
+import shutil
+from fastapi import UploadFile, File
+
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user=Depends(get_current_user)):
     if isinstance(current_user, dict):
@@ -323,6 +327,8 @@ async def get_me(current_user=Depends(get_current_user)):
         roll_number=current_user.roll_number,
         phone_number=current_user.phone_number,
         parent_id=str(current_user.parent_id) if current_user.parent_id else None,
+        skills=current_user.skills if current_user.skills else [],
+        resume_url=current_user.resume_url,
     )
 
 
@@ -335,13 +341,42 @@ async def update_profile(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    """Update the current user's profile (phone number, etc.)."""
+    """Update the current user's profile (phone number, skills)."""
     if isinstance(current_user, dict):
         raise HTTPException(status_code=403, detail="Admin profile cannot be updated")
 
     if body.phone_number is not None:
         current_user.phone_number = body.phone_number
+    if body.skills is not None:
+        current_user.skills = body.skills
 
     await db.commit()
     return MessageResponse(message="Profile updated successfully.")
+
+# Storage for resumes (using same dir as certificates as requested)
+RESUME_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "certificate")
+
+@router.post("/resume", response_model=MessageResponse)
+async def upload_resume(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Upload a resume file for the current user."""
+    if isinstance(current_user, dict):
+        raise HTTPException(status_code=403, detail="Admin cannot upload resume")
+        
+    os.makedirs(RESUME_DIR, exist_ok=True)
+    ext = os.path.splitext(file.filename)[1] if file.filename else ".pdf"
+    # Prefix with 'resume_' to distinguish from other certificates
+    unique_name = f"resume_{current_user.id}{ext}"
+    file_path = os.path.join(RESUME_DIR, unique_name)
+
+    with open(file_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    # Use /certificates mount defined in main.py
+    current_user.resume_url = f"/certificates/{unique_name}"
+    await db.commit()
+    return MessageResponse(message="Resume uploaded successfully.")
 

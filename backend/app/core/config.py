@@ -25,9 +25,9 @@ class Settings(BaseSettings):
     # GEMINI_API_KEY: str = ""
     # GEMINI_MODEL_NAME: str = "gemini-2.5-flash"
     GROQ_API_KEY: str = ""
-    GROQ_MODEL_NAME: str = "llama3-70b-8192"
-    LLM_TEMPERATURE: float = 0.7
-    LLM_MAX_TOKENS: int = 4096
+    GROQ_MODEL_NAME: str = "llama-3.1-8b-instant"
+    LLM_TEMPERATURE: float = 0.4
+    LLM_MAX_TOKENS: int = 1024
 
     # ── Audio ─────────────────────────────────────────────────────────────
     AUDIO_UPLOAD_DIR: Path = Path("storage/audio/uploads")
@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     # ── Interview Defaults ────────────────────────────────────────────────
     DEFAULT_DIFFICULTY: str = "medium"
     MAX_QUESTIONS_PER_SESSION: int = 15
+    VOICE_SILENCE_TIMEOUT: int = 10
+    ANSWER_TIMEOUT: int = 20
 
     # ── JWT Authentication ────────────────────────────────────────────────
     JWT_SECRET_KEY: str = "change-me-super-secret-key"

@@ -700,8 +700,18 @@ async def faculty_overview(
     )
     rows = result.all()
 
-    semesters = list(set(r[0] for r in rows))
+    semesters_from_marks = list(set(r[0] for r in rows))
     subjects = list(set(r[1] for r in rows))
+
+    # Also get semesters explicitly assigned by HOD
+    mentor_res = await db.execute(
+        select(MentorAssignment.semester)
+        .where(MentorAssignment.faculty_id == current_user.id)
+    )
+    mentor_semesters = mentor_res.scalars().all()
+
+    # Combine and deduplicate
+    all_semesters = list(set(semesters_from_marks + mentor_semesters))
 
     subject_stats = []
     for sem, subj, count in rows:
@@ -714,7 +724,7 @@ async def faculty_overview(
         subject_stats.append(SubjectStat(subject_name=subj, student_count=count, average_marks=round(avg, 2)))
 
     return FacultyOverviewResponse(
-        assigned_semesters=sorted(semesters),
+        assigned_semesters=sorted(all_semesters),
         assigned_subjects=subjects,
         total_students=len(students),
         subject_stats=subject_stats,

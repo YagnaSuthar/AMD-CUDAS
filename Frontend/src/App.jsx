@@ -20,6 +20,8 @@ import TimetableManagement from './pages/TimetableManagement';
 import MarksManagement from './pages/MarksManagement';
 import CertificateManagement from './pages/CertificateManagement';
 import Leaderboard from './pages/Leaderboard';
+import Skills from './pages/Skills';
+import AIInterview from './pages/AIInterview';
 
 function App() {
   return (
@@ -46,6 +48,8 @@ function App() {
               <Route path="analytics" element={<Dashboard analytics />} />
               <Route path="interviews" element={<div>Interviews Plugin Route</div>} />
               <Route path="profile" element={<Profile />} />
+              <Route path="skills" element={<Skills />} />
+              <Route path="interview" element={<AIInterview />} />
               <Route path="timetable" element={<TimetableManagement />} />
               <Route path="marks" element={<MarksManagement />} />
               <Route path="certificates" element={<CertificateManagement />} />

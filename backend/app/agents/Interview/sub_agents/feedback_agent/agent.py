@@ -1,6 +1,7 @@
 """
 Feedback & Report Agent.
 Aggregates session data and generates a final interview report using the LLM.
+Includes communication score, behavior summary, and final recommendation.
 """
 
 import logging
@@ -18,6 +19,7 @@ from app.models.interview import (
     InterviewMemory,
     InterviewReport,
     InterviewSession,
+    SessionStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,11 +32,13 @@ async def generate_report(
 ) -> Dict[str, Any]:
     """
     Aggregate all answer scores and memory, invoke LLM for a final report,
-    and persist it in the DB.
+    and persist it in the DB. Also updates session-level summary fields.
 
     Returns
     -------
-    dict   {"final_score": float, "strengths": [...], "weaknesses": [...], "recommendation": str}
+    dict   {"final_score": float, "communication_score": float,
+            "strengths": [...], "weaknesses": [...],
+            "behavior_summary": str, "recommendation": str}
     """
     logger.info("FeedbackAgent: generating report for session %s", session_id)
 
@@ -56,21 +60,34 @@ async def generate_report(
     scores: List[AnswerScore] = list(scores_result.scalars().all())
 
     avg_overall: float = 0.0
+    behavior_counts: Dict[str, int] = {"polite": 0, "arrogant": 0, "neutral": 0}
 
     if scores:
         avg_clarity: float = sum(s.clarity for s in scores) / len(scores)
         avg_depth: float = sum(s.depth for s in scores) / len(scores)
         avg_confidence: float = sum(s.confidence for s in scores) / len(scores)
+        avg_technical: float = sum(s.technical_score for s in scores) / len(scores)
         avg_overall = float(sum(s.overall_score for s in scores) / len(scores))
+
+        for s in scores:
+            flag = s.behavior_flag if isinstance(s.behavior_flag, str) else s.behavior_flag.value
+            behavior_counts[flag] = behavior_counts.get(flag, 0) + 1
+
         score_summary = (
-            f"Average clarity: {avg_clarity:.1f}/10, "
-            f"depth: {avg_depth:.1f}/10, "
-            f"confidence: {avg_confidence:.1f}/10, "
-            f"overall: {avg_overall:.1f}/10 "
-            f"(across {len(scores)} answers)"
+            f"Clarity: {avg_clarity:.1f}/10, "
+            f"Depth: {avg_depth:.1f}/10, "
+            f"Confidence: {avg_confidence:.1f}/10, "
+            f"Technical: {avg_technical:.1f}/10, "
+            f"Overall: {avg_overall:.1f}/10 "
+            f"({len(scores)} answers)"
         )
     else:
         score_summary = "No scored answers available."
+
+    # Build behavior summary string
+    behavior_summary_str = ", ".join(
+        f"{k}: {v}" for k, v in behavior_counts.items() if v > 0
+    ) or "No behavior data"
 
     # ── Build prompt & call LLM ──────────────────────────────────────────
     prompt = FEEDBACK_REPORT_PROMPT.format(
@@ -78,6 +95,7 @@ async def generate_report(
         score_summary=score_summary,
         weak_areas=", ".join(weak_areas) if weak_areas else "None identified",
         strong_areas=", ".join(strong_areas) if strong_areas else "None identified",
+        behavior_summary=behavior_summary_str,
     )
 
     try:
@@ -85,14 +103,18 @@ async def generate_report(
         content: str = getattr(response, "content", str(response))
         result = parse_json_response(content)
         final_score = float(result.get("final_score", avg_overall))
+        communication_score = float(result.get("communication_score", avg_overall))
         strengths = result.get("strengths", strong_areas)
         weaknesses = result.get("weaknesses", weak_areas)
+        behavior_summary = result.get("behavior_summary", behavior_summary_str)
         recommendation = result.get("recommendation", "Unable to determine")
     except Exception as exc:
         logger.error("FeedbackAgent LLM error: %s", exc)
         final_score = float(round(avg_overall, 2))
+        communication_score = float(round(avg_overall, 2))
         strengths = strong_areas
         weaknesses = weak_areas
+        behavior_summary = behavior_summary_str
         recommendation = "Review manually — LLM evaluation unavailable."
 
     # ── Persist report to DB ─────────────────────────────────────────────
@@ -116,12 +138,24 @@ async def generate_report(
         report.weaknesses = weaknesses
         report.recommendation = recommendation
 
+    # ── Update session-level summary fields ──────────────────────────────
+    sess_result = await db.execute(
+        select(InterviewSession).where(InterviewSession.session_id == session_id)
+    )
+    session = sess_result.scalar_one_or_none()
+    if session:
+        session.overall_score = final_score
+        session.communication_score = communication_score
+        session.recommendation = recommendation
+
     await db.flush()
 
     logger.info("FeedbackAgent: report saved for session %s (score=%.1f)", session_id, final_score)
     return {
         "final_score": final_score,
+        "communication_score": communication_score,
         "strengths": strengths,
         "weaknesses": weaknesses,
+        "behavior_summary": behavior_summary,
         "recommendation": recommendation,
     }

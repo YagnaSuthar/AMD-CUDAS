@@ -35,6 +35,9 @@ function Gauge({ value, max = 100, label, color = '#00bcd4' }) {
 const PIE_COLORS = ['#22c55e', '#ef4444', '#f59e0b'];
 
 export default function HodDashboard() {
+    const { user } = useAuth();
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
     const [faculty, setFaculty] = useState([]);
     const [mentors, setMentors] = useState([]);
     const [mentorForm, setMentorForm] = useState({ faculty_id: '', semester: '' });

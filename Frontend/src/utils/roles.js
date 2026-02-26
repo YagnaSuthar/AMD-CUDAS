@@ -71,6 +71,8 @@ export const SIDEBAR_ROUTES = {
         { path: '/dashboard', label: 'Dashboard', icon: FiHome },
         { path: '/dashboard/timetable', label: 'Exam Timetable', icon: FiCalendar },
         { path: '/dashboard/certificates', label: 'Certificates', icon: FiAward },
+        { path: '/dashboard/skills', label: 'Skills', icon: FiFileText },
+        { path: '/dashboard/interview', label: 'AI Interview', icon: FiBriefcase },
         { path: '/dashboard/leaderboard', label: 'Leaderboard', icon: FiTrendingUp },
         { path: '/dashboard/profile', label: 'My Profile', icon: FiSettings },
     ],

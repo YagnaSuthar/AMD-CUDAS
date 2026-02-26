@@ -77,6 +77,8 @@ class UserResponse(BaseModel):
     roll_number: Optional[str] = None
     phone_number: Optional[str] = None
     parent_id: Optional[str] = None
+    skills: Optional[list[str]] = None
+    resume_url: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -90,6 +92,7 @@ class AddUserRequest(BaseModel):
 
 class UpdateProfileRequest(BaseModel):
     phone_number: Optional[str] = None
+    skills: Optional[list[str]] = None
 
 
 class CollegeResponse(BaseModel):

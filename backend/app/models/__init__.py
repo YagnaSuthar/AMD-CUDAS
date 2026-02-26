@@ -3,6 +3,7 @@
 from app.models.interview import (  # noqa: F401
     AnswerScore,
     Answer,
+    BehaviorFlag,
     Difficulty,
     InterviewMemory,
     InterviewReport,
