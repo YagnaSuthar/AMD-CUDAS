@@ -22,4 +22,9 @@ from app.models.auth import (  # noqa: F401
     College,
     ApprovalStatus,
     Company,
+    Timetable,
+    InternalMarks,
+    Certificate,
+    Department,
+    MentorAssignment,
 )

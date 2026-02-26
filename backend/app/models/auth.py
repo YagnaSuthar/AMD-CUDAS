@@ -144,3 +144,147 @@ class Company(Base):
     )
 
     admin = relationship("AuthUser", foreign_keys=[company_admin_id])
+
+
+# ── Timetable ─────────────────────────────────────────────────────────────
+
+
+class Timetable(Base):
+    """Department exam timetable entry, managed by HOD."""
+
+    __tablename__ = "timetables"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    department: Mapped[str] = mapped_column(String(255), nullable=False)
+    semester: Mapped[int] = mapped_column(Integer, nullable=False)
+    subject_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    exam_date: Mapped[str] = mapped_column(String(50), nullable=False)
+    exam_time: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow
+    )
+
+    creator = relationship("AuthUser", foreign_keys=[created_by])
+
+
+# ── InternalMarks ─────────────────────────────────────────────────────────
+
+
+class InternalMarks(Base):
+    """Internal marks uploaded by faculty, lockable by HOD."""
+
+    __tablename__ = "internal_marks"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    student_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    subject_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    semester: Mapped[int] = mapped_column(Integer, nullable=False)
+    marks_obtained: Mapped[float] = mapped_column(nullable=False)
+    max_marks: Mapped[float] = mapped_column(nullable=False, default=100.0)
+    uploaded_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    is_locked: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow
+    )
+
+    student = relationship("AuthUser", foreign_keys=[student_id])
+    uploader = relationship("AuthUser", foreign_keys=[uploaded_by])
+
+
+# ── Certificate ───────────────────────────────────────────────────────────
+
+
+class Certificate(Base):
+    """Student certificate/document, file stored in backend/certificate/."""
+
+    __tablename__ = "certificates"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    student_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    points: Mapped[int] = mapped_column(Integer, default=0)
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow
+    )
+
+    student = relationship("AuthUser", foreign_keys=[student_id])
+
+
+# ── Department ────────────────────────────────────────────────────────────
+
+
+class Department(Base):
+    """Department names managed by the College Principal."""
+
+    __tablename__ = "departments"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    college_principal_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow
+    )
+
+    principal = relationship("AuthUser", foreign_keys=[college_principal_id])
+
+
+# ── MentorAssignment ─────────────────────────────────────────────────────
+
+
+class MentorAssignment(Base):
+    """HOD assigns a faculty member as mentor for a semester."""
+
+    __tablename__ = "mentor_assignments"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    faculty_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    semester: Mapped[int] = mapped_column(Integer, nullable=False)
+    department: Mapped[str] = mapped_column(String(255), nullable=False)
+    assigned_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow
+    )
+
+    faculty = relationship("AuthUser", foreign_keys=[faculty_id])
+    assigner = relationship("AuthUser", foreign_keys=[assigned_by])

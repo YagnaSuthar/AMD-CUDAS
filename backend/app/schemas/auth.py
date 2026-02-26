@@ -75,10 +75,21 @@ class UserResponse(BaseModel):
     department: Optional[str] = None
     semester: Optional[int] = None
     roll_number: Optional[str] = None
+    phone_number: Optional[str] = None
     parent_id: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+
+class AddUserRequest(BaseModel):
+    name: str
+    email: EmailStr
+    department: Optional[str] = None
+
+
+class UpdateProfileRequest(BaseModel):
+    phone_number: Optional[str] = None
 
 
 class CollegeResponse(BaseModel):
@@ -111,3 +122,199 @@ class AnalyticsResponse(BaseModel):
     total_users: int
     pending_approvals: int
     users_by_role: dict
+
+
+# ── Timetable Schemas ─────────────────────────────────────────────────────
+
+
+class TimetableCreate(BaseModel):
+    semester: int
+    subject_name: str
+    exam_date: str
+    exam_time: str
+
+
+class TimetableUpdate(BaseModel):
+    semester: Optional[int] = None
+    subject_name: Optional[str] = None
+    exam_date: Optional[str] = None
+    exam_time: Optional[str] = None
+
+
+class TimetableResponse(BaseModel):
+    id: str
+    department: str
+    semester: int
+    subject_name: str
+    exam_date: str
+    exam_time: str
+    created_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ── Marks Schemas ─────────────────────────────────────────────────────────
+
+
+class MarksUpload(BaseModel):
+    student_id: str
+    subject_name: str
+    semester: int
+    marks_obtained: float
+    max_marks: float = 100.0
+
+
+class MarksUpdate(BaseModel):
+    marks_obtained: Optional[float] = None
+    max_marks: Optional[float] = None
+
+
+class MarksResponse(BaseModel):
+    id: str
+    student_id: str
+    student_name: Optional[str] = None
+    subject_name: str
+    semester: int
+    marks_obtained: float
+    max_marks: float
+    is_locked: bool = False
+    uploaded_by: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class MarksLockRequest(BaseModel):
+    semester: int
+
+
+# ── Certificate Schemas ───────────────────────────────────────────────────
+
+
+class CertificateResponse(BaseModel):
+    id: str
+    title: str
+    file_name: str
+    is_verified: bool = False
+    points: int = 0
+    uploaded_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ── Dashboard Overview Schemas ────────────────────────────────────────────
+
+
+class DepartmentDetail(BaseModel):
+    department: str
+    student_count: int
+    faculty_count: int
+    average_marks: float
+
+
+class PrincipalOverviewResponse(BaseModel):
+    total_departments: int
+    total_hods: int
+    total_faculty: int
+    total_students: int
+    overall_performance: float
+    departments: list[DepartmentDetail]
+
+
+class StudentBrief(BaseModel):
+    id: str
+    name: str
+    email: str
+    department: Optional[str] = None
+    average: float
+
+
+class HodOverviewResponse(BaseModel):
+    total_faculty: int
+    total_students: int
+    department_average: float
+    top_students: list[StudentBrief]
+    weak_students: list[StudentBrief]
+
+
+class SubjectStat(BaseModel):
+    subject_name: str
+    student_count: int
+    average_marks: float
+
+
+class FacultyOverviewResponse(BaseModel):
+    assigned_semesters: list[int]
+    assigned_subjects: list[str]
+    total_students: int
+    subject_stats: list[SubjectStat]
+
+
+class StudentMarksDetail(BaseModel):
+    subject_name: str
+    semester: int
+    marks_obtained: float
+    max_marks: float
+    percentage: float
+
+
+class StudentAcademicResponse(BaseModel):
+    gpa: float
+    total_marks: float
+    max_possible: float
+    percentage: float
+    rank: int
+    total_in_class: int
+    marks: list[StudentMarksDetail]
+
+
+# ── Department Schemas ────────────────────────────────────────────────────
+
+
+class DepartmentCreate(BaseModel):
+    name: str
+
+
+class DepartmentResponse(BaseModel):
+    id: str
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
+# ── Mentor Assignment Schemas ─────────────────────────────────────────────
+
+
+class MentorAssignmentCreate(BaseModel):
+    faculty_id: str
+    semester: int
+
+
+class MentorAssignmentResponse(BaseModel):
+    id: str
+    faculty_id: str
+    faculty_name: Optional[str] = None
+    semester: int
+    department: str
+    created_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ── Leaderboard Schemas ──────────────────────────────────────────────────
+
+
+class LeaderboardEntry(BaseModel):
+    rank: int
+    student_id: str
+    name: str
+    email: str
+    department: Optional[str] = None
+    semester: Optional[int] = None
+    average_marks: float
+    certificate_points: int
+    total_score: float

@@ -15,6 +15,11 @@ import Dashboard from './pages/Dashboard';
 import UploadCSV from './pages/UploadCSV';
 import UserManagement from './pages/UserManagement';
 import CompanyManagement from './pages/CompanyManagement';
+import Profile from './pages/Profile';
+import TimetableManagement from './pages/TimetableManagement';
+import MarksManagement from './pages/MarksManagement';
+import CertificateManagement from './pages/CertificateManagement';
+import Leaderboard from './pages/Leaderboard';
 
 function App() {
   return (
@@ -40,7 +45,12 @@ function App() {
               <Route path="upload-csv" element={<UploadCSV />} />
               <Route path="analytics" element={<Dashboard analytics />} />
               <Route path="interviews" element={<div>Interviews Plugin Route</div>} />
-              <Route path="profile" element={<div>My Profile</div>} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="timetable" element={<TimetableManagement />} />
+              <Route path="marks" element={<MarksManagement />} />
+              <Route path="certificates" element={<CertificateManagement />} />
+              <Route path="leaderboard" element={<Leaderboard />} />
+              <Route path="departments" element={<Dashboard departments />} />
             </Route>
           </Route>
 

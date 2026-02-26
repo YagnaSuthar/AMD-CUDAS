@@ -3,10 +3,12 @@ CUDAS Application Entry Point.
 Includes AI agent routes (preserved) and new auth/RBAC routes.
 """
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.core.database import engine, Base
@@ -38,6 +40,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Static files: certificate uploads ─────────────────────────────────────
+
+CERT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "certificate")
+os.makedirs(CERT_DIR, exist_ok=True)
+app.mount("/certificates", StaticFiles(directory=CERT_DIR), name="certificates")
 
 # ── Existing AI Routes (untouched) ───────────────────────────────────────
 

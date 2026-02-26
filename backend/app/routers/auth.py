@@ -33,6 +33,7 @@ from app.schemas.auth import (
     UserResponse,
     VerifyEmailRequest,
     ResendOTPRequest,
+    UpdateProfileRequest,
 )
 from app.services.email_service import send_reset_password_email, send_verification_email
 
@@ -320,5 +321,27 @@ async def get_me(current_user=Depends(get_current_user)):
         department=current_user.department,
         semester=current_user.semester,
         roll_number=current_user.roll_number,
+        phone_number=current_user.phone_number,
         parent_id=str(current_user.parent_id) if current_user.parent_id else None,
     )
+
+
+# ── Update Profile ────────────────────────────────────────────────────────
+
+
+@router.put("/profile", response_model=MessageResponse)
+async def update_profile(
+    body: UpdateProfileRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Update the current user's profile (phone number, etc.)."""
+    if isinstance(current_user, dict):
+        raise HTTPException(status_code=403, detail="Admin profile cannot be updated")
+
+    if body.phone_number is not None:
+        current_user.phone_number = body.phone_number
+
+    await db.commit()
+    return MessageResponse(message="Profile updated successfully.")
+

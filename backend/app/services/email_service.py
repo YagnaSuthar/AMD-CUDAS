@@ -77,17 +77,23 @@ def send_reset_password_email(to_email: str, token: str, base_url: str) -> bool:
     return _send_email(to_email, "CUDAS — Reset Your Password", html)
 
 
-def send_credentials_email(to_email: str, name: str, password: str, role: str) -> bool:
+def send_credentials_email(to_email: str, name: str, reset_token: str, role: str, base_url: str) -> bool:
+    reset_url = f"{base_url}/reset-password?token={reset_token}"
     html = f"""
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
-        <h2 style="color:#00bcd4;">CUDAS — Your Account Credentials</h2>
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;border:1px solid #eee;border-radius:10px;">
+        <h2 style="color:#00bcd4;">CUDAS — Welcome to the Platform</h2>
         <p>Hello <strong>{name}</strong>,</p>
         <p>Your account has been created with the role <strong>{role}</strong>.</p>
-        <table style="border-collapse:collapse;margin:16px 0;">
-            <tr><td style="padding:8px;font-weight:bold;">Email:</td><td style="padding:8px;">{to_email}</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Password:</td><td style="padding:8px;font-family:monospace;">{password}</td></tr>
-        </table>
-        <p>Please change your password after first login.</p>
+        <p>To get started, please click the link below to set your password and activate your account:</p>
+        <div style="text-align:center;margin:30px 0;">
+            <a href="{reset_url}" 
+               style="background:#00bcd4;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block;">
+                Set Your Password
+            </a>
+        </div>
+        <p style="color:#666;font-size:12px;">If the button above doesn't work, copy and paste this link into your browser:</p>
+        <p style="color:#00bcd4;font-size:12px;word-break:break-all;">{reset_url}</p>
+        <p style="color:#888;margin-top:20px;font-size:13px;">This link is valid for 24 hours.</p>
     </div>
     """
-    return _send_email(to_email, "CUDAS — Your Account Credentials", html)
+    return _send_email(to_email, f"CUDAS — Welcome {name}! Set Your Password", html)

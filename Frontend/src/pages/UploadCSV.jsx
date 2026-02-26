@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { CHILD_ROLE_MAP, ROLE_LABELS } from '../utils/roles';
 import api from '../utils/api';
-import { FiUploadCloud, FiDownload, FiCheckCircle } from 'react-icons/fi';
+import { FiUploadCloud, FiDownload, FiCheckCircle, FiPlus, FiGrid } from 'react-icons/fi';
+import { toast } from 'react-toastify';
 
 export default function UploadCSV() {
     const { user } = useAuth();
@@ -11,9 +12,46 @@ export default function UploadCSV() {
     const [result, setResult] = useState(null);
     const [error, setError] = useState('');
 
+    // Department states (Principal only)
+    const [departments, setDepartments] = useState([]);
+    const [newDept, setNewDept] = useState('');
+    const [deptLoading, setDeptLoading] = useState(false);
+
+    const isPrincipal = user.role === 'COLLEGE_PRINCIPAL';
     const targetRole = CHILD_ROLE_MAP[user.role];
 
+    useEffect(() => {
+        if (isPrincipal) {
+            fetchDepartments();
+        }
+    }, [isPrincipal]);
+
+    const fetchDepartments = async () => {
+        try {
+            const res = await api.get('/college/departments/list');
+            setDepartments(res.data);
+        } catch (err) {
+            console.error('Failed to fetch departments:', err);
+        }
+    };
+
+    const handleAddDepartment = async () => {
+        if (!newDept.trim()) return;
+        setDeptLoading(true);
+        try {
+            await api.post('/college/departments', { name: newDept });
+            toast.success(`Department '${newDept}' added`);
+            setNewDept('');
+            fetchDepartments();
+        } catch (err) {
+            toast.error(err.response?.data?.detail || 'Failed to add department');
+        } finally {
+            setDeptLoading(false);
+        }
+    };
+
     const handleDownloadTemplate = async () => {
+        // ... existing code ...
         try {
             const res = await api.get(`/csv/template?target_role=${targetRole}`, {
                 responseType: 'blob'
@@ -97,6 +135,45 @@ export default function UploadCSV() {
                 <h1 className="gradient-text">Bulk Create {childLabel}s</h1>
                 <p>Use CSV upload to automatically create accounts and generate passwords.</p>
             </div>
+
+            {isPrincipal && (
+                <div className="dashboard-card fade-in-up" style={{ marginBottom: '32px' }}>
+                    <div className="card-header">
+                        <FiGrid className="card-icon" />
+                        <h3>Manage Departments</h3>
+                    </div>
+                    <div className="form-row" style={{ marginTop: '16px' }}>
+                        <div className="form-group" style={{ flex: 1 }}>
+                            <input
+                                type="text"
+                                className="form-input"
+                                placeholder="Enter new department name (e.g. Computer Science)"
+                                value={newDept}
+                                onChange={(e) => setNewDept(e.target.value)}
+                            />
+                        </div>
+                        <button
+                            className="btn btn-primary"
+                            onClick={handleAddDepartment}
+                            disabled={deptLoading || !newDept.trim()}
+                        >
+                            <FiPlus /> Add Department
+                        </button>
+                    </div>
+
+                    <div className="dept-chips" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '20px' }}>
+                        {departments.length === 0 ? (
+                            <p className="text-muted" style={{ fontSize: '0.9rem' }}>No departments added yet.</p>
+                        ) : (
+                            departments.map(d => (
+                                <span key={d.id} className="status-badge status-badge-approved" style={{ fontSize: '0.85rem', padding: '6px 12px' }}>
+                                    {d.name}
+                                </span>
+                            ))
+                        )}
+                    </div>
+                </div>
+            )}
 
             <div className="actions-row fade-in-up">
                 <button onClick={handleDownloadTemplate} className="action-btn action-btn-outline">
