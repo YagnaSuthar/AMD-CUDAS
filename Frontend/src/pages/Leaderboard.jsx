@@ -9,7 +9,7 @@ export default function Leaderboard() {
     const [leaderboard, setLeaderboard] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filters, setFilters] = useState({ department: '', semester: '' });
+    const [filters, setFilters] = useState({ department: '', semester: '', performance: '' });
 
     useEffect(() => {
         fetchDepartments();
@@ -19,6 +19,13 @@ export default function Leaderboard() {
     useEffect(() => {
         fetchLeaderboard();
     }, [filters.department, filters.semester]);
+
+    const filteredLeaderboard = leaderboard.filter((item) => {
+        const pct = typeof item.average_marks === 'number' ? item.average_marks : parseFloat(item.average_marks || 0);
+        if (filters.performance === 'TOP' && pct < 85) return false;
+        if (filters.performance === 'WEAK' && pct >= 50) return false;
+        return true;
+    });
 
     const fetchDepartments = async () => {
         try {
@@ -77,6 +84,18 @@ export default function Leaderboard() {
                             onChange={(e) => setFilters({ ...filters, semester: e.target.value })}
                         />
                     </div>
+                    <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '170px' }}>
+                        <label style={{ fontSize: '0.8rem' }}>Performance</label>
+                        <select
+                            className="form-input"
+                            value={filters.performance}
+                            onChange={(e) => setFilters({ ...filters, performance: e.target.value })}
+                        >
+                            <option value="">All</option>
+                            <option value="TOP">Top (≥ 85%)</option>
+                            <option value="WEAK">Weak (&lt; 50%)</option>
+                        </select>
+                    </div>
                     <button className="btn btn-secondary" onClick={() => setFilters({ department: '', semester: '' })}>
                         Reset Filters
                     </button>
@@ -85,11 +104,11 @@ export default function Leaderboard() {
 
             <div className="data-table-container fade-in-up fade-in-delay-1">
                 <div className="data-table-header">
-                    <h3>Rankings <span className="table-count">({leaderboard.length} Students)</span></h3>
+                    <h3>Rankings <span className="table-count">({filteredLeaderboard.length} Students)</span></h3>
                 </div>
                 {loading ? (
                     <div className="spinner" style={{ margin: '40px auto' }}></div>
-                ) : leaderboard.length === 0 ? (
+                ) : filteredLeaderboard.length === 0 ? (
                     <div className="empty-state">
                         <FiTrendingUp className="empty-state-icon" style={{ opacity: 0.3 }} />
                         <p>No students found for the selected criteria.</p>
@@ -108,7 +127,7 @@ export default function Leaderboard() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {leaderboard.map((item) => (
+                                {filteredLeaderboard.map((item) => (
                                     <tr key={item.student_id}>
                                         <td>
                                             <span className={`rank-badge rank-${item.rank <= 3 ? item.rank : 'default'}`}>

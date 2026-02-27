@@ -7,18 +7,22 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+_APP_DIR = Path(__file__).resolve().parents[1]
+_ENV_PATH = _APP_DIR / ".env"
+
+
 class Settings(BaseSettings):
     """Central application settings loaded from environment / .env file."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_ENV_PATH),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
     )
 
     # ── Database ──────────────────────────────────────────────────────────
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/cudas"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:yagna@localhost:5432/CUDAS"
     DATABASE_ECHO: bool = False
 
     # ── LLM Configuration ──────────────────────────────────────────────────

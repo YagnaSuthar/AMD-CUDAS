@@ -31,3 +31,14 @@ class PerformanceAnalysisResponse(BaseModel):
     weak_students:List[StudentPerformanceSummary]
     average_performance:float
     dropout_rist_students:List[StudentPerformanceSummary]
+
+class PerformanceCategoryStudent(BaseModel):
+    student_id: str
+    student_name: str
+    semester: int
+    subject_name: str
+    average_percentage: float
+    category: str
+
+class PerformanceCategoryQueryResponse(BaseModel):
+    results: List[PerformanceCategoryStudent]

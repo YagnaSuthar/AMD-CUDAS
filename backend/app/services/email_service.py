@@ -13,7 +13,7 @@ def _send_email(to_email: str, subject: str, html_body: str) -> bool:
     """Send an email via SMTP. Returns True on success."""
     if not settings.SMTP_EMAIL or not settings.SMTP_PASSWORD:
         print(f"[EMAIL STUB] To: {to_email} | Subject: {subject}")
-        return True  # stub when SMTP not configured
+        return False
 
     msg = MIMEMultipart("alternative")
     msg["From"] = settings.SMTP_EMAIL
@@ -57,7 +57,6 @@ def send_verification_email(to_email: str, otp: str) -> bool:
     </div>
     """
     return _send_email(to_email, "CUDAS — Your Verification OTP", html)
-    return _send_email(to_email, "CUDAS — Verify Your Email", html)
 
 
 def send_reset_password_email(to_email: str, token: str, base_url: str) -> bool:

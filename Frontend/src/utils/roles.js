@@ -62,7 +62,7 @@ export const SIDEBAR_ROUTES = {
     FACULTY: [
         { path: '/dashboard', label: 'Dashboard', icon: FiHome },
         { path: '/dashboard/users', label: 'Manage Students', icon: FiUsers },
-        { path: '/dashboard/marks', label: 'Marks Management', icon: FiFileText },
+        { path: '/dashboard/marks', label: 'Add Marks', icon: FiFileText },
         { path: '/dashboard/upload-csv', label: 'Upload CSV', icon: FiUpload },
         { path: '/dashboard/leaderboard', label: 'Leaderboard', icon: FiTrendingUp },
         { path: '/dashboard/profile', label: 'My Profile', icon: FiSettings },

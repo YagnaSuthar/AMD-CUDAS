@@ -15,6 +15,7 @@ export default function MarksManagement() {
     const [editId, setEditId] = useState(null);
     const [form, setForm] = useState({ student_id: '', subject_name: '', semester: '', marks_obtained: '', max_marks: '100' });
     const [searchTerm, setSearchTerm] = useState('');
+    const [performanceFilter, setPerformanceFilter] = useState('');
     const [lockSemester, setLockSemester] = useState('');
 
     useEffect(() => { fetchData(); }, []);
@@ -90,6 +91,11 @@ export default function MarksManagement() {
     };
 
     const filtered = marks.filter(m => {
+        const pct = m.max_marks > 0 ? (m.marks_obtained / m.max_marks * 100) : 0;
+
+        if (performanceFilter === 'TOP' && pct < 85) return false;
+        if (performanceFilter === 'WEAK' && pct >= 50) return false;
+
         if (!searchTerm) return true;
         const t = searchTerm.toLowerCase();
         return m.student_name?.toLowerCase().includes(t) || m.subject_name?.toLowerCase().includes(t);
@@ -134,6 +140,23 @@ export default function MarksManagement() {
                             className="table-search-input" value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)} />
                     </div>
+                </div>
+                <div className="filter-bar" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end', margin: '12px 0 0' }}>
+                    <div className="form-group" style={{ marginBottom: 0, minWidth: '180px' }}>
+                        <label style={{ fontSize: '0.8rem' }}>Performance</label>
+                        <select
+                            className="form-input"
+                            value={performanceFilter}
+                            onChange={(e) => setPerformanceFilter(e.target.value)}
+                        >
+                            <option value="">All Students</option>
+                            <option value="TOP">Top (≥ 85%)</option>
+                            <option value="WEAK">Weak (&lt; 50%)</option>
+                        </select>
+                    </div>
+                    <button className="btn btn-secondary" onClick={() => setPerformanceFilter('')}>
+                        Reset Performance
+                    </button>
                 </div>
                 {filtered.length === 0 ? (
                     <div className="empty-state">

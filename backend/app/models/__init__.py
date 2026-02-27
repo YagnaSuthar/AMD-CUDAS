@@ -25,6 +25,8 @@ from app.models.auth import (  # noqa: F401
     Company,
     Timetable,
     InternalMarks,
+    StudentPerformanceCategory,
+    StudentPerformanceCategoryType,
     Certificate,
     Department,
     MentorAssignment,

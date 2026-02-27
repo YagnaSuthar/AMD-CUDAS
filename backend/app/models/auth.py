@@ -44,6 +44,13 @@ class ApprovalStatus(str, enum.Enum):
     REJECTED = "rejected"
 
 
+class StudentPerformanceCategoryType(str, enum.Enum):
+    TOP = "TOP"
+    AVERAGE = "AVERAGE"
+    WEAK = "WEAK"
+    DROPOUT_RISK = "DROPOUT_RISK"
+
+
 # ── AuthUser ──────────────────────────────────────────────────────────────
 
 
@@ -211,6 +218,41 @@ class InternalMarks(Base):
 
     student = relationship("AuthUser", foreign_keys=[student_id])
     uploader = relationship("AuthUser", foreign_keys=[uploaded_by])
+
+
+class StudentPerformanceCategory(Base):
+    __tablename__ = "student_performance_categories"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    student_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    computed_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    semester: Mapped[int] = mapped_column(Integer, nullable=False)
+    subject_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    average_percentage: Mapped[float] = mapped_column(nullable=False)
+    category: Mapped[str] = mapped_column(
+        SAEnum(
+            StudentPerformanceCategoryType,
+            name="student_performance_category_type_enum",
+            create_constraint=True,
+        ),
+        nullable=False,
+    )
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow
+    )
+
+    student = relationship("AuthUser", foreign_keys=[student_id])
+    computed_by_user = relationship("AuthUser", foreign_keys=[computed_by])
 
 
 # ── Certificate ───────────────────────────────────────────────────────────

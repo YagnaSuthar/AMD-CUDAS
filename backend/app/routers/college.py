@@ -2,12 +2,13 @@ import uuid
 import os
 import shutil
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import RoleChecker, get_current_user
 from app.models.auth import AuthUser, Timetable, InternalMarks, Certificate, Department, MentorAssignment
+from app.models.auth import StudentPerformanceCategory, StudentPerformanceCategoryType
 from app.schemas.auth import (
     UserResponse, MessageResponse, AddUserRequest,
     TimetableCreate, TimetableUpdate, TimetableResponse,
@@ -756,6 +757,50 @@ async def faculty_upload_marks(
         uploaded_by=current_user.id,
     )
     db.add(mark)
+    await db.flush()
+
+    avg_res = await db.execute(
+        select(func.avg(InternalMarks.marks_obtained * 100.0 / InternalMarks.max_marks))
+        .where(
+            InternalMarks.uploaded_by == current_user.id,
+            InternalMarks.student_id == student_id,
+            InternalMarks.semester == body.semester,
+            InternalMarks.subject_name == body.subject_name,
+        )
+    )
+    avg_pct = float(avg_res.scalar() or 0.0)
+
+    if avg_pct >= 85.0:
+        category = StudentPerformanceCategoryType.TOP
+    elif avg_pct < 50.0:
+        category = StudentPerformanceCategoryType.WEAK
+    else:
+        category = StudentPerformanceCategoryType.AVERAGE
+
+    existing_res = await db.execute(
+        select(StudentPerformanceCategory).where(
+            StudentPerformanceCategory.computed_by == current_user.id,
+            StudentPerformanceCategory.student_id == student_id,
+            StudentPerformanceCategory.semester == body.semester,
+            StudentPerformanceCategory.subject_name == body.subject_name,
+        )
+    )
+    existing = existing_res.scalar_one_or_none()
+    if existing:
+        existing.average_percentage = avg_pct
+        existing.category = category
+    else:
+        db.add(
+            StudentPerformanceCategory(
+                student_id=student_id,
+                computed_by=current_user.id,
+                semester=body.semester,
+                subject_name=body.subject_name,
+                average_percentage=avg_pct,
+                category=category,
+            )
+        )
+
     await db.commit()
     return MessageResponse(message="Marks uploaded successfully.")
 
@@ -785,6 +830,50 @@ async def faculty_update_marks(
         mark.marks_obtained = body.marks_obtained
     if body.max_marks is not None:
         mark.max_marks = body.max_marks
+
+    await db.flush()
+
+    avg_res = await db.execute(
+        select(func.avg(InternalMarks.marks_obtained * 100.0 / InternalMarks.max_marks))
+        .where(
+            InternalMarks.uploaded_by == current_user.id,
+            InternalMarks.student_id == mark.student_id,
+            InternalMarks.semester == mark.semester,
+            InternalMarks.subject_name == mark.subject_name,
+        )
+    )
+    avg_pct = float(avg_res.scalar() or 0.0)
+
+    if avg_pct >= 85.0:
+        category = StudentPerformanceCategoryType.TOP
+    elif avg_pct < 50.0:
+        category = StudentPerformanceCategoryType.WEAK
+    else:
+        category = StudentPerformanceCategoryType.AVERAGE
+
+    existing_res = await db.execute(
+        select(StudentPerformanceCategory).where(
+            StudentPerformanceCategory.computed_by == current_user.id,
+            StudentPerformanceCategory.student_id == mark.student_id,
+            StudentPerformanceCategory.semester == mark.semester,
+            StudentPerformanceCategory.subject_name == mark.subject_name,
+        )
+    )
+    existing = existing_res.scalar_one_or_none()
+    if existing:
+        existing.average_percentage = avg_pct
+        existing.category = category
+    else:
+        db.add(
+            StudentPerformanceCategory(
+                student_id=mark.student_id,
+                computed_by=current_user.id,
+                semester=mark.semester,
+                subject_name=mark.subject_name,
+                average_percentage=avg_pct,
+                category=category,
+            )
+        )
 
     await db.commit()
     return MessageResponse(message="Marks updated successfully.")
@@ -972,29 +1061,56 @@ async def get_leaderboard(
     """Get student leaderboard filterable by department and semester."""
     # We want to show students, their avg marks %, and certificate points.
     # Total Score = avg_marks_pct + cert_points (or some weighted sum)
-    
-    query = select(
-        AuthUser.id,
-        AuthUser.name,
-        AuthUser.email,
-        AuthUser.department,
-        AuthUser.semester,
-        func.avg(InternalMarks.marks_obtained * 100.0 / InternalMarks.max_marks).label("avg_marks"),
-        func.coalesce(func.sum(Certificate.points), 0).label("cert_points")
-    ).outerjoin(InternalMarks, AuthUser.id == InternalMarks.student_id)\
-     .outerjoin(Certificate, AuthUser.id == Certificate.student_id)\
-     .where(AuthUser.role == "STUDENT")
+
+    marks_q = select(
+        InternalMarks.student_id.label("student_id"),
+        func.avg(
+            InternalMarks.marks_obtained * 100.0 / InternalMarks.max_marks
+        ).label("avg_marks"),
+        func.max(InternalMarks.semester).label("marks_semester"),
+    ).group_by(InternalMarks.student_id)
+
+    if semester is not None:
+        marks_q = marks_q.where(InternalMarks.semester == semester)
+
+    marks_sq = marks_q.subquery("marks_sq")
+
+    cert_sq = (
+        select(
+            Certificate.student_id.label("student_id"),
+            func.coalesce(func.sum(Certificate.points), 0).label("cert_points"),
+        )
+        .group_by(Certificate.student_id)
+        .subquery("cert_sq")
+    )
+
+    query = (
+        select(
+            AuthUser.id,
+            AuthUser.name,
+            AuthUser.email,
+            AuthUser.department,
+            func.coalesce(AuthUser.semester, marks_sq.c.marks_semester).label("semester"),
+            func.coalesce(marks_sq.c.avg_marks, 0).label("avg_marks"),
+            func.coalesce(cert_sq.c.cert_points, 0).label("cert_points"),
+        )
+        .outerjoin(marks_sq, AuthUser.id == marks_sq.c.student_id)
+        .outerjoin(cert_sq, AuthUser.id == cert_sq.c.student_id)
+        .where(AuthUser.role == "STUDENT")
+    )
 
     if department:
         query = query.where(AuthUser.department == department)
-    if semester:
-        query = query.where(AuthUser.semester == semester)
-    
-    # If currently logged in as Principal/HOD/Faculty, maybe restrict to their college?
-    # For now, let's assume one college per instance or handle it via parent chain if needed.
-    
-    query = query.group_by(AuthUser.id).order_by(func.avg(InternalMarks.marks_obtained * 100.0 / InternalMarks.max_marks).desc())
-    
+    if semester is not None:
+        query = query.where(
+            or_(
+                AuthUser.semester == semester,
+                marks_sq.c.marks_semester == semester,
+            )
+        )
+
+    query = query.order_by(func.coalesce(marks_sq.c.avg_marks, 0).desc())
+
     res = await db.execute(query)
     rows = res.all()
     
@@ -1017,5 +1133,4 @@ async def get_leaderboard(
         ))
     
     return leaderboard
-    return MessageResponse(message="Certificate uploaded successfully.")
 

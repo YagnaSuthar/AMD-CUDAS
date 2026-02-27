@@ -4,6 +4,7 @@ Auth router — login, register principal, verify email, forgot/reset password, 
 
 import uuid
 import random
+import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -80,9 +81,15 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
         otp = str(random.randint(100000, 999999))
         user.verification_token = otp
         user.verification_token_expiry = datetime.now(timezone.utc) + timedelta(minutes=15)
+        await db.flush()
         
         # Send OTP email
-        send_verification_email(user.email, otp)
+        sent = send_verification_email(user.email, otp)
+        if not sent:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to send OTP email. Please configure SMTP_EMAIL/SMTP_PASSWORD in backend/app/.env (Gmail requires an App Password) and check backend logs for [EMAIL ERROR].",
+            )
         
         # Return a custom error that the frontend can catch to redirect to OTP page
         return JSONResponse(
@@ -157,6 +164,8 @@ async def register_principal(
         hashed_password=hash_password(body.password),
         role=AuthUserRole.COLLEGE_PRINCIPAL,
         is_verified=False,
+        verification_token=otp,
+        verification_token_expiry=expiry,
         phone_number=body.phone_number,
         company_name=body.company_name,
     )
@@ -169,7 +178,14 @@ async def register_principal(
     )
     db.add(college)
 
-    return MessageResponse(message="Registration successful! Please login to verify your account.")
+    sent = send_verification_email(body.email, otp)
+    if not sent:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to send OTP email. Please configure SMTP_EMAIL/SMTP_PASSWORD in backend/app/.env (Gmail requires an App Password) and check backend logs for [EMAIL ERROR].",
+        )
+
+    return MessageResponse(message="Registration successful! Please check your email for OTP to verify your account.")
 
 
 # ── Verify Email ──────────────────────────────────────────────────────────
@@ -217,7 +233,14 @@ async def resend_verification(body: ResendOTPRequest, db: AsyncSession = Depends
     user.verification_token = otp
     user.verification_token_expiry = datetime.now(timezone.utc) + timedelta(minutes=15)
 
-    send_verification_email(body.email, otp)
+    await db.flush()
+
+    sent = send_verification_email(body.email, otp)
+    if not sent:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to send OTP email. Please configure SMTP_EMAIL/SMTP_PASSWORD in backend/app/.env (Gmail requires an App Password) and check backend logs for [EMAIL ERROR].",
+        )
     return MessageResponse(message="A new OTP has been sent to your email.")
 
 
@@ -372,11 +395,102 @@ async def upload_resume(
     unique_name = f"resume_{current_user.id}{ext}"
     file_path = os.path.join(RESUME_DIR, unique_name)
 
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+    try:
+        with open(file_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to save file: {exc}") from exc
+
+    extracted_text = ""
+    try:
+        try:
+            from pypdf import PdfReader  # type: ignore
+        except Exception:
+            PdfReader = None
+
+        if PdfReader is not None:
+            reader = PdfReader(file_path)
+            extracted_text = "\n".join([(p.extract_text() or "") for p in reader.pages]).strip()
+    except Exception:
+        extracted_text = ""
+
+    extracted_skills: list[str] = []
+    try:
+        if extracted_text:
+            text = extracted_text
+            m = re.search(
+                r"(?is)(?:^|\n)\s*(?:technical\s+)?skills\s*[:\-]?\s*(.+?)(?:\n\s*\n|\n[A-Z][A-Za-z \t]{2,}:|\n[A-Z][A-Z \t]{2,}\n|$)",
+                text,
+            )
+            skills_blob = m.group(1) if m else ""
+            if not skills_blob:
+                skills_blob = "\n".join(text.splitlines()[:60])
+
+            parts = re.split(r"[\n,;|/•\u2022\t]+", skills_blob)
+            cleaned: list[str] = []
+            for p in parts:
+                s = re.sub(r"\s+", " ", (p or "").strip())
+                if not s:
+                    continue
+                if len(s) < 2 or len(s) > 40:
+                    continue
+                if re.search(r"\d{4,}", s):
+                    continue
+                cleaned.append(s)
+
+            seen: set[str] = set()
+            for s in cleaned:
+                k = s.lower()
+                if k in seen:
+                    continue
+                seen.add(k)
+                extracted_skills.append(s)
+            extracted_skills = extracted_skills[:50]
+    except Exception:
+        extracted_skills = []
 
     # Use /certificates mount defined in main.py
     current_user.resume_url = f"/certificates/{unique_name}"
-    await db.commit()
+
+    if extracted_skills:
+        existing = current_user.skills or []
+        seen = {str(x).strip().lower() for x in existing if str(x).strip()}
+        merged = list(existing)
+        for s in extracted_skills:
+            k = s.strip().lower()
+            if not k or k in seen:
+                continue
+            seen.add(k)
+            merged.append(s)
+        current_user.skills = merged
+
+    from app.models.interview import StudentProfile
+
+    # Verify user exists in database before creating profile
+    from app.models.auth import AuthUser
+    user_result = await db.execute(select(AuthUser).where(AuthUser.id == current_user.id))
+    user_exists = user_result.scalar_one_or_none()
+    if user_exists is None:
+        raise HTTPException(status_code=404, detail="User not found in database")
+
+    try:
+        profile_result = await db.execute(
+            select(StudentProfile).where(StudentProfile.student_id == current_user.id)
+        )
+        profile = profile_result.scalar_one_or_none()
+        if profile:
+            profile.resume_text = extracted_text
+        else:
+            db.add(StudentProfile(student_id=current_user.id, resume_text=extracted_text))
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update student profile: {str(e)}") from e
+
+    try:
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save changes: {str(e)}") from e
+    
     return MessageResponse(message="Resume uploaded successfully.")
 
