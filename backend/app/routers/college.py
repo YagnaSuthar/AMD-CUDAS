@@ -24,6 +24,11 @@ from app.schemas.auth import (
 )
 from app.services.user_service import get_children, can_create_role, get_user_by_email
 from app.services.email_service import send_credentials_email, send_reset_password_email
+from app.services.certificate_service import (
+    create_certificate_and_block,
+    save_certificate_file,
+    sha256_hex,
+)
 
 router = APIRouter(prefix="/college", tags=["College Management"])
 
@@ -1028,23 +1033,27 @@ async def upload_certificate(
     current_user=Depends(student_only),
 ):
     """Upload a certificate file (saved to backend/certificate/)."""
-    os.makedirs(CERT_DIR, exist_ok=True)
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Empty file.")
 
-    # Generate unique filename
-    ext = os.path.splitext(file.filename)[1] if file.filename else ".pdf"
-    unique_name = f"{current_user.id}_{uuid.uuid4().hex[:8]}{ext}"
-    file_path = os.path.join(CERT_DIR, unique_name)
+    file_hash = sha256_hex(file_bytes)
+    file_name, file_path = await save_certificate_file(
+        CERT_DIR,
+        str(current_user.id),
+        file.filename,
+        file_bytes,
+    )
 
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    cert = Certificate(
+    await create_certificate_and_block(
+        db=db,
         student_id=current_user.id,
         title=title,
-        file_name=unique_name,
+        file_name=file_name,
+        file_path=file_path,
+        file_hash=file_hash,
     )
-    db.add(cert)
-    await db.commit()
+
     return MessageResponse(message="Certificate uploaded successfully.")
 
 
