@@ -1,6 +1,6 @@
 import {
     FiHome, FiUsers, FiUpload, FiCheckSquare, FiBarChart2,
-    FiBookOpen, FiBriefcase, FiSettings, FiCalendar, FiFileText, FiAward, FiLayers, FiTrendingUp
+    FiBookOpen, FiBriefcase, FiSettings, FiCalendar, FiFileText, FiAward, FiLayers, FiTrendingUp, FiMessageSquare
 } from 'react-icons/fi';
 
 // Role constants
@@ -72,6 +72,7 @@ export const SIDEBAR_ROUTES = {
         { path: '/dashboard/timetable', label: 'Exam Timetable', icon: FiCalendar },
         { path: '/dashboard/certificates', label: 'Certificates', icon: FiAward },
         { path: '/dashboard/skills', label: 'Skills', icon: FiFileText },
+        { path: '/dashboard/jobs', label: 'Jobs', icon: FiBriefcase },
         { path: '/dashboard/interview', label: 'AI Interview', icon: FiBriefcase },
         { path: '/dashboard/leaderboard', label: 'Leaderboard', icon: FiTrendingUp },
         { path: '/dashboard/profile', label: 'My Profile', icon: FiSettings },
@@ -83,7 +84,10 @@ export const SIDEBAR_ROUTES = {
         { path: '/dashboard/profile', label: 'My Profile', icon: FiSettings },
     ],
     RECRUITER: [
-        { path: '/dashboard', label: 'Dashboard', icon: FiHome },
-        { path: '/dashboard/interviews', label: 'Interviews', icon: FiBriefcase },
+        { path: '/dashboard', label: 'Dashboard', icon: FiBarChart2 },
+        { path: '/dashboard/jobs', label: 'Jobs', icon: FiBriefcase },
+        { path: '/dashboard/interviews', label: 'Interview Pipeline', icon: FiUsers },
+        { path: '/dashboard/clgs', label: 'CLGs', icon: FiBookOpen },
+        { path: '/dashboard/messages', label: 'Messages', icon: FiMessageSquare },
     ],
 };

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { FiAward, FiTrendingUp, FiHash, FiBarChart2, FiMic } from 'react-icons/fi';
+import { FiAward, FiTrendingUp, FiHash, FiBarChart2, FiMic, FiBriefcase, FiClock, FiCheckCircle, FiXCircle } from 'react-icons/fi';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell } from 'recharts';
 import InterviewModal from '../components/InterviewModal';
 import '../style/interview.css';
@@ -39,18 +39,21 @@ export default function StudentDashboard() {
     const { user } = useAuth();
     const [data, setData] = useState(null);
     const [timetable, setTimetable] = useState([]);
+    const [pipelines, setPipelines] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showInterview, setShowInterview] = useState(false);
 
     useEffect(() => {
         (async () => {
             try {
-                const [acaRes, ttRes] = await Promise.all([
+                const [acaRes, ttRes, pipelineRes] = await Promise.all([
                     api.get('/college/student/academic'),
                     api.get('/college/student/timetable'),
+                    api.get('/pipeline/student'),
                 ]);
                 setData(acaRes.data);
                 setTimetable(ttRes.data);
+                setPipelines(pipelineRes.data || []);
             } catch (err) { console.error(err); }
             finally { setLoading(false); }
         })();
@@ -107,6 +110,133 @@ export default function StudentDashboard() {
                     </div>
                 </div>
             )}
+
+            {/* AI Interview Section */}
+            <div className="dashboard-card fade-in-up" style={{ marginBottom: '20px', padding: '15px' }}>
+                <h4 style={{ marginBottom: '10px', fontSize: '0.9rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    <FiBriefcase style={{ marginRight: '8px' }} />
+                    AI Interview Pipeline
+                </h4>
+                {pipelines.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '20px', color: 'var(--color-text-muted)' }}>
+                        <FiMic size={32} style={{ marginBottom: '10px', opacity: 0.5 }} />
+                        <p>No AI interviews assigned yet. Check back later for new opportunities!</p>
+                        <button 
+                            className="btn btn-primary" 
+                            onClick={() => setShowInterview(true)}
+                            style={{ marginTop: '10px' }}
+                        >
+                            Practice AI Interview
+                        </button>
+                    </div>
+                ) : (
+                    <div style={{ display: 'grid', gap: '12px' }}>
+                        {pipelines.map((pipeline) => {
+                            const getStatusColor = (status) => {
+                                switch (status) {
+                                    case 'AI_ASSIGNED': return 'var(--color-secondary)';
+                                    case 'AI_COMPLETED': return 'var(--color-success)';
+                                    case 'ROUND2_INVITED': return 'var(--color-warning)';
+                                    case 'HIRED': return 'var(--color-success)';
+                                    default: return 'var(--color-text-muted)';
+                                }
+                            };
+                            
+                            const getStatusIcon = (status) => {
+                                switch (status) {
+                                    case 'AI_ASSIGNED': return <FiClock />;
+                                    case 'AI_COMPLETED': return <FiCheckCircle />;
+                                    case 'ROUND2_INVITED': return <FiBriefcase />;
+                                    case 'HIRED': return <FiAward />;
+                                    default: return <FiClock />;
+                                }
+                            };
+
+                            const formatStatus = (status) => {
+                                return status.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+                            };
+
+                            return (
+                                <div key={pipeline.id} style={{ 
+                                    padding: '15px', 
+                                    border: '1px solid var(--color-border)', 
+                                    borderRadius: '8px',
+                                    backgroundColor: 'var(--color-bg-card)'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            {getStatusIcon(pipeline.status)}
+                                            <span style={{ 
+                                                color: getStatusColor(pipeline.status), 
+                                                fontWeight: '600',
+                                                fontSize: '0.9rem'
+                                            }}>
+                                                {formatStatus(pipeline.status)}
+                                            </span>
+                                        </div>
+                                        <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                                            Job ID: {pipeline.job_id?.slice(0, 8)}...
+                                        </span>
+                                    </div>
+                                    
+                                    {pipeline.status === 'AI_ASSIGNED' && (
+                                        <div style={{ marginTop: '10px' }}>
+                                            <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '10px' }}>
+                                                You have been assigned an AI interview. Click below to start.
+                                            </p>
+                                            <button 
+                                                className="btn btn-primary btn-sm"
+                                                onClick={() => setShowInterview(true)}
+                                            >
+                                                <FiMic style={{ marginRight: '6px' }} />
+                                                Start AI Interview
+                                            </button>
+                                        </div>
+                                    )}
+                                    
+                                    {pipeline.status === 'AI_COMPLETED' && (
+                                        <div style={{ marginTop: '10px' }}>
+                                            <p style={{ fontSize: '0.9rem', color: 'var(--color-success)', marginBottom: '5px' }}>
+                                                ✓ AI interview completed successfully!
+                                            </p>
+                                            {pipeline.ai_session_id && (
+                                                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                                                    Session: {pipeline.ai_session_id.slice(0, 8)}...
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+                                    
+                                    {pipeline.status === 'ROUND2_INVITED' && pipeline.round2_link && (
+                                        <div style={{ marginTop: '10px' }}>
+                                            <p style={{ fontSize: '0.9rem', color: 'var(--color-warning)', marginBottom: '10px' }}>
+                                                Congratulations! You've been invited to Round 2.
+                                            </p>
+                                            <a 
+                                                href={pipeline.round2_link} 
+                                                target="_blank" 
+                                                rel="noreferrer"
+                                                className="btn btn-secondary btn-sm"
+                                            >
+                                                <FiBriefcase style={{ marginRight: '6px' }} />
+                                                Join Round 2 Interview
+                                            </a>
+                                        </div>
+                                    )}
+                                    
+                                    {pipeline.status === 'HIRED' && (
+                                        <div style={{ marginTop: '10px' }}>
+                                            <p style={{ fontSize: '0.9rem', color: 'var(--color-success)', fontWeight: '600' }}>
+                                                🎉 Congratulations! You've been hired by {pipeline.hired_company_name}!
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
 
             <div className="stats-grid fade-in-up">
                 <div className="stat-card">
@@ -234,6 +364,10 @@ export default function StudentDashboard() {
                         </table>
                     </div>
                 </div>
+            )}
+            
+            {showInterview && (
+                <InterviewModal onClose={() => setShowInterview(false)} />
             )}
         </div>
     );

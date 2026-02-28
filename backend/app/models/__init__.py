@@ -31,7 +31,12 @@ from app.models.auth import (  # noqa: F401
     Department,
     MentorAssignment,
 )
-
 from app.models.certificate_block import (  # noqa: F401
     CertificateBlock,
+)
+from app.models.message import (  # noqa: F401
+    Message,
+    MessageType,
+    Notification,
+    NotificationType,
 )

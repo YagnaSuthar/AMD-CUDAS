@@ -22,6 +22,10 @@ import CertificateManagement from './pages/CertificateManagement';
 import Leaderboard from './pages/Leaderboard';
 import Skills from './pages/Skills';
 import AIInterview from './pages/AIInterview';
+import Jobs from './pages/Jobs';
+import Interviews from './pages/Interviews';
+import RecruiterClgs from './pages/RecruiterClgs';
+import Messages from './pages/Messages';
 
 function App() {
   return (
@@ -46,7 +50,7 @@ function App() {
               <Route path="companies" element={<CompanyManagement />} />
               <Route path="upload-csv" element={<UploadCSV />} />
               <Route path="analytics" element={<Dashboard analytics />} />
-              <Route path="interviews" element={<div>Interviews Plugin Route</div>} />
+              <Route path="interviews" element={<Interviews />} />
               <Route path="profile" element={<Profile />} />
               <Route path="skills" element={<Skills />} />
               <Route path="interview" element={<AIInterview />} />
@@ -54,6 +58,9 @@ function App() {
               <Route path="marks" element={<MarksManagement />} />
               <Route path="certificates" element={<CertificateManagement />} />
               <Route path="leaderboard" element={<Leaderboard />} />
+              <Route path="jobs" element={<Jobs />} />
+              <Route path="clgs" element={<RecruiterClgs />} />
+              <Route path="messages" element={<Messages />} />
               <Route path="departments" element={<Dashboard departments />} />
             </Route>
           </Route>

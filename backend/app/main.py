@@ -22,6 +22,22 @@ import app.models  # noqa: F401
 async def lifespan(app: FastAPI):
     """Create all tables on startup (for new auth tables)."""
     async with engine.begin() as conn:
+        # RBAC domain: keep auth_users compatible with existing DBs
+        await conn.execute(
+            text(
+                """
+                ALTER TABLE auth_users
+                    ADD COLUMN IF NOT EXISTS department VARCHAR(255),
+                    ADD COLUMN IF NOT EXISTS semester INTEGER,
+                    ADD COLUMN IF NOT EXISTS roll_number VARCHAR(100),
+                    ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20),
+                    ADD COLUMN IF NOT EXISTS company_name VARCHAR(255),
+                    ADD COLUMN IF NOT EXISTS skills JSONB,
+                    ADD COLUMN IF NOT EXISTS resume_url VARCHAR(512);
+                """
+            )
+        )
+
         # Certificate domain: ensure existing DB has the required columns before
         # we create certificate_blocks (FK -> certificates.file_hash).
         # This is intentionally limited to certificate schema only.
@@ -104,6 +120,10 @@ from app.routers.college import router as college_router  # noqa: E402
 from app.routers.company import router as company_router  # noqa: E402
 from app.routers.csv_upload import router as csv_router  # noqa: E402
 from app.routers.certificate import router as certificate_router  # noqa: E402
+from app.routers.jobs import router as jobs_router  # noqa: E402
+from app.routers.pipeline import router as pipeline_router  # noqa: E402
+from app.routers.recruiter import router as recruiter_router  # noqa: E402
+from app.routers.messages import router as messages_router  # noqa: E402
 
 app.include_router(auth_router)
 app.include_router(admin_router)
@@ -111,3 +131,7 @@ app.include_router(college_router)
 app.include_router(company_router)
 app.include_router(csv_router)
 app.include_router(certificate_router)
+app.include_router(jobs_router)
+app.include_router(pipeline_router)
+app.include_router(recruiter_router)
+app.include_router(messages_router)

@@ -20,7 +20,7 @@ from uuid import UUID
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.Interview.llm_provider import get_llm
+from app.core.llm import get_llm
 from app.agents.Interview.prompts import (
     BEHAVIOR_RESPONSES,
     GREETING_TEMPLATE,
@@ -52,6 +52,7 @@ from app.api.ai.agents.interview.schema import (
     SubmitAnswerResponse,
 )
 from app.core.config import settings
+from app.core.llm import get_llm
 from app.models.interview import (
     Answer,
     AnswerScore,
@@ -64,6 +65,7 @@ from app.models.interview import (
     QuestionType,
     SessionStatus,
 )
+from app.services.pipeline_service import attach_session_to_pipeline, mark_pipeline_ai_completed
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +94,8 @@ class InterviewService:
         )
         db.add(session)
         await db.flush()
+
+        await attach_session_to_pipeline(db=db, student_id=student_id, session_id=session.session_id)
 
         logger.info(
             "InterviewService: created session %s for student %s",
@@ -420,6 +424,8 @@ class InterviewService:
         )
 
         await db.flush()
+
+        await mark_pipeline_ai_completed(db=db, session_id=session_id)
 
         return EndInterviewResponse(
             session_id=session_id,
