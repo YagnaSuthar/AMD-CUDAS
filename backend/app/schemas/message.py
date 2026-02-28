@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 
 class SendMessageRequest(BaseModel):
-    recipient_id: UUID
+    recipient_email: str
     subject: str
     body: str
 

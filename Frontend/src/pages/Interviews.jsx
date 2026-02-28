@@ -19,8 +19,12 @@ export default function Interviews() {
     const [round2PipelineId, setRound2PipelineId] = useState('');
     const [round2Link, setRound2Link] = useState('');
 
-    const [hiredPipelineId, setHiredPipelineId] = useState('');
-    const [hiredCompanyName, setHiredCompanyName] = useState('');
+    const [feedbackModal, setFeedbackModal] = useState(false);
+    const [selectedPipeline, setSelectedPipeline] = useState(null);
+    const [feedbackText, setFeedbackText] = useState('');
+    const [profile, setProfile] = useState(null);
+    const [profileLoading, setProfileLoading] = useState(false);
+    const [showProfile, setShowProfile] = useState(false);
 
     const fetchData = async () => {
         try {
@@ -83,19 +87,46 @@ export default function Interviews() {
         }
     };
 
-    const onMarkHired = async (e) => {
-        e.preventDefault();
+    const onHireReject = async (pipelineId, action, feedback = '') => {
         try {
             setError('');
-            await api.put('/pipeline/mark-hired', {
-                pipeline_id: hiredPipelineId,
-                hired_company_name: hiredCompanyName,
-            });
-            setHiredPipelineId('');
-            setHiredCompanyName('');
+            if (action === 'hire') {
+                await api.put('/pipeline/mark-hired', {
+                    pipeline_id: pipelineId,
+                    hired_company_name: user.company_name || 'Company',
+                });
+            } else {
+                await api.put('/pipeline/reject', {
+                    pipeline_id: pipelineId,
+                    feedback: feedback,
+                });
+                // Send notification to student
+                await api.post('/notifications/send', {
+                    recipient_id: selectedPipeline?.student_id,
+                    subject: 'Interview Update',
+                    body: `Your interview application has been updated. Feedback: ${feedback}`,
+                    type: 'INTERVIEW_UPDATE'
+                });
+            }
+            setFeedbackModal(false);
+            setSelectedPipeline(null);
+            setFeedbackText('');
             await fetchData();
         } catch (err) {
-            setError(err?.response?.data?.detail || 'Failed to mark hired');
+            setError(err?.response?.data?.detail || `Failed to ${action} candidate`);
+        }
+    };
+
+    const openProfile = async (studentId) => {
+        setProfileLoading(true);
+        setShowProfile(true);
+        try {
+            const res = await api.get(`/recruiter/student/${studentId}`);
+            setProfile(res.data);
+        } catch (err) {
+            setError(err?.response?.data?.detail || 'Failed to load profile');
+        } finally {
+            setProfileLoading(false);
         }
     };
 
@@ -128,70 +159,7 @@ export default function Interviews() {
 
             {isRecruiter && (
                 <div style={{ display: 'grid', gap: '16px', marginBottom: '20px' }}>
-                    <div className="dashboard-card fade-in-up">
-                        <h3>Assign Round 1 (AI) Interview</h3>
-                        <form onSubmit={onAssignAi} style={{ display: 'grid', gap: '12px', marginTop: '12px' }}>
-                            <select className="input" value={jobId} onChange={(e) => setJobId(e.target.value)} required>
-                                <option value="">Select Job</option>
-                                {jobs.map((j) => (
-                                    <option key={j.id} value={j.id}>{j.title}</option>
-                                ))}
-                            </select>
-                            <input
-                                className="input"
-                                placeholder="Student ID (UUID)"
-                                value={studentId}
-                                onChange={(e) => setStudentId(e.target.value)}
-                                required
-                            />
-                            <button className="btn btn-primary" type="submit">Assign AI Interview</button>
-                        </form>
-                        <p style={{ marginTop: '10px', color: 'var(--color-text-muted)' }}>
-                            For now, paste the student UUID. Next step: add college/department/semester student picker.
-                        </p>
-                    </div>
-
-                    <div className="dashboard-card fade-in-up">
-                        <h3>Invite Round 2 (Human)</h3>
-                        <form onSubmit={onInviteRound2} style={{ display: 'grid', gap: '12px', marginTop: '12px' }}>
-                            <input
-                                className="input"
-                                placeholder="Pipeline ID (UUID)"
-                                value={round2PipelineId}
-                                onChange={(e) => setRound2PipelineId(e.target.value)}
-                                required
-                            />
-                            <input
-                                className="input"
-                                placeholder="Meeting Link / Calendar Invite URL"
-                                value={round2Link}
-                                onChange={(e) => setRound2Link(e.target.value)}
-                                required
-                            />
-                            <button className="btn btn-primary" type="submit">Invite Round 2</button>
-                        </form>
-                    </div>
-
-                    <div className="dashboard-card fade-in-up">
-                        <h3>Mark Hired</h3>
-                        <form onSubmit={onMarkHired} style={{ display: 'grid', gap: '12px', marginTop: '12px' }}>
-                            <input
-                                className="input"
-                                placeholder="Pipeline ID (UUID)"
-                                value={hiredPipelineId}
-                                onChange={(e) => setHiredPipelineId(e.target.value)}
-                                required
-                            />
-                            <input
-                                className="input"
-                                placeholder="Hired Company Name"
-                                value={hiredCompanyName}
-                                onChange={(e) => setHiredCompanyName(e.target.value)}
-                                required
-                            />
-                            <button className="btn btn-primary" type="submit">Mark Hired</button>
-                        </form>
-                    </div>
+                    {/* Pipeline management moved to CLGs and Applications pages */}
                 </div>
             )}
 
@@ -214,23 +182,97 @@ export default function Interviews() {
                         <table className="data-table enhanced-table">
                             <thead>
                                 <tr>
+                                    <th>Student Name</th>
                                     <th>Status</th>
-                                    <th>Job ID</th>
-                                    <th>Student ID</th>
-                                    <th>Session</th>
-                                    <th>Round 2</th>
-                                    <th>Hired</th>
+                                    <th>Report</th>
+                                    <th>Profile</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {rows.map((p, idx) => (
                                     <tr key={p.id} className={idx % 2 === 0 ? 'row-even' : 'row-odd'}>
-                                        <td style={{ fontWeight: 700 }}>{p.status}</td>
-                                        <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{p.job_id}</td>
-                                        <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{p.student_id}</td>
-                                        <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{p.ai_session_id || '-'}</td>
-                                        <td>{p.round2_link ? <a href={p.round2_link} target="_blank" rel="noreferrer">Link</a> : '-'}</td>
-                                        <td>{p.hired_company_name || '-'}</td>
+                                        <td style={{ fontWeight: 600 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <div
+                                                    style={{
+                                                        width: '32px',
+                                                        height: '32px',
+                                                        borderRadius: '50%',
+                                                        background: 'var(--gradient-primary)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        color: '#fff',
+                                                        fontWeight: '700',
+                                                        fontSize: '0.8rem',
+                                                    }}
+                                                >
+                                                    {p.student_name?.charAt(0)?.toUpperCase() || '?'}
+                                                </div>
+                                                <div>
+                                                    <div>{p.student_name || 'Student'}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                                                        {p.student_email || ''}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span style={{
+                                                padding: '4px 8px',
+                                                borderRadius: '12px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: '600',
+                                                backgroundColor: p.status === 'AI_COMPLETED' ? 'var(--color-success)' : 
+                                                                 p.status === 'ROUND2_INVITED' ? 'var(--color-warning)' : 
+                                                                 p.status === 'HIRED' ? 'var(--color-success)' : 'var(--color-secondary)',
+                                                color: '#fff'
+                                            }}>
+                                                {p.status.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {p.status === 'AI_COMPLETED' && p.ai_session_id ? (
+                                                <button 
+                                                    className="btn btn-sm btn-secondary" 
+                                                    onClick={() => window.open(`/interview/report/${p.ai_session_id}`, '_blank')}
+                                                >
+                                                    View Report
+                                                </button>
+                                            ) : (
+                                                <span style={{ color: 'var(--color-text-muted)' }}>-</span>
+                                            )}
+                                        </td>
+                                        <td>
+                                            <button 
+                                                className="btn btn-sm btn-primary"
+                                                onClick={() => openProfile(p.student_id)}
+                                            >
+                                                Profile
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button 
+                                                    className="btn btn-sm btn-success"
+                                                    onClick={() => onHireReject(p.id, 'hire')}
+                                                    title="Hire Candidate"
+                                                >
+                                                    ✓
+                                                </button>
+                                                <button 
+                                                    className="btn btn-sm btn-error"
+                                                    onClick={() => {
+                                                        setSelectedPipeline(p);
+                                                        setFeedbackModal(true);
+                                                    }}
+                                                    title="Reject Candidate"
+                                                >
+                                                    ✗
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -238,6 +280,94 @@ export default function Interviews() {
                     </div>
                 )}
             </div>
+
+            {/* Feedback Modal */}
+            {feedbackModal && (
+                <div className="modal-overlay" onClick={() => setFeedbackModal(false)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h4>Rejection Feedback</h4>
+                            <button className="modal-close" onClick={() => setFeedbackModal(false)}>
+                                ×
+                            </button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="form-group">
+                                <label className="form-label">Why is this candidate not selected?</label>
+                                <textarea
+                                    className="form-input"
+                                    rows={5}
+                                    value={feedbackText}
+                                    onChange={(e) => setFeedbackText(e.target.value)}
+                                    placeholder="Please provide feedback for the student..."
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <div className="modal-footer">
+                            <button className="btn btn-secondary" onClick={() => setFeedbackModal(false)}>Cancel</button>
+                            <button 
+                                className="btn btn-primary" 
+                                onClick={() => onHireReject(selectedPipeline.id, 'reject', feedbackText)}
+                                disabled={!feedbackText.trim()}
+                            >
+                                Send Feedback & Reject
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Profile Modal */}
+            {showProfile && profile && (
+                <div className="modal-overlay" onClick={() => setShowProfile(false)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+                        <div className="modal-header">
+                            <h4>Student Profile</h4>
+                            <button className="modal-close" onClick={() => setShowProfile(false)}>
+                                ×
+                            </button>
+                        </div>
+                        <div className="modal-body">
+                            {profileLoading ? (
+                                <div>Loading profile...</div>
+                            ) : (
+                                <div style={{ display: 'grid', gap: '1rem' }}>
+                                    <div>
+                                        <div style={{ fontWeight: 700, marginBottom: '4px' }}>Name</div>
+                                        <div style={{ color: 'var(--color-text-muted)' }}>{profile.name}</div>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontWeight: 700, marginBottom: '4px' }}>Email</div>
+                                        <div style={{ color: 'var(--color-text-muted)' }}>{profile.email}</div>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontWeight: 700, marginBottom: '4px' }}>Skills</div>
+                                        <div style={{ color: 'var(--color-text-muted)' }}>
+                                            {Array.isArray(profile.skills) && profile.skills.length ? profile.skills.join(', ') : '-'}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontWeight: 700, marginBottom: '4px' }}>Resume</div>
+                                        <div>
+                                            {profile.resume_url ? (
+                                                <a href={profile.resume_url} target="_blank" rel="noreferrer" className="btn btn-sm btn-secondary">
+                                                    View Resume
+                                                </a>
+                                            ) : (
+                                                <span style={{ color: 'var(--color-text-muted)' }}>-</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <div className="modal-footer">
+                            <button className="btn btn-secondary" onClick={() => setShowProfile(false)}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

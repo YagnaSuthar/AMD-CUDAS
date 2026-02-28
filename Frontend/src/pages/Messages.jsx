@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { FiSend, FiInbox, FiUser } from 'react-icons/fi';
+import { FiSend, FiInbox, FiMail, FiClock, FiCheck, FiUser, FiMessageSquare } from 'react-icons/fi';
 
 export default function Messages() {
     const { user } = useAuth();
@@ -13,7 +13,16 @@ export default function Messages() {
     const [messages, setMessages] = useState([]);
     const [subject, setSubject] = useState('');
     const [body, setBody] = useState('');
-    const [recipientId, setRecipientId] = useState('');
+    const [recipientEmail, setRecipientEmail] = useState('');
+
+    // College message state
+    const [collegeSubject, setCollegeSubject] = useState('');
+    const [collegeBody, setCollegeBody] = useState('');
+    const [collegePrincipalEmail, setCollegePrincipalEmail] = useState('');
+
+    const [activeTab, setActiveTab] = useState('student');
+    const [sendingStudent, setSendingStudent] = useState(false);
+    const [sendingCollege, setSendingCollege] = useState(false);
 
     const canSend = isRecruiter;
 
@@ -35,31 +44,57 @@ export default function Messages() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isRecruiter]);
 
-    const onSend = async (e) => {
+    const onSendStudent = async (e) => {
         e.preventDefault();
-        if (!canSend || !recipientId || !subject.trim() || !body.trim()) return;
+        if (!canSend || !recipientEmail || !subject.trim() || !body.trim()) return;
 
         try {
             setError('');
+            setSendingStudent(true);
             await api.post('/messages/send', {
-                recipient_id: recipientId,
+                recipient_email: recipientEmail,
                 subject: subject.trim(),
                 body: body.trim(),
             });
             setSubject('');
             setBody('');
-            setRecipientId('');
+            setRecipientEmail('');
             await fetchMessages();
         } catch (err) {
-            setError(err.response?.data?.detail || 'Failed to send message');
+            setError(err?.response?.data?.detail || err?.message || 'Failed to send message');
+        } finally {
+            setSendingStudent(false);
+        }
+    };
+
+    const onSendCollege = async (e) => {
+        e.preventDefault();
+        if (!canSend || !collegePrincipalEmail || !collegeSubject.trim() || !collegeBody.trim()) return;
+
+        try {
+            setError('');
+            setSendingCollege(true);
+            await api.post('/messages/send', {
+                recipient_email: collegePrincipalEmail,
+                subject: collegeSubject.trim(),
+                body: collegeBody.trim(),
+            });
+            setCollegeSubject('');
+            setCollegeBody('');
+            setCollegePrincipalEmail('');
+            await fetchMessages();
+        } catch (err) {
+            setError(err?.response?.data?.detail || err?.message || 'Failed to send message to college');
+        } finally {
+            setSendingCollege(false);
         }
     };
 
     if (!isRecruiter) {
         return (
             <div className="dashboard-page">
-                <div className="page-header">
-                    <h2>Messages</h2>
+                <div className="page-header slide-in-left">
+                    <h1 className="gradient-text">Messages</h1>
                 </div>
                 <div className="empty-state">
                     <FiInbox size={48} />
@@ -70,95 +105,218 @@ export default function Messages() {
     }
 
     return (
-        <div className="dashboard-page">
-            <div className="page-header">
-                <h2>Messages</h2>
-                <p>Send messages to students</p>
+        <div className="dashboard-content">
+            <div className="page-header slide-in-left">
+                <h1 className="gradient-text">Messages</h1>
+                <p style={{ color: 'var(--color-text-secondary)' }}>
+                    Send messages to students and colleges
+                </p>
             </div>
 
-            {error && <div className="alert alert-danger">{error}</div>}
-
-            <div className="card">
-                <div className="card-header">
-                    <h4>Send New Message</h4>
+            {error && (
+                <div className="alert alert-error fade-in" style={{ marginBottom: '16px' }}>
+                    {error}
                 </div>
-                <form onSubmit={onSend} className="card-body">
-                    <div className="form-group">
-                        <label className="form-label">Student ID (UUID)</label>
-                        <input
-                            type="text"
-                            className="form-input"
-                            value={recipientId}
-                            onChange={(e) => setRecipientId(e.target.value)}
-                            placeholder="Enter student UUID"
-                            required
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Subject</label>
-                        <input
-                            type="text"
-                            className="form-input"
-                            value={subject}
-                            onChange={(e) => setSubject(e.target.value)}
-                            placeholder="Message subject"
-                            required
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Message</label>
-                        <textarea
-                            className="form-input"
-                            rows={5}
-                            value={body}
-                            onChange={(e) => setBody(e.target.value)}
-                            placeholder="Type your message here..."
-                            required
-                        />
-                    </div>
-                    <button type="submit" className="btn btn-primary">
-                        <FiSend /> Send Message
-                    </button>
-                </form>
-            </div>
+            )}
 
-            <div className="card" style={{ marginTop: '2rem' }}>
-                <div className="card-header">
-                    <h4>Sent Messages</h4>
-                </div>
-                <div className="card-body">
-                    {loading ? (
-                        <p>Loading...</p>
-                    ) : messages.length === 0 ? (
-                        <p>No messages sent yet.</p>
-                    ) : (
-                        <div className="table-responsive">
-                            <table className="table">
-                                <thead>
-                                    <tr>
-                                        <th>To</th>
-                                        <th>Subject</th>
-                                        <th>Sent At</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {messages.map((msg) => (
-                                        <tr key={msg.id}>
-                                            <td>{msg.recipient_id}</td>
-                                            <td>{msg.subject}</td>
-                                            <td>{new Date(msg.created_at).toLocaleString()}</td>
-                                            <td>
-                                                <span className={`badge ${msg.is_read ? 'badge-success' : 'badge-secondary'}`}>
-                                                    {msg.is_read ? 'Read' : 'Unread'}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+            <div className="messages-grid">
+                {/* Left Panel — Compose */}
+                <div className="messages-compose-panel fade-in-up">
+                    {/* Tab Switcher */}
+                    <div className="msg-tab-switcher">
+                        <button
+                            className={`msg-tab ${activeTab === 'student' ? 'msg-tab-active' : ''}`}
+                            onClick={() => setActiveTab('student')}
+                        >
+                            <FiUser size={16} />
+                            <span>To Student</span>
+                        </button>
+                        <button
+                            className={`msg-tab ${activeTab === 'college' ? 'msg-tab-active' : ''}`}
+                            onClick={() => setActiveTab('college')}
+                        >
+                            <FiMessageSquare size={16} />
+                            <span>To College</span>
+                        </button>
+                    </div>
+
+                    {/* Student Message Form */}
+                    {activeTab === 'student' && (
+                        <form onSubmit={onSendStudent} className="msg-compose-form fade-in">
+                            <div className="msg-compose-header">
+                                <div className="msg-compose-icon">
+                                    <FiMail size={20} />
+                                </div>
+                                <div>
+                                    <h3>Send to Student</h3>
+                                    <p>Message will appear in the student's inbox</p>
+                                </div>
+                            </div>
+
+                            <div className="msg-field">
+                                <label>Student Email</label>
+                                <div className="msg-input-wrapper">
+                                    <FiUser className="msg-input-icon" />
+                                    <input
+                                        type="email"
+                                        value={recipientEmail}
+                                        onChange={(e) => setRecipientEmail(e.target.value)}
+                                        placeholder="Enter student email"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="msg-field">
+                                <label>Subject</label>
+                                <div className="msg-input-wrapper">
+                                    <FiMail className="msg-input-icon" />
+                                    <input
+                                        type="text"
+                                        value={subject}
+                                        onChange={(e) => setSubject(e.target.value)}
+                                        placeholder="Message subject"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="msg-field">
+                                <label>Message</label>
+                                <textarea
+                                    value={body}
+                                    onChange={(e) => setBody(e.target.value)}
+                                    placeholder="Type your message here..."
+                                    rows={5}
+                                    required
+                                />
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="msg-send-btn"
+                                disabled={sendingStudent || !recipientEmail || !subject.trim() || !body.trim()}
+                            >
+                                <FiSend size={16} />
+                                {sendingStudent ? 'Sending...' : 'Send Message'}
+                            </button>
+                        </form>
                     )}
+
+                    {/* College Message Form */}
+                    {activeTab === 'college' && (
+                        <form onSubmit={onSendCollege} className="msg-compose-form fade-in">
+                            <div className="msg-compose-header">
+                                <div className="msg-compose-icon" style={{ background: 'var(--gradient-secondary, linear-gradient(135deg, #a87ef0, #7c3aed))' }}>
+                                    <FiMessageSquare size={20} />
+                                </div>
+                                <div>
+                                    <h3>Send to College</h3>
+                                    <p>Message will appear in the principal's dashboard</p>
+                                </div>
+                            </div>
+
+                            <div className="msg-field">
+                                <label>Principal Email</label>
+                                <div className="msg-input-wrapper">
+                                    <FiUser className="msg-input-icon" />
+                                    <input
+                                        type="email"
+                                        value={collegePrincipalEmail}
+                                        onChange={(e) => setCollegePrincipalEmail(e.target.value)}
+                                        placeholder="Enter principal's email"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="msg-field">
+                                <label>Subject</label>
+                                <div className="msg-input-wrapper">
+                                    <FiMail className="msg-input-icon" />
+                                    <input
+                                        type="text"
+                                        value={collegeSubject}
+                                        onChange={(e) => setCollegeSubject(e.target.value)}
+                                        placeholder="Message subject"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="msg-field">
+                                <label>Message</label>
+                                <textarea
+                                    value={collegeBody}
+                                    onChange={(e) => setCollegeBody(e.target.value)}
+                                    placeholder="Type your message to the college..."
+                                    rows={5}
+                                    required
+                                />
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="msg-send-btn msg-send-btn-college"
+                                disabled={sendingCollege || !collegePrincipalEmail || !collegeSubject.trim() || !collegeBody.trim()}
+                            >
+                                <FiSend size={16} />
+                                {sendingCollege ? 'Sending...' : 'Send to College'}
+                            </button>
+                        </form>
+                    )}
+                </div>
+
+                {/* Right Panel — Sent Messages */}
+                <div className="messages-sent-panel fade-in-up fade-in-delay-2">
+                    <div className="msg-sent-header">
+                        <h3>
+                            <FiInbox size={18} />
+                            Sent Messages
+                        </h3>
+                        <span className="msg-count">{messages.length}</span>
+                    </div>
+
+                    <div className="msg-list">
+                        {loading ? (
+                            <div className="msg-empty">
+                                <div className="spinner" style={{ margin: '0 auto' }}></div>
+                                <p>Loading messages...</p>
+                            </div>
+                        ) : messages.length === 0 ? (
+                            <div className="msg-empty">
+                                <FiInbox size={40} />
+                                <p>No messages sent yet</p>
+                                <span>Your sent messages will appear here</span>
+                            </div>
+                        ) : (
+                            messages.map((msg, idx) => (
+                                <div
+                                    key={msg.id}
+                                    className="msg-card"
+                                    style={{ animationDelay: `${idx * 0.06}s` }}
+                                >
+                                    <div className="msg-card-top">
+                                        <div className="msg-avatar">
+                                            {(msg.recipient_id || '?').charAt(0).toUpperCase()}
+                                        </div>
+                                        <div className="msg-card-info">
+                                            <div className="msg-card-to">{msg.recipient_id}</div>
+                                            <div className="msg-card-subject">{msg.subject}</div>
+                                        </div>
+                                        <span className={`msg-status ${msg.is_read ? 'msg-status-read' : 'msg-status-unread'}`}>
+                                            {msg.is_read ? <FiCheck size={12} /> : <FiClock size={12} />}
+                                            {msg.is_read ? 'Read' : 'Unread'}
+                                        </span>
+                                    </div>
+                                    <div className="msg-card-time">
+                                        <FiClock size={12} />
+                                        {new Date(msg.created_at).toLocaleString()}
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

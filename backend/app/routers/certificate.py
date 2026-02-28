@@ -30,6 +30,7 @@ CERT_DIR = os.path.join(
 async def upload_certificate_blockchain(
     request: Request,
     title: str = Form(...),
+    description: str = Form(None),
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     current_user=Depends(student_only),
@@ -51,6 +52,7 @@ async def upload_certificate_blockchain(
         db=db,
         student_id=current_user.id,
         title=title,
+        description=description,
         file_name=file_name,
         file_path=file_path,
         file_hash=file_hash,

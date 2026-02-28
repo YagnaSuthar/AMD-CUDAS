@@ -3,15 +3,23 @@ LLM provider factory.
 Creates a LangChain ChatGroq instance from application settings.
 """
 
-from langchain_groq import ChatGroq
+try:
+    from langchain_groq import ChatGroq
+except ModuleNotFoundError:  # pragma: no cover
+    ChatGroq = None
 
 from app.core.config import settings
 
 
-def get_llm() -> ChatGroq:
+def get_llm():
     """
     Build and return a Groq LLM instance configured from env vars.
     """
+    if ChatGroq is None:
+        raise RuntimeError(
+            "Missing optional dependency 'langchain-groq'. "
+            "Install it (pip install langchain-groq) to enable Groq-backed AI interviews."
+        )
     return ChatGroq(
         model=settings.GROQ_MODEL_NAME,
         api_key=settings.GROQ_API_KEY,

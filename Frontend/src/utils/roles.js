@@ -1,6 +1,6 @@
 import {
     FiHome, FiUsers, FiUpload, FiCheckSquare, FiBarChart2,
-    FiBookOpen, FiBriefcase, FiSettings, FiCalendar, FiFileText, FiAward, FiLayers, FiTrendingUp, FiMessageSquare
+    FiBookOpen, FiBriefcase, FiSettings, FiCalendar, FiFileText, FiAward, FiLayers, FiTrendingUp, FiMessageSquare, FiInbox, FiBell
 } from 'react-icons/fi';
 
 // Role constants
@@ -74,6 +74,7 @@ export const SIDEBAR_ROUTES = {
         { path: '/dashboard/skills', label: 'Skills', icon: FiFileText },
         { path: '/dashboard/jobs', label: 'Jobs', icon: FiBriefcase },
         { path: '/dashboard/interview', label: 'AI Interview', icon: FiBriefcase },
+        { path: '/dashboard/notifications', label: 'Notifications', icon: FiBell },
         { path: '/dashboard/leaderboard', label: 'Leaderboard', icon: FiTrendingUp },
         { path: '/dashboard/profile', label: 'My Profile', icon: FiSettings },
     ],
@@ -86,6 +87,7 @@ export const SIDEBAR_ROUTES = {
     RECRUITER: [
         { path: '/dashboard', label: 'Dashboard', icon: FiBarChart2 },
         { path: '/dashboard/jobs', label: 'Jobs', icon: FiBriefcase },
+        { path: '/dashboard/applications', label: 'Applications', icon: FiInbox },
         { path: '/dashboard/interviews', label: 'Interview Pipeline', icon: FiUsers },
         { path: '/dashboard/clgs', label: 'CLGs', icon: FiBookOpen },
         { path: '/dashboard/messages', label: 'Messages', icon: FiMessageSquare },

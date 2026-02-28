@@ -21,6 +21,7 @@ Return JSON:
 
 QUESTION_GENERATION_PROMPT = """Generate one interview question. Return JSON only.
 
+Job Description: {job_description}
 Student skills: {skill_summary}
 Last question asked: {last_question}
 Summary of last answer: {last_answer_summary}
@@ -29,13 +30,14 @@ Difficulty: {difficulty}
 Resume context: {resume_context}
 
 Rules:
-1. Question must relate to student's skills
-2. Must NOT repeat the last question topic
-3. If behavior is "arrogant", ask a harder probing question
-4. If last answer was short or weak, ask a deeper follow-up on the same topic
-5. If last answer was detailed, ask the next logical technical question
-6. Use a human, professional, conversational tone — NOT robotic
-7. Clear, specific, answerable in 2-3 minutes
+1. Question must relate to the job description requirements
+2. Question should test skills relevant to the position
+3. Must NOT repeat the last question topic
+4. If behavior is "arrogant", ask a harder probing question
+5. If last answer was short or weak, ask a deeper follow-up on the same topic
+6. If last answer was detailed, ask the next logical technical question
+7. Use a human, professional, conversational tone — NOT robotic
+8. Clear, specific, answerable in 2-3 minutes
 
 Return JSON:
 {{"question": "question text", "topic": "specific topic", "difficulty": "easy|medium|hard"}}"""
@@ -45,15 +47,17 @@ Return JSON:
 
 RESUME_PROJECT_QUESTION_PROMPT = """Generate the first interview question about the student's projects. Return JSON only.
 
+Job Description: {job_description}
 Student skills: {skill_summary}
 Project summary: {project_summary}
 Difficulty: {difficulty}
 
 Rules:
-1. Ask about a specific project from their resume
+1. Ask about a specific project from their resume that relates to the job description
 2. Ask about technologies used, challenges faced, or a real-world problem they solved
-3. Tone must be human, professional, and friendly — like a real interviewer
-4. Example tone: "I noticed you have experience in web development. Can you explain one project where you solved a real-world problem?"
+3. Connect the project to job requirements when possible
+4. Tone must be human, professional, and friendly — like a real interviewer
+5. Example tone: "I noticed you have experience in web development. Can you explain one project where you solved a real-world problem?"
 
 Return JSON:
 {{"question": "question text", "topic": "specific topic", "difficulty": "easy|medium|hard"}}"""
@@ -63,17 +67,19 @@ Return JSON:
 
 RESUME_NO_PROJECT_QUESTION_PROMPT = """Generate the first interview question for a student without projects. Return JSON only.
 
+Job Description: {job_description}
 Student skills: {skill_summary}
 Difficulty: {difficulty}
 
-The student's resume does NOT include any project details. Your first question should politely ask why and whether they plan to start any.
+The student's resume does NOT include any project details. Your first question should relate to the job description and test their fundamental understanding of required skills.
 
-Example tone: "I see that your resume does not include any project details. Can you tell me why you haven't worked on projects yet? Are you planning to start any soon?"
+Example tone: "I see that your resume focuses on theoretical knowledge. Let's start with a fundamental question about {skill_summary}."
 
 Rules:
-1. Be polite. Do NOT judge the student.
-2. Human, professional, conversational tone — NOT robotic
-3. Ask both: why no projects + future plans
+1. Ask a fundamental question related to the job description
+2. Test basic understanding of required skills
+3. Be polite. Do NOT judge the student.
+4. Human, professional, conversational tone — NOT robotic
 
 Return JSON:
 {{"question": "question text", "topic": "projects", "difficulty": "easy"}}"""

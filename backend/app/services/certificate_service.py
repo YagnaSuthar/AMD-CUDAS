@@ -51,6 +51,7 @@ async def create_certificate_and_block(
     db: AsyncSession,
     student_id,
     title: str,
+    description: str | None = None,
     file_name: str,
     file_path: str,
     file_hash: str,
@@ -67,6 +68,7 @@ async def create_certificate_and_block(
             cert = Certificate(
                 student_id=student_id,
                 title=title,
+                description=description,
                 file_name=file_name,
                 file_path=file_path,
                 file_hash=file_hash,

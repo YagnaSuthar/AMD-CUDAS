@@ -32,6 +32,8 @@ async def mark_pipeline_ai_completed(
     db: AsyncSession,
     session_id: uuid.UUID,
 ) -> None:
+    from app.models import InterviewReport, JobApplication, ApplicationStatus
+
     result = await db.execute(
         select(InterviewPipeline).where(InterviewPipeline.ai_session_id == session_id)
     )
@@ -40,4 +42,24 @@ async def mark_pipeline_ai_completed(
         return
 
     pipeline.status = PipelineStatus.AI_COMPLETED
+
+    # Get the AI score from the interview report
+    report_result = await db.execute(
+        select(InterviewReport).where(InterviewReport.session_id == session_id)
+    )
+    report = report_result.scalar_one_or_none()
+    ai_score = report.final_score if report else None
+
+    # Update the job application status and score
+    app_result = await db.execute(
+        select(JobApplication).where(
+            JobApplication.job_id == pipeline.job_id,
+            JobApplication.student_id == pipeline.student_id,
+        )
+    )
+    application = app_result.scalar_one_or_none()
+    if application:
+        application.status = ApplicationStatus.AI_COMPLETED
+        application.ai_score = int(ai_score) if ai_score else None
+
     await db.flush()

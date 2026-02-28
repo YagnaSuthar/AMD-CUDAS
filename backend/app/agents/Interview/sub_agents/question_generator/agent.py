@@ -29,6 +29,7 @@ async def generate_question(
     resume_has_projects: bool = False,
     resume_project_summary: str = "",
     is_first_question: bool = False,
+    job_description: str = "",
 ) -> Dict[str, str]:
     """
     Generate a single interview question based on dynamic context.
@@ -78,12 +79,14 @@ async def generate_question(
     if is_first_question:
         if resume_has_projects and resume_project_summary:
             prompt = RESUME_PROJECT_QUESTION_PROMPT.format(
+                job_description=job_description or "Not specified",
                 skill_summary=effective_skills,
                 project_summary=resume_project_summary,
                 difficulty=difficulty,
             )
         else:
             prompt = RESUME_NO_PROJECT_QUESTION_PROMPT.format(
+                job_description=job_description or "Not specified",
                 skill_summary=effective_skills,
                 difficulty=difficulty,
             )
@@ -96,6 +99,7 @@ async def generate_question(
             resume_context = "Student has no project experience."
 
         prompt = QUESTION_GENERATION_PROMPT.format(
+            job_description=job_description or "Not specified",
             skill_summary=effective_skills,
             last_question=last_question or "None (first question)",
             last_answer_summary=last_answer_summary or "None (first question)",

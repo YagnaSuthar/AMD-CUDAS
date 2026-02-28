@@ -26,6 +26,8 @@ import Jobs from './pages/Jobs';
 import Interviews from './pages/Interviews';
 import RecruiterClgs from './pages/RecruiterClgs';
 import Messages from './pages/Messages';
+import Applications from './pages/Applications';
+import Notifications from './pages/Notifications';
 
 function App() {
   return (
@@ -59,8 +61,10 @@ function App() {
               <Route path="certificates" element={<CertificateManagement />} />
               <Route path="leaderboard" element={<Leaderboard />} />
               <Route path="jobs" element={<Jobs />} />
+              <Route path="applications" element={<Applications />} />
               <Route path="clgs" element={<RecruiterClgs />} />
               <Route path="messages" element={<Messages />} />
+              <Route path="notifications" element={<Notifications />} />
               <Route path="departments" element={<Dashboard departments />} />
             </Route>
           </Route>

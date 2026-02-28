@@ -272,6 +272,7 @@ class Certificate(Base):
         nullable=False,
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     file_name: Mapped[str] = mapped_column(String(500), nullable=False)
     file_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     file_hash: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)

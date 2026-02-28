@@ -34,42 +34,69 @@ async def send_message(
     current_user=Depends(recruiter_only),
 ):
     """Recruiter sends a message to a student."""
-    if isinstance(current_user, dict):
-        raise HTTPException(status_code=403, detail="Admin cannot send messages")
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info(f"Attempting to send message from {current_user.email} to {body.recipient_email}")
+        
+        if isinstance(current_user, dict):
+            raise HTTPException(status_code=403, detail="Admin cannot send messages")
 
-    # Verify recipient is a student
-    recipient_result = await db.execute(
-        select(AuthUser).where(AuthUser.id == body.recipient_id)
-    )
-    recipient = recipient_result.scalar_one_or_none()
-    if not recipient:
-        raise HTTPException(status_code=404, detail="Recipient not found")
-    if recipient.role != "STUDENT":
-        raise HTTPException(status_code=400, detail="Recipient must be a student")
+        # Verify recipient is a student by email
+        recipient_result = await db.execute(
+            select(AuthUser).where(AuthUser.email == body.recipient_email)
+        )
+        recipient = recipient_result.scalar_one_or_none()
+        if not recipient:
+            logger.error(f"Student not found with email: {body.recipient_email}")
+            raise HTTPException(status_code=404, detail="Student not found with this email")
+        if recipient.role != "STUDENT":
+            logger.error(f"Recipient {body.recipient_email} is not a student, role: {recipient.role}")
+            raise HTTPException(status_code=400, detail="Recipient must be a student")
 
-    # Create message
-    message = Message(
-        sender_id=current_user.id,
-        recipient_id=body.recipient_id,
-        message_type=MessageType.RECRUITER_TO_STUDENT,
-        subject=body.subject,
-        body=body.body,
-    )
-    db.add(message)
-    await db.flush()
+        logger.info(f"Found student: {recipient.name} ({recipient.id})")
 
-    # Create notification for the student
-    notification = Notification(
-        user_id=body.recipient_id,
-        notification_type=NotificationType.MESSAGE,
-        title=f"New message from {current_user.name}",
-        message=body.subject,
-        meta_json={"message_id": str(message.id)},
-    )
-    db.add(notification)
-    await db.commit()
-    await db.refresh(message)
-    return message
+        # Create message
+        message = Message(
+            sender_id=current_user.id,
+            recipient_id=recipient.id,
+            message_type=MessageType.RECRUITER_TO_STUDENT,
+            subject=body.subject,
+            body=body.body,
+            is_read=False,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(message)
+
+        # Create notification for student
+        notification = Notification(
+            user_id=recipient.id,
+            notification_type=NotificationType.MESSAGE,
+            title=f"New message from {current_user.name}",
+            message=body.subject,
+            meta_json={
+                "sender_id": str(current_user.id),
+                "sender_name": current_user.name,
+                "message_id": str(message.id),
+            },
+            is_read=False,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(notification)
+
+        await db.flush()
+        await db.commit()
+        await db.refresh(message)
+        
+        logger.info(f"Message sent successfully to {recipient.email}")
+        return message
+        
+    except Exception as exc:
+        logger.error(f"Error sending message: {exc}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.get("/", response_model=list[MessageResponse])

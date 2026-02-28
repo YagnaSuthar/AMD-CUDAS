@@ -40,3 +40,14 @@ from app.models.message import (  # noqa: F401
     Notification,
     NotificationType,
 )
+from app.models.job_application import (  # noqa: F401
+    JobApplication,
+    ApplicationStatus,
+)
+from app.models.job import (  # noqa: F401
+    Job,
+)
+from app.models.pipeline import (  # noqa: F401
+    InterviewPipeline,
+    PipelineStatus,
+)

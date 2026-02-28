@@ -198,6 +198,7 @@ class MarksLockRequest(BaseModel):
 class CertificateResponse(BaseModel):
     id: str
     title: str
+    description: Optional[str] = None
     file_name: str
     is_verified: bool = False
     points: int = 0

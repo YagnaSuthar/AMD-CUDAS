@@ -70,6 +70,36 @@ from app.services.pipeline_service import attach_session_to_pipeline, mark_pipel
 logger = logging.getLogger(__name__)
 
 
+async def _get_job_description_from_session(
+    db: AsyncSession,
+    session_id: UUID,
+) -> str:
+    """Fetch job description from the job associated with this interview session via pipeline."""
+    from app.models.pipeline import InterviewPipeline
+    from app.models.job import Job
+    
+    # Find pipeline entry with this session
+    result = await db.execute(
+        select(InterviewPipeline).where(
+            InterviewPipeline.ai_session_id == session_id
+        )
+    )
+    pipeline = result.scalar_one_or_none()
+    
+    if not pipeline:
+        return ""
+    
+    # Fetch job description
+    job_result = await db.execute(
+        select(Job).where(Job.id == pipeline.job_id)
+    )
+    job = job_result.scalar_one_or_none()
+    
+    if job:
+        return job.description or ""
+    return ""
+
+
 class InterviewService:
     """Business logic for the interview endpoints."""
 
@@ -192,6 +222,9 @@ class InterviewService:
                 skills_list = profile_data.get("skills", [])
                 skill_summary = ", ".join(skills_list) if skills_list else "general topics"
 
+                # Fetch job description for question generation
+                job_description = await _get_job_description_from_session(db, session_id)
+
                 q_data = await generate_question(
                     context="",
                     difficulty="medium",
@@ -200,6 +233,7 @@ class InterviewService:
                     resume_has_projects=has_projects,
                     resume_project_summary=project_summary,
                     is_first_question=True,
+                    job_description=job_description,
                 )
 
                 # Persist the question
@@ -350,6 +384,8 @@ class InterviewService:
             next_question = None
         else:
             next_action = "ask_question"
+            # Fetch job description for follow-up questions
+            job_description = await _get_job_description_from_session(db, session_id)
             # Generate next question with context-aware follow-up
             q_data = await generate_question(
                 context=memory_data.get("summary", ""),
@@ -359,6 +395,7 @@ class InterviewService:
                 last_answer_summary=memory_data.get("summary", ""),
                 behavior=behavior_flag,
                 skill_summary=memory_data.get("summary", ""),
+                job_description=job_description,
             )
             q_obj = Question(
                 session_id=session_id,

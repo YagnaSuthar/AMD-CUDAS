@@ -4,16 +4,24 @@ Creates a LangChain ChatGoogleGenerativeAI instance from application settings.
 """
 
 # from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_groq import ChatGroq
+try:
+    from langchain_groq import ChatGroq
+except ModuleNotFoundError:  # pragma: no cover
+    ChatGroq = None
 
 from app.core.config import settings
 
 
 # def get_llm() -> ChatGoogleGenerativeAI:
-def get_llm() -> ChatGroq:
+def get_llm():
     """
     Build and return a Gemini LLM instance configured from env vars.
     """
+    if ChatGroq is None:
+        raise RuntimeError(
+            "Missing optional dependency 'langchain-groq'. "
+            "Install it (pip install langchain-groq) to enable Groq-backed AI interviews."
+        )
     # return ChatGoogleGenerativeAI(
     #     model=settings.GEMINI_MODEL_NAME,
     #     google_api_key=settings.GEMINI_API_KEY,
