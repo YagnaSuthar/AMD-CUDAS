@@ -66,4 +66,5 @@ class InterviewPipeline(Base):
     )
 
     round2_link: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    round2_scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     hired_company_name: Mapped[str | None] = mapped_column(String(255), nullable=True)

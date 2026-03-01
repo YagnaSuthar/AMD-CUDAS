@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { FiAward, FiTrendingUp, FiHash, FiBarChart2, FiMic, FiBriefcase, FiClock, FiCheckCircle, FiXCircle } from 'react-icons/fi';
+import { FiAward, FiTrendingUp, FiHash, FiBarChart2, FiMic, FiBriefcase, FiClock, FiCheckCircle, FiXCircle, FiInfo } from 'react-icons/fi';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell } from 'recharts';
 import InterviewModal from '../components/InterviewModal';
 import '../style/interview.css';
@@ -42,6 +43,12 @@ export default function StudentDashboard() {
     const [pipelines, setPipelines] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showInterview, setShowInterview] = useState(false);
+    const [selectedPipeline, setSelectedPipeline] = useState(null);
+
+    const fetchPipelines = useCallback(async () => {
+        const pipelineRes = await api.get('/pipeline/student');
+        setPipelines(pipelineRes.data || []);
+    }, []);
 
     useEffect(() => {
         (async () => {
@@ -123,7 +130,10 @@ export default function StudentDashboard() {
                         <p>No AI interviews assigned yet. Check back later for new opportunities!</p>
                         <button 
                             className="btn btn-primary" 
-                            onClick={() => setShowInterview(true)}
+                            onClick={() => {
+                                setSelectedPipeline(null);
+                                setShowInterview(true);
+                            }}
                             style={{ marginTop: '10px' }}
                         >
                             Practice AI Interview
@@ -176,32 +186,57 @@ export default function StudentDashboard() {
                                             </span>
                                         </div>
                                         <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-                                            Job ID: {pipeline.job_id?.slice(0, 8)}...
+                                            {pipeline.company_name ? `${pipeline.company_name} • ` : ''}
+                                            {pipeline.job_title ? `${pipeline.job_title}` : `Job ID: ${pipeline.job_id?.slice(0, 8)}...`}
                                         </span>
                                     </div>
                                     
-                                    {pipeline.status === 'AI_ASSIGNED' && (
+                                    {pipeline.status === 'AI_ASSIGNED' && !pipeline.ai_session_id && (
                                         <div style={{ marginTop: '10px' }}>
                                             <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '10px' }}>
-                                                You have been assigned an AI interview. Click below to start.
+                                                You have been assigned Round 1 (AI interview). Click below to start.
                                             </p>
                                             <button 
                                                 className="btn btn-primary btn-sm"
-                                                onClick={() => setShowInterview(true)}
+                                                onClick={() => {
+                                                    setSelectedPipeline(pipeline);
+                                                    setShowInterview(true);
+                                                }}
                                             >
                                                 <FiMic style={{ marginRight: '6px' }} />
                                                 Start AI Interview
                                             </button>
                                         </div>
                                     )}
+
+                                    {pipeline.status === 'AI_ASSIGNED' && pipeline.ai_session_id && (
+                                        <div style={{ marginTop: '10px' }}>
+                                            <p style={{ fontSize: '0.9rem', color: 'var(--color-warning)', marginBottom: '10px' }}>
+                                                You have already started the AI interview for this job. Please complete it or contact support if you encountered issues.
+                                            </p>
+                                            <div style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                padding: '6px 12px',
+                                                backgroundColor: 'var(--color-bg-secondary)',
+                                                borderRadius: '20px',
+                                                fontSize: '0.8rem',
+                                                color: 'var(--color-text-muted)'
+                                            }}>
+                                                <FiInfo style={{ color: 'var(--color-warning)' }} />
+                                                Interview in progress - No retakes allowed
+                                            </div>
+                                        </div>
+                                    )}
                                     
                                     {pipeline.status === 'AI_COMPLETED' && (
                                         <div style={{ marginTop: '10px' }}>
                                             <p style={{ fontSize: '0.9rem', color: 'var(--color-success)', marginBottom: '5px', fontWeight: '600' }}>
-                                                ✓ AI interview submitted successfully!
+                                                ✓ Submitted
                                             </p>
                                             <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '8px' }}>
-                                                Your interview has been reviewed by the recruiter. You will be notified about the next steps.
+                                                Your AI interview has been submitted successfully. The recruiter will review it.
                                             </p>
                                             {pipeline.ai_session_id && (
                                                 <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
@@ -229,15 +264,18 @@ export default function StudentDashboard() {
                                             <p style={{ fontSize: '0.9rem', color: 'var(--color-warning)', marginBottom: '10px' }}>
                                                 Congratulations! You've been invited to Round 2.
                                             </p>
-                                            <a 
-                                                href={pipeline.round2_link} 
-                                                target="_blank" 
-                                                rel="noreferrer"
+                                            {pipeline.round2_scheduled_at && (
+                                                <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '10px' }}>
+                                                    Scheduled: {new Date(pipeline.round2_scheduled_at).toLocaleString()}
+                                                </p>
+                                            )}
+                                            <Link
+                                                to={pipeline.round2_link}
                                                 className="btn btn-secondary btn-sm"
                                             >
                                                 <FiBriefcase style={{ marginRight: '6px' }} />
-                                                Join Round 2 Interview
-                                            </a>
+                                                Start Round 2
+                                            </Link>
                                         </div>
                                     )}
                                     
@@ -384,7 +422,16 @@ export default function StudentDashboard() {
             )}
             
             {showInterview && (
-                <InterviewModal onClose={() => setShowInterview(false)} />
+                <InterviewModal
+                    onClose={() => {
+                        setShowInterview(false);
+                        setSelectedPipeline(null);
+                        setTimeout(() => {
+                            fetchPipelines().catch((e) => console.error('Failed to refresh pipelines', e));
+                        }, 800);
+                    }}
+                    pipeline={selectedPipeline}
+                />
             )}
         </div>
     );

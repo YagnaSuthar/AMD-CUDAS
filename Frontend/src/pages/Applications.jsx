@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { FiInbox, FiCheckCircle, FiXCircle, FiClock, FiBriefcase, FiUser, FiMail, FiAward } from 'react-icons/fi';
+import { FiInbox, FiCheckCircle, FiXCircle, FiClock, FiBriefcase, FiUser, FiMail, FiAward, FiInfo } from 'react-icons/fi';
 
 export default function Applications() {
     const { user } = useAuth();
@@ -11,6 +11,18 @@ export default function Applications() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [actionLoading, setActionLoading] = useState({});
+    const [round2Schedule, setRound2Schedule] = useState({});
+    const [reportModal, setReportModal] = useState({ show: false, report: null });
+
+    const fetchReport = async (sessionId) => {
+        try {
+            const res = await api.get(`/ai/interview/report/${sessionId}`);
+            setReportModal({ show: true, report: res.data });
+        } catch (e) {
+            console.error('Failed to fetch report:', e);
+            alert('Failed to load report. The interview may not be completed yet.');
+        }
+    };
 
     const fetchJobs = async () => {
         try {
@@ -18,6 +30,34 @@ export default function Applications() {
             setJobs(res.data || []);
         } catch (e) {
             console.error('Failed to fetch jobs:', e);
+        }
+    };
+
+    const inviteToRound2 = async (applicationId, pipelineId) => {
+        if (!pipelineId) {
+            setError('Pipeline not found for this application. Assign AI interview first.');
+            return;
+        }
+
+        const scheduledLocal = round2Schedule[applicationId];
+        if (!scheduledLocal) {
+            setError('Please select Round 2 date/time first.');
+            return;
+        }
+
+        setActionLoading({ ...actionLoading, [applicationId]: 'round2' });
+        try {
+            const scheduledAtIso = new Date(scheduledLocal).toISOString();
+            await api.put('/pipeline/invite-round2', {
+                pipeline_id: pipelineId,
+                round2_link: `/dashboard/round2/${pipelineId}`,
+                scheduled_at: scheduledAtIso,
+            });
+            await fetchApplications();
+        } catch (e) {
+            setError(e?.response?.data?.detail || 'Failed to invite to Round 2');
+        } finally {
+            setActionLoading({ ...actionLoading, [applicationId]: null });
         }
     };
 
@@ -69,7 +109,7 @@ export default function Applications() {
         const statusConfig = {
             PENDING: { icon: FiClock, className: 'status-badge-pending', label: 'Pending' },
             AI_ASSIGNED: { icon: FiCheckCircle, className: 'status-badge-approved', label: 'AI Assigned' },
-            AI_COMPLETED: { icon: FiAward, className: 'status-badge-approved', label: 'AI Completed' },
+            AI_COMPLETED: { icon: FiAward, className: 'status-badge-approved', label: 'Completed' },
             ROUND2_INVITED: { icon: FiCheckCircle, className: 'status-badge-approved', label: 'Round 2 Invited' },
             HIRED: { icon: FiCheckCircle, className: 'status-badge-approved', label: 'Hired' },
             REJECTED: { icon: FiXCircle, className: 'status-badge-rejected', label: 'Rejected' },
@@ -201,16 +241,19 @@ export default function Applications() {
                                             </td>
                                             <td>{getStatusBadge(app.status)}</td>
                                             <td>
-                                                {app.ai_score !== null && app.ai_score !== undefined ? (
-                                                    <span
-                                                        style={{
-                                                            fontWeight: 700,
-                                                            color: app.ai_score >= 70 ? 'var(--color-success)' : app.ai_score >= 50 ? 'var(--color-warning)' : 'var(--color-error)',
-                                                        }}
-                                                    >
-                                                        {app.ai_score}%
-                                                    </span>
-                                                ) : (
+                                                {app.ai_score !== null && app.ai_score !== undefined ? (() => {
+                                                    const raw = Number(app.ai_score);
+                                                    const isTenScale = Number.isFinite(raw) && raw <= 10;
+                                                    const display = isTenScale ? `${raw.toFixed(1)}/10` : `${raw}%`;
+                                                    const color = isTenScale
+                                                        ? (raw >= 8 ? 'var(--color-success)' : raw >= 5 ? 'var(--color-warning)' : 'var(--color-error)')
+                                                        : (raw >= 70 ? 'var(--color-success)' : raw >= 50 ? 'var(--color-warning)' : 'var(--color-error)');
+                                                    return (
+                                                        <span style={{ fontWeight: 700, color }}>
+                                                            {display}
+                                                        </span>
+                                                    );
+                                                })() : (
                                                     <span style={{ color: 'var(--color-text-muted)' }}>-</span>
                                                 )}
                                             </td>
@@ -238,16 +281,60 @@ export default function Applications() {
                                                     </button>
                                                 )}
                                                 {app.status === 'AI_COMPLETED' && (
-                                                    <span style={{ fontSize: '0.8rem', color: 'var(--color-success)' }}>
-                                                        <FiCheckCircle style={{ marginRight: '4px' }} />
-                                                        Ready for Round 2
-                                                    </span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        {app.ai_session_id && (
+                                                            <button
+                                                                className="btn btn-sm btn-secondary"
+                                                                onClick={() => fetchReport(app.ai_session_id)}
+                                                                style={{
+                                                                    padding: '6px 12px',
+                                                                    fontSize: '0.8rem',
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '4px',
+                                                                }}
+                                                                title="View Full AI Interview Report"
+                                                            >
+                                                                <FiInfo size={14} /> Report
+                                                            </button>
+                                                        )}
+                                                        <input
+                                                            type="datetime-local"
+                                                            className="input"
+                                                            value={round2Schedule[app.id] || ''}
+                                                            onChange={(e) => setRound2Schedule(prev => ({ ...prev, [app.id]: e.target.value }))}
+                                                            min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                                                            style={{ maxWidth: '220px' }}
+                                                        />
+                                                        <button
+                                                            className="btn btn-sm btn-secondary"
+                                                            onClick={() => inviteToRound2(app.id, app.pipeline_id)}
+                                                            disabled={actionLoading[app.id] === 'round2'}
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                fontSize: '0.8rem',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '6px',
+                                                            }}
+                                                        >
+                                                            {actionLoading[app.id] === 'round2' ? 'Inviting...' : (<><FiBriefcase size={14} /> Round 2</>)}
+                                                        </button>
+                                                    </div>
                                                 )}
                                                 {app.status === 'ROUND2_INVITED' && (
-                                                    <span style={{ fontSize: '0.8rem', color: 'var(--color-secondary)' }}>
-                                                        <FiCheckCircle style={{ marginRight: '4px' }} />
-                                                        Round 2 Invited
-                                                    </span>
+                                                    <div style={{ display: 'grid', gap: '6px' }}>
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--color-secondary)' }}>
+                                                            <FiCheckCircle style={{ marginRight: '4px' }} />
+                                                            Round 2 Invited
+                                                        </span>
+                                                        {app.round2_scheduled_at && (
+                                                            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                                                                <FiClock style={{ marginRight: '4px' }} />
+                                                                {new Date(app.round2_scheduled_at).toLocaleString()}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 )}
                                                 {app.status === 'HIRED' && (
                                                     <span style={{ fontSize: '0.8rem', color: 'var(--color-success)' }}>
@@ -264,6 +351,46 @@ export default function Applications() {
                     )}
                 </div>
             </div>
+
+            {reportModal.show && reportModal.report && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 9999,
+                }}>
+                    <div style={{
+                        backgroundColor: 'var(--color-bg)',
+                        borderRadius: '8px',
+                        padding: '24px',
+                        maxWidth: '600px',
+                        width: '90%',
+                        maxHeight: '80vh',
+                        overflowY: 'auto',
+                    }}>
+                        <h3 style={{ marginTop: 0, marginBottom: '16px' }}>AI Interview Report</h3>
+                        <div style={{ marginBottom: '12px' }}><strong>Final Score:</strong> {reportModal.report.final_score ?? 'N/A'}</div>
+                        <div style={{ marginBottom: '12px' }}><strong>Communication Score:</strong> {reportModal.report.communication_score ?? 'N/A'}</div>
+                        <div style={{ marginBottom: '12px' }}><strong>Recommendation:</strong> {reportModal.report.recommendation ?? 'N/A'}</div>
+                        <div style={{ marginBottom: '12px' }}><strong>Strengths:</strong> {reportModal.report.strengths?.length ? reportModal.report.strengths.join(', ') : 'N/A'}</div>
+                        <div style={{ marginBottom: '12px' }}><strong>Weaknesses:</strong> {reportModal.report.weaknesses?.length ? reportModal.report.weaknesses.join(', ') : 'N/A'}</div>
+                        <div style={{ marginBottom: '12px' }}><strong>Behavior Summary:</strong> {reportModal.report.behavior_summary ?? 'N/A'}</div>
+                        <button
+                            className="btn btn-secondary"
+                            onClick={() => setReportModal({ show: false, report: null })}
+                            style={{ marginTop: '16px' }}
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

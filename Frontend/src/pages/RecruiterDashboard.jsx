@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { 
     FiUsers, FiCheckCircle, FiClock, FiBriefcase, FiAward, FiTrendingUp, 
-    FiBarChart2, FiActivity, FiUser, FiMail, FiCalendar, FiTarget 
+    FiBarChart2, FiActivity, FiUser, FiMail, FiCalendar, FiTarget, FiInfo
 } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
@@ -14,6 +14,17 @@ export default function RecruiterDashboard() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [reportModal, setReportModal] = useState({ show: false, report: null });
+
+    const fetchReport = async (sessionId) => {
+        try {
+            const res = await api.get(`/ai/interview/report/${sessionId}`);
+            setReportModal({ show: true, report: res.data });
+        } catch (e) {
+            console.error('Failed to fetch report:', e);
+            alert('Failed to load report. The interview may not be completed yet.');
+        }
+    };
 
     useEffect(() => {
         fetchDashboardData();
@@ -50,6 +61,17 @@ export default function RecruiterDashboard() {
     const recentInterviews = data?.recent_interviews || [];
     const statusBreakdown = data?.status_breakdown || {};
 
+    const getStatusColor = (status) => {
+        switch (status) {
+            case 'AI_ASSIGNED': return '#ffb703';
+            case 'AI_COMPLETED': return '#22c55e';
+            case 'ROUND2_INVITED': return '#00bcd4';
+            case 'ROUND2_COMPLETED': return '#a87ef0';
+            case 'HIRED': return '#10b981';
+            default: return '#667eea';
+        }
+    };
+
     // Prepare chart data
     const statusChartData = Object.entries(statusBreakdown).map(([status, count]) => ({
         name: status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
@@ -75,17 +97,6 @@ export default function RecruiterDashboard() {
         name: range,
         count
     }));
-
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'AI_ASSIGNED': return '#ffb703';
-            case 'AI_COMPLETED': return '#22c55e';
-            case 'ROUND2_INVITED': return '#00bcd4';
-            case 'ROUND2_COMPLETED': return '#a87ef0';
-            case 'HIRED': return '#10b981';
-            default: return '#667eea';
-        }
-    };
 
     const getRecommendationColor = (recommendation) => {
         if (!recommendation) return '#667eea';
@@ -261,10 +272,11 @@ export default function RecruiterDashboard() {
                                     <th>Student</th>
                                     <th>Department</th>
                                     <th>Job Role</th>
-                                    <th>Score</th>
+                                    <th>AI Score</th>
                                     <th>Communication</th>
                                     <th>Recommendation</th>
                                     <th>Status</th>
+                                    <th>Report</th>
                                     <th>Completed</th>
                                 </tr>
                             </thead>
@@ -282,39 +294,32 @@ export default function RecruiterDashboard() {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>
-                                            <span className="badge bg-secondary" style={{ fontSize: '0.8rem' }}>
-                                                {interview.student_department}
+                                    <td>
+                                        <span className="badge bg-secondary" style={{ fontSize: '0.8rem' }}>
+                                            {interview.student_department}
+                                        </span>
+                                    </td>
+                                    <td>{interview.job_role}</td>
+                                    <td>
+                                        {interview.final_score !== null ? (
+                                            <div style={{
+                                                display: 'inline-block',
+                                                padding: '4px 8px',
+                                                borderRadius: '4px',
+                                                backgroundColor: interview.final_score >= 8 ? 'var(--color-success)' :
+                                                                   interview.final_score >= 5 ? 'var(--color-warning)' : 'var(--color-error)',
+                                                color: 'white',
+                                                fontWeight: 600,
+                                                fontSize: '0.75rem'
+                                            }}>
+                                                {interview.final_score.toFixed(1)}/10
+                                            </div>
+                                        ) : (
+                                            <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+                                                Pending
                                             </span>
-                                        </td>
-                                        <td>{interview.job_role}</td>
-                                        <td>
-                                            {interview.final_score !== null ? (
-                                                <div style={{ 
-                                                    color: interview.final_score >= 7 ? 'var(--color-success)' : 
-                                                           interview.final_score >= 5 ? 'var(--color-warning)' : 'var(--color-error)',
-                                                    fontWeight: 700,
-                                                    fontSize: '1.1rem'
-                                                }}>
-                                                    {interview.final_score.toFixed(1)}/10
-                                                </div>
-                                            ) : (
-                                                <span style={{ color: 'var(--color-text-muted)' }}>N/A</span>
-                                            )}
-                                        </td>
-                                        <td>
-                                            {interview.communication_score !== null ? (
-                                                <div style={{ 
-                                                    color: interview.communication_score >= 7 ? 'var(--color-success)' : 
-                                                           interview.communication_score >= 5 ? 'var(--color-warning)' : 'var(--color-error)',
-                                                    fontWeight: 600
-                                                }}>
-                                                    {interview.communication_score.toFixed(1)}/10
-                                                </div>
-                                            ) : (
-                                                <span style={{ color: 'var(--color-text-muted)' }}>N/A</span>
-                                            )}
-                                        </td>
+                                        )}
+                                    </td>
                                         <td>
                                             {interview.recommendation ? (
                                                 <span 
@@ -344,6 +349,22 @@ export default function RecruiterDashboard() {
                                             >
                                                 {(interview.pipeline_status || interview.status).replace(/_/g, ' ')}
                                             </span>
+                                        </td>
+                                        <td>
+                                            {interview.status === 'completed' ? (
+                                                <button
+                                                    className="btn btn-sm btn-secondary"
+                                                    onClick={() => fetchReport(interview.session_id)}
+                                                    style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                                                    title="View Full Report"
+                                                >
+                                                    <FiInfo size={12} /> Report
+                                                </button>
+                                            ) : (
+                                                <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+                                                    -
+                                                </span>
+                                            )}
                                         </td>
                                         <td>
                                             <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
@@ -429,6 +450,45 @@ export default function RecruiterDashboard() {
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+            {reportModal.show && reportModal.report && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 9999,
+                }}>
+                    <div style={{
+                        backgroundColor: 'var(--color-bg)',
+                        borderRadius: '8px',
+                        padding: '24px',
+                        maxWidth: '600px',
+                        width: '90%',
+                        maxHeight: '80vh',
+                        overflowY: 'auto',
+                    }}>
+                        <h3 style={{ marginTop: 0, marginBottom: '16px' }}>AI Interview Report</h3>
+                        <div style={{ marginBottom: '12px' }}><strong>Final Score:</strong> {reportModal.report.final_score ?? 'N/A'}</div>
+                        <div style={{ marginBottom: '12px' }}><strong>Communication Score:</strong> {reportModal.report.communication_score ?? 'N/A'}</div>
+                        <div style={{ marginBottom: '12px' }}><strong>Recommendation:</strong> {reportModal.report.recommendation ?? 'N/A'}</div>
+                        <div style={{ marginBottom: '12px' }}><strong>Strengths:</strong> {reportModal.report.strengths?.length ? reportModal.report.strengths.join(', ') : 'N/A'}</div>
+                        <div style={{ marginBottom: '12px' }}><strong>Weaknesses:</strong> {reportModal.report.weaknesses?.length ? reportModal.report.weaknesses.join(', ') : 'N/A'}</div>
+                        <div style={{ marginBottom: '12px' }}><strong>Behavior Summary:</strong> {reportModal.report.behavior_summary ?? 'N/A'}</div>
+                        <button
+                            className="btn btn-secondary"
+                            onClick={() => setReportModal({ show: false, report: null })}
+                            style={{ marginTop: '16px' }}
+                        >
+                            Close
+                        </button>
                     </div>
                 </div>
             )}

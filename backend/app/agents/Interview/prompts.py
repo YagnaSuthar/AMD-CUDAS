@@ -38,6 +38,7 @@ Rules:
 6. If last answer was detailed, ask the next logical technical question
 7. Use a human, professional, conversational tone — NOT robotic
 8. Clear, specific, answerable in 2-3 minutes
+9. CRITICAL: At least once in the interview, ask a question that explicitly references both the job description AND the student's resume/projects
 
 Return JSON:
 {{"question": "question text", "topic": "specific topic", "difficulty": "easy|medium|hard"}}"""
@@ -57,7 +58,8 @@ Rules:
 2. Ask about technologies used, challenges faced, or a real-world problem they solved
 3. Connect the project to job requirements when possible
 4. Tone must be human, professional, and friendly — like a real interviewer
-5. Example tone: "I noticed you have experience in web development. Can you explain one project where you solved a real-world problem?"
+5. CRITICAL: Explicitly reference the job description and how their project experience aligns with it
+6. Example tone: "I see in your resume you worked on [project]. The job description emphasizes [requirement]. Can you explain how your experience on that project prepared you for this?"
 
 Return JSON:
 {{"question": "question text", "topic": "specific topic", "difficulty": "easy|medium|hard"}}"""
@@ -73,13 +75,13 @@ Difficulty: {difficulty}
 
 The student's resume does NOT include any project details. Your first question should relate to the job description and test their fundamental understanding of required skills.
 
-Example tone: "I see that your resume focuses on theoretical knowledge. Let's start with a fundamental question about {skill_summary}."
-
 Rules:
 1. Ask a fundamental question related to the job description
 2. Test basic understanding of required skills
 3. Be polite. Do NOT judge the student.
 4. Human, professional, conversational tone — NOT robotic
+5. CRITICAL: Explicitly reference the job description and how their skills align with what the role requires
+6. Example tone: "I see from your resume that you have experience with [skill]. The job description emphasizes [requirement]. Can you explain how you would apply [skill] to solve a typical problem in this role?"
 
 Return JSON:
 {{"question": "question text", "topic": "projects", "difficulty": "easy"}}"""

@@ -44,7 +44,7 @@ const StopIcon = () => (
     </svg>
 );
 
-export default function InterviewModal({ onClose }) {
+export default function InterviewModal({ onClose, pipeline = null }) {
     const [state, setState] = useState(STATES.LOADING);
     const [config, setConfig] = useState({ max_questions: 15, answer_timeout: 20, silence_timeout: 10 });
     const [sessionId, setSessionId] = useState(null);
@@ -61,48 +61,6 @@ export default function InterviewModal({ onClose }) {
     const recognitionRef = useRef(null);
     const timerRef = useRef(null);
     const silenceTimerRef = useRef(null);
-
-    // ── Fetch config and start interview ─────────────────────────────
-    useEffect(() => {
-        const init = async () => {
-            try {
-                // First check if student has already completed an AI interview
-                const pipelineRes = await api.get('/pipeline/student');
-                const completedInterview = pipelineRes.data?.find(p => p.status === 'AI_COMPLETED');
-                
-                if (completedInterview) {
-                    setError('You have already completed your AI interview. No retakes are allowed.');
-                    setState(STATES.ERROR);
-                    return;
-                }
-
-                // Fetch config
-                const cfgRes = await api.get('/ai/interview/config');
-                setConfig(cfgRes.data);
-
-                // Start interview — returns ONLY the greeting
-                const res = await api.post('/ai/interview/start', { job_role: 'Software Developer' });
-                const data = res.data;
-                setSessionId(data.session_id);
-                setAgentText(data.greeting);
-                setState(STATES.GREETING);
-
-                // Speak the greeting
-                speak(data.greeting);
-            } catch (err) {
-                console.error('Interview start error:', err);
-                setError(err.response?.data?.detail || 'Failed to start interview');
-                setState(STATES.ERROR);
-            }
-        };
-        init();
-
-        return () => {
-            clearTimers();
-            stopRecording();
-            window.speechSynthesis?.cancel();
-        };
-    }, []);
 
     // ── Text-to-Speech (Browser native, free) ────────────────────────
     const speak = useCallback((text, onEnd) => {
@@ -126,6 +84,50 @@ export default function InterviewModal({ onClose }) {
         };
         window.speechSynthesis.speak(utterance);
     }, []);
+
+    // ── Fetch config and start interview ─────────────────────────────
+    useEffect(() => {
+        const init = async () => {
+            try {
+                // If this modal is opened for an assigned job, block only if THAT pipeline/job is already completed.
+                if (pipeline?.job_id) {
+                    const pipelineRes = await api.get('/pipeline/student');
+                    const sameJob = pipelineRes.data?.find(p => p.job_id === pipeline.job_id);
+                    if (sameJob?.status === 'AI_COMPLETED') {
+                        setError('You have already completed Round 1 (AI interview) for this job. No retakes are allowed.');
+                        setState(STATES.ERROR);
+                        return;
+                    }
+                }
+
+                // Fetch config
+                const cfgRes = await api.get('/ai/interview/config');
+                setConfig(cfgRes.data);
+
+                // Start interview — returns ONLY the greeting
+                const jobRole = pipeline?.job_title || pipeline?.job_role || 'Software Developer';
+                const res = await api.post('/ai/interview/start', { job_role: jobRole });
+                const data = res.data;
+                setSessionId(data.session_id);
+                setAgentText(data.greeting);
+                setState(STATES.GREETING);
+
+                // Speak the greeting
+                speak(data.greeting);
+            } catch (err) {
+                console.error('Interview start error:', err);
+                setError(err.response?.data?.detail || 'Failed to start interview');
+                setState(STATES.ERROR);
+            }
+        };
+        init();
+
+        return () => {
+            clearTimers();
+            stopRecording();
+            window.speechSynthesis?.cancel();
+        };
+    }, [pipeline, speak]);
 
     // ── Handle Yes/No greeting responses ─────────────────────────────
     const handleGreetingResponse = useCallback(async (answer) => {

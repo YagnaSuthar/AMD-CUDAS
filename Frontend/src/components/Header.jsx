@@ -3,7 +3,6 @@ import { useAuth } from '../context/AuthContext';
 import { ROLE_LABELS } from '../utils/roles';
 import { useNavigate } from 'react-router-dom';
 import ThemeToggle from './ThemeToggle';
-import Notifications from './Notifications';
 
 export default function Header({ onMenuClick }) {
     const { user, logout } = useAuth();
@@ -26,7 +25,6 @@ export default function Header({ onMenuClick }) {
             </div>
 
             <div className="header-right">
-                <Notifications />
                 {user && (
                     <div className="header-user-info">
                         <span className="header-role-badge">{roleLabel}</span>

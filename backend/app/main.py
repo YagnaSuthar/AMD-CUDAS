@@ -124,6 +124,7 @@ from app.routers.jobs import router as jobs_router  # noqa: E402
 from app.routers.pipeline import router as pipeline_router  # noqa: E402
 from app.routers.recruiter import router as recruiter_router  # noqa: E402
 from app.routers.messages import router as messages_router  # noqa: E402
+from app.api.ai.agents.interview.router import router as ai_interview_router  # noqa: E402
 
 app.include_router(auth_router)
 app.include_router(admin_router)
@@ -135,3 +136,4 @@ app.include_router(jobs_router)
 app.include_router(pipeline_router)
 app.include_router(recruiter_router)
 app.include_router(messages_router)
+app.include_router(ai_interview_router, prefix="/ai/interview", tags=["AI Interview"])

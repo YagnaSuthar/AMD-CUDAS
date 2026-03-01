@@ -2,9 +2,26 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { SIDEBAR_ROUTES, ROLE_LABELS } from '../utils/roles';
 import { FiX } from 'react-icons/fi';
+import { useState, useEffect } from 'react';
+import api from '../utils/api';
 
 export default function Sidebar({ isOpen, onClose }) {
     const { user } = useAuth();
+    const [unreadCount, setUnreadCount] = useState(0);
+
+    const fetchUnreadCount = async () => {
+        if (user?.role !== 'STUDENT') return;
+        try {
+            const res = await api.get('/messages/notifications');
+            setUnreadCount(res.data.unread_count || 0);
+        } catch (err) {
+            console.error('Failed to fetch unread count', err);
+        }
+    };
+
+    useEffect(() => {
+        fetchUnreadCount();
+    }, [user]);
 
     if (!user) return null;
 
@@ -44,6 +61,11 @@ export default function Sidebar({ isOpen, onClose }) {
                                 <route.icon />
                             </span>
                             {route.label}
+                            {user.role === 'STUDENT' && route.path === '/dashboard/notifications' && unreadCount > 0 && (
+                                <span className="badge badge-danger" style={{ marginLeft: '8px', fontSize: '0.65rem', padding: '2px 5px' }}>
+                                    {unreadCount}
+                                </span>
+                            )}
                         </NavLink>
                     ))}
                 </nav>

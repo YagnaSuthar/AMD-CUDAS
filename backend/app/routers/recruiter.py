@@ -16,6 +16,7 @@ from app.models.auth import (
 )
 from app.models.interview import InterviewReport, InterviewSession
 from app.models.pipeline import InterviewPipeline
+from app.models.job import Job
 from app.schemas.recruiter import (
     RecruiterCollegeResponse,
     RecruiterDepartmentResponse,
@@ -227,11 +228,15 @@ async def get_recruiter_dashboard(
         status_counts[status] = status_counts.get(status, 0) + 1
 
     # Get AI interview sessions with scores
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("recruiter_dashboard: building interview data for recruiter %s", current_user.id)
+
+    # Simplify: fetch all sessions for this recruiter's pipelines
     ai_session_ids = [p.ai_session_id for p in pipelines if p.ai_session_id]
     interview_data = []
-    
     if ai_session_ids:
-        # Get interview sessions and reports
+        logger.info("recruiter_dashboard: fetching sessions for ai_session_ids=%s", ai_session_ids)
         session_result = await db.execute(
             select(InterviewSession, InterviewReport, InterviewPipeline, AuthUser)
             .join(InterviewReport, InterviewSession.session_id == InterviewReport.session_id, isouter=True)
@@ -240,7 +245,6 @@ async def get_recruiter_dashboard(
             .where(InterviewSession.session_id.in_(ai_session_ids))
             .order_by(InterviewSession.start_time.desc())
         )
-        
         for session, report, pipeline, student in session_result:
             interview_data.append({
                 "session_id": str(session.session_id),
@@ -255,9 +259,13 @@ async def get_recruiter_dashboard(
                 "communication_score": float(report.communication_score) if report else None,
                 "recommendation": report.recommendation if report else None,
                 "pipeline_status": pipeline.status.value if pipeline else None,
+                "pipeline_id": str(pipeline.id) if pipeline else None,
+                "ai_session_id": str(session.session_id),  # Ensure frontend can fetch report
                 "strengths": report.strengths if report else [],
                 "weaknesses": report.weaknesses if report else [],
             })
+    else:
+        logger.info("recruiter_dashboard: no ai_session_ids found for recruiter's pipelines")
 
     # Calculate statistics
     total_interviews = len(interview_data)

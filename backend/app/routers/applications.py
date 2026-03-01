@@ -190,8 +190,9 @@ async def get_recruiter_applications(
 
             # Get score from report if AI completed
             ai_score = app.ai_score
-            if pipeline and pipeline.status == PipelineStatus.AI_COMPLETED:
-                from app.models import InterviewReport
+            if pipeline and pipeline.ai_session_id:
+                from app.models import InterviewReport, InterviewSession
+                # Always try to fetch the report if ai_session_id exists
                 report_result = await db.execute(
                     select(InterviewReport).where(
                         InterviewReport.session_id == pipeline.ai_session_id
@@ -200,18 +201,37 @@ async def get_recruiter_applications(
                 report = report_result.scalar_one_or_none()
                 if report:
                     ai_score = report.final_score
+                    logger.info("applications/recruiter: fetched ai_score=%s from report for session_id=%s", ai_score, pipeline.ai_session_id)
+                else:
+                    # Fallback: try to get score from session.overall_score
+                    sess_result = await db.execute(
+                        select(InterviewSession).where(InterviewSession.session_id == pipeline.ai_session_id)
+                    )
+                    session = sess_result.scalar_one_or_none()
+                    if session and hasattr(session, 'overall_score') and session.overall_score is not None:
+                        ai_score = session.overall_score
+                        logger.info("applications/recruiter: fallback ai_score=%s from session.overall_score for session_id=%s", ai_score, pipeline.ai_session_id)
+                    else:
+                        logger.warning("applications/recruiter: no report or session score for session_id=%s", pipeline.ai_session_id)
+            else:
+                logger.info("applications/recruiter: no ai_session_id for pipeline on app_id=%s", app.id)
 
-            # Determine the correct status based on pipeline status
+            # Determine the correct status based on pipeline status and session status
             display_status = app.status.value
             if pipeline:
-                # Use pipeline status as the source of truth for interview progress
-                display_status = pipeline.status.value
+                # Safeguard: if pipeline has ai_session_id, treat as AI_COMPLETED (interview taken)
+                effective_pipeline_status = pipeline.status.value if hasattr(pipeline.status, "value") else str(pipeline.status)
+                if pipeline.ai_session_id:
+                    effective_pipeline_status = PipelineStatus.AI_COMPLETED.value
+                    logger.info("applications/recruiter: forcing AI_COMPLETED for app id=%s because ai_session_id=%s exists (interview taken)", app.id, pipeline.ai_session_id)
+                display_status = effective_pipeline_status
+
                 # Also update the application status to stay in sync
-                if pipeline.status == PipelineStatus.AI_COMPLETED and app.status == ApplicationStatus.AI_ASSIGNED:
+                if effective_pipeline_status == PipelineStatus.AI_COMPLETED.value and app.status == ApplicationStatus.AI_ASSIGNED:
                     app.status = ApplicationStatus.AI_COMPLETED
-                elif pipeline.status == PipelineStatus.ROUND2_INVITED and app.status != ApplicationStatus.REJECTED:
+                elif effective_pipeline_status == PipelineStatus.ROUND2_INVITED.value and app.status != ApplicationStatus.REJECTED:
                     app.status = ApplicationStatus.AI_COMPLETED  # Keep as AI_COMPLETED but pipeline shows next step
-                elif pipeline.status == PipelineStatus.HIRED:
+                elif effective_pipeline_status == PipelineStatus.HIRED.value:
                     app.status = ApplicationStatus.AI_COMPLETED  # Keep as AI_COMPLETED but pipeline shows final status
 
             result.append({
@@ -223,6 +243,13 @@ async def get_recruiter_applications(
                 "student_name": student.name if student else "Unknown",
                 "student_email": student.email if student else "Unknown",
                 "status": display_status,  # Use pipeline-based status
+                "pipeline_id": str(pipeline.id) if pipeline else None,
+                "ai_session_id": str(pipeline.ai_session_id) if pipeline and pipeline.ai_session_id else None,
+                "pipeline_status": (pipeline.status.value if pipeline and hasattr(pipeline.status, "value") else (str(pipeline.status) if pipeline else None)),
+                "round2_link": getattr(pipeline, "round2_link", None) if pipeline else None,
+                "round2_scheduled_at": (
+                    pipeline.round2_scheduled_at.isoformat() if pipeline and getattr(pipeline, "round2_scheduled_at", None) else None
+                ),
                 "ai_score": ai_score,
                 "cover_letter": app.cover_letter,
                 "applied_at": app.created_at.isoformat() if app.created_at else None,

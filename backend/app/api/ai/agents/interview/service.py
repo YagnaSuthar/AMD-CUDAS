@@ -125,8 +125,14 @@ class InterviewService:
         db.add(session)
         await db.flush()
 
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("start_interview: created session_id=%s for student_id=%s", session.session_id, student_id)
+
         try:
+            logger.info("start_interview: calling attach_session_to_pipeline for session_id=%s", session.session_id)
             await attach_session_to_pipeline(db=db, student_id=student_id, session_id=session.session_id)
+            logger.info("start_interview: attach_session_to_pipeline returned for session_id=%s", session.session_id)
         except Exception:
             logger.exception(
                 "InterviewService: failed to attach session %s to pipeline for student %s",
@@ -461,15 +467,23 @@ class InterviewService:
         session.total_questions = q_count_result.scalar() or 0
 
         # Generate report
+        logger.info("end_interview: generating report for session_id=%s", session_id)
         report_data = await generate_report(
             session_id=session_id,
             db=db,
             llm=llm,
         )
+        logger.info("end_interview: report generated for session_id=%s, data=%s", session_id, report_data)
 
         await db.flush()
+        logger.info("end_interview: flushed DB for session_id=%s", session_id)
+
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("end_interview: calling mark_pipeline_ai_completed for session_id=%s", session_id)
 
         await mark_pipeline_ai_completed(db=db, session_id=session_id)
+        logger.info("end_interview: mark_pipeline_ai_completed returned for session_id=%s", session_id)
 
         return EndInterviewResponse(
             session_id=session_id,
@@ -485,14 +499,53 @@ class InterviewService:
         db: AsyncSession,
     ) -> InterviewReportResponse:
         """Fetch the saved report for a completed interview session."""
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("get_report called for session_id=%s", session_id)
+
         result = await db.execute(
             select(InterviewReport).where(
                 InterviewReport.session_id == session_id,
             )
         )
         report = result.scalar_one_or_none()
+        logger.info("report query result: %s", report)
         if report is None:
-            raise ValueError(f"No report found for session {session_id}")
+            logger.warning("No report found for session %s; creating fallback report", session_id)
+
+            avg_score_result = await db.execute(
+                select(func.avg(AnswerScore.overall_score))
+                .select_from(Answer)
+                .join(AnswerScore, AnswerScore.answer_id == Answer.answer_id, isouter=True)
+                .where(Answer.session_id == session_id)
+            )
+            avg_score = avg_score_result.scalar()
+
+            sess_result = await db.execute(
+                select(InterviewSession).where(InterviewSession.session_id == session_id)
+            )
+            session = sess_result.scalar_one_or_none()
+
+            computed_final_score = None
+            if avg_score is not None:
+                computed_final_score = float(avg_score)
+            elif session and session.overall_score is not None:
+                computed_final_score = float(session.overall_score)
+            else:
+                computed_final_score = 0.0
+
+            if session and session.overall_score is None:
+                session.overall_score = computed_final_score
+
+            report = InterviewReport(
+                session_id=session_id,
+                final_score=computed_final_score,
+                strengths=[],
+                weaknesses=[],
+                recommendation="Report not available. Showing computed score.",
+            )
+            db.add(report)
+            await db.flush()
 
         # Get session for communication score
         sess_result = await db.execute(
@@ -501,6 +554,7 @@ class InterviewService:
             )
         )
         session = sess_result.scalar_one_or_none()
+        logger.info("session query result: %s", session)
 
         return InterviewReportResponse(
             session_id=session_id,

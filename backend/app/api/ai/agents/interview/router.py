@@ -34,6 +34,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/health")
+async def health():
+    return {"status": "AI interview router loaded"}
+
+
 def _get_user_id(user) -> UUID:
     """Extract the user ID from the auth user (supports both ORM and dict)."""
     uid = user.id if hasattr(user, "id") else user.get("id")
@@ -195,12 +200,14 @@ async def get_report(
     current_user=Depends(get_current_user),
 ) -> InterviewReportResponse:
     """Retrieve the final interview report for a completed session."""
+    logger.info("get_report endpoint called for session_id=%s", session_id)
     try:
         return await InterviewService.get_report(
             session_id=session_id,
             db=db,
         )
     except ValueError as exc:
+        logger.warning("get_report failed: %s", exc)
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Failed to get report")

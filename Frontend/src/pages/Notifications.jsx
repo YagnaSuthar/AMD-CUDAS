@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { FiBell, FiCheck, FiX, FiClock, FiBriefcase, FiAward, FiInfo } from 'react-icons/fi';
 
 export default function Notifications() {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -50,12 +52,17 @@ export default function Notifications() {
 
     const getNotificationIcon = (type) => {
         switch (type) {
-            case 'INTERVIEW_UPDATE': return <FiBriefcase style={{ color: 'var(--color-primary)' }} />;
-            case 'AI_INTERVIEW_ASSIGNED': return <FiClock style={{ color: 'var(--color-secondary)' }} />;
+            case 'MESSAGE': return <FiInfo style={{ color: 'var(--color-primary)' }} />;
+            case 'AI_ASSIGNED': return <FiClock style={{ color: 'var(--color-secondary)' }} />;
+            case 'ROUND2_INVITED': return <FiBriefcase style={{ color: 'var(--color-warning)' }} />;
             case 'HIRED': return <FiAward style={{ color: 'var(--color-success)' }} />;
-            case 'REJECTED': return <FiX style={{ color: 'var(--color-error)' }} />;
             default: return <FiInfo style={{ color: 'var(--color-text-muted)' }} />;
         }
+    };
+
+    const openRound2 = (pipelineId) => {
+        if (!pipelineId) return;
+        navigate(`/dashboard/round2/${pipelineId}`);
     };
 
     const getStatusBadge = (isRead) => {
@@ -177,6 +184,15 @@ export default function Notifications() {
                                             </span>
 
                                             <div style={{ display: 'flex', gap: '8px' }}>
+                                                {(notification.notification_type === 'ROUND2_INVITED' || notification.type === 'ROUND2_INVITED') && (notification.meta_json?.pipeline_id) && (
+                                                    <button
+                                                        className="btn btn-sm btn-primary"
+                                                        onClick={() => openRound2(notification.meta_json.pipeline_id)}
+                                                        style={{ padding: '4px 8px', fontSize: '0.7rem' }}
+                                                    >
+                                                        Start Round 2
+                                                    </button>
+                                                )}
                                                 {!notification.is_read && (
                                                     <button
                                                         className="btn btn-sm btn-secondary"
@@ -197,6 +213,13 @@ export default function Notifications() {
                                                 </button>
                                             </div>
                                         </div>
+
+                                        {(notification.notification_type === 'ROUND2_INVITED' || notification.type === 'ROUND2_INVITED') && notification.meta_json?.round2_scheduled_at && (
+                                            <div style={{ marginTop: '8px', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                                                <FiClock style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+                                                Scheduled: {new Date(notification.meta_json.round2_scheduled_at).toLocaleString()}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>

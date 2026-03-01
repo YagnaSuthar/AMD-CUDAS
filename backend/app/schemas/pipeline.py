@@ -12,6 +12,7 @@ class AssignAiInterviewRequest(BaseModel):
 class InviteRound2Request(BaseModel):
     pipeline_id: uuid.UUID
     round2_link: str = Field(..., min_length=1, max_length=512)
+    scheduled_at: datetime | None = None
 
 
 class MarkHiredRequest(BaseModel):
@@ -31,6 +32,11 @@ class PipelineResponse(BaseModel):
     updated_at: datetime
     round2_link: str | None = None
     hired_company_name: str | None = None
+
+    # Optional display fields (only present for certain endpoints)
+    job_title: str | None = None
+    company_name: str | None = None
+    round2_scheduled_at: datetime | None = None
 
     class Config:
         from_attributes = True
