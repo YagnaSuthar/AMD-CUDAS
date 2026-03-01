@@ -98,103 +98,87 @@ export default function Round2Meeting() {
         <div className="dashboard-content" style={{ 
             background: 'linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%)', 
             color: '#fff', 
-            minHeight: '100vh', 
-            padding: 0,
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+            minHeight: '100vh',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+            padding: '24px',
+            boxSizing: 'border-box',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'relative',
+            zIndex: 1
         }}>
-            {/* Top Header Bar */}
+            {/* Back button */}
+            <button 
+                onClick={() => navigate('/dashboard/notifications')} 
+                style={{
+                    position: 'absolute',
+                    top: '24px',
+                    left: '24px',
+                    background: 'rgba(255,255,255,0.08)',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    color: '#fff',
+                    borderRadius: '12px',
+                    padding: '10px 16px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    transition: 'all 0.2s ease',
+                    zIndex: 10
+                }}
+                onMouseEnter={(e) => {
+                    e.target.style.background = 'rgba(255,255,255,0.12)';
+                    e.target.style.borderColor = 'rgba(255,255,255,0.25)';
+                }}
+                onMouseLeave={(e) => {
+                    e.target.style.background = 'rgba(255,255,255,0.08)';
+                    e.target.style.borderColor = 'rgba(255,255,255,0.15)';
+                }}
+            >
+                <FiArrowLeft size={16} />
+                Back to Notifications
+            </button>
+
+            {/* Meeting Info Card */}
             <div style={{
                 position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                zIndex: 20,
-                background: 'linear-gradient(180deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 100%)',
-                backdropFilter: 'blur(20px) saturate(180%)',
-                borderBottom: '1px solid rgba(255,255,255,0.1)',
-                padding: '16px 24px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
+                top: '24px',
+                right: '24px',
+                background: 'rgba(0,0,0,0.8)',
+                backdropFilter: 'blur(20px)',
+                padding: '16px',
+                borderRadius: '16px',
+                border: '1px solid rgba(255,255,255,0.15)',
+                minWidth: '200px',
+                zIndex: 10
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                    <button 
-                        onClick={() => navigate('/dashboard/notifications')} 
-                        style={{
-                            background: 'rgba(255,255,255,0.08)',
-                            border: '1px solid rgba(255,255,255,0.15)',
-                            color: '#fff',
-                            borderRadius: '12px',
-                            padding: '10px 16px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            fontSize: '14px',
-                            fontWeight: 500,
-                            transition: 'all 0.2s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                            e.target.style.background = 'rgba(255,255,255,0.12)';
-                            e.target.style.borderColor = 'rgba(255,255,255,0.25)';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.target.style.background = 'rgba(255,255,255,0.08)';
-                            e.target.style.borderColor = 'rgba(255,255,255,0.15)';
-                        }}
-                    >
-                        <FiArrowLeft size={16} />
-                        Back to Notifications
-                    </button>
-                    <div>
-                        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, letterSpacing: '-0.02em' }}>Round 2 Interview</h2>
-                        {meta?.company_name && (
-                            <p style={{ margin: '2px 0 0 0', fontSize: '0.9rem', opacity: 0.8, fontWeight: 400 }}>
-                                {meta.company_name} • {meta?.job_title || 'Technical Interview'}
-                            </p>
-                        )}
-                    </div>
+                <div style={{ fontSize: '0.85rem', opacity: 0.7, marginBottom: '4px' }}>Meeting ID</div>
+                <div style={{ fontSize: '1rem', fontWeight: 600, fontFamily: 'monospace' }}>
+                    {pipelineId?.slice(0, 8).toUpperCase()}
                 </div>
                 {scheduledAt && (
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        background: 'rgba(255,255,255,0.08)',
-                        padding: '8px 16px',
-                        borderRadius: '20px',
-                        border: '1px solid rgba(255,255,255,0.15)'
-                    }}>
-                        <FiClock size={16} style={{ opacity: 0.9 }} />
-                        <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>
-                            {scheduledAt.toLocaleDateString()} • {scheduledAt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                        </span>
+                    <div style={{ marginTop: '12px', fontSize: '0.85rem', opacity: 0.8 }}>
+                        <FiClock size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+                        {scheduledAt.toLocaleDateString()} • {scheduledAt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                     </div>
                 )}
             </div>
 
-            {/* Main Video Container */}
+            {/* Main Meeting Card */}
             <div style={{
+                width: 'min(1360px, calc(100% - 32px))',
+                height: 'min(740px, calc(100vh - 220px))',
+                borderRadius: '20px',
+                background: 'linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))',
+                border: '1px solid rgba(255,255,255,0.12)',
+                boxShadow: '0 30px 80px rgba(0,0,0,0.55)',
                 position: 'relative',
-                width: '100%',
-                height: '100vh',
-                paddingTop: '88px',
-                paddingBottom: '110px',
-                boxSizing: 'border-box',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                overflow: 'hidden'
             }}>
-                <div style={{
-                    width: 'min(1360px, calc(100% - 32px))',
-                    height: 'min(740px, calc(100vh - 220px))',
-                    borderRadius: '20px',
-                    background: 'linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    boxShadow: '0 30px 80px rgba(0,0,0,0.55)',
-                    position: 'relative',
-                    overflow: 'hidden'
-                }}>
                     {/* Stage (remote placeholder) */}
                     <div style={{
                         position: 'absolute',
@@ -408,7 +392,8 @@ export default function Round2Meeting() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '10px',
-                    border: '1px solid rgba(255,255,255,0.14)'
+                    border: '1px solid rgba(255,255,255,0.14)',
+                    zIndex: 5
                 }}>
                     <div style={{
                         width: '10px',
@@ -431,7 +416,8 @@ export default function Round2Meeting() {
                     backdropFilter: 'blur(18px)',
                     padding: '16px 18px',
                     display: 'flex',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    zIndex: 5
                 }}>
                     <div style={{
                         display: 'flex',
@@ -501,45 +487,45 @@ export default function Round2Meeting() {
                         </button>
                     </div>
                 </div>
-            </div>
 
-            {/* Error Toast */}
-            {error && (
-                <div style={{
-                    position: 'absolute',
-                    top: '100px',
-                    right: '24px',
-                    background: 'linear-gradient(145deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95))',
-                    backdropFilter: 'blur(20px)',
-                    padding: '16px 20px',
-                    borderRadius: '12px',
-                    maxWidth: '320px',
-                    fontSize: '0.95rem',
-                    fontWeight: 500,
-                    border: '1px solid rgba(239, 68, 68, 0.5)',
-                    boxShadow: '0 10px 40px rgba(239, 68, 68, 0.3)'
-                }}>
-                    {error}
-                </div>
-            )}
+                {/* Error Toast */}
+                {error && (
+                    <div style={{
+                        position: 'fixed',
+                        top: '100px',
+                        right: '24px',
+                        background: 'linear-gradient(145deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95))',
+                        backdropFilter: 'blur(20px)',
+                        padding: '16px 20px',
+                        borderRadius: '12px',
+                        maxWidth: '320px',
+                        fontSize: '0.95rem',
+                        fontWeight: 500,
+                        border: '1px solid rgba(239, 68, 68, 0.5)',
+                        boxShadow: '0 10px 40px rgba(239, 68, 68, 0.3)',
+                        zIndex: 1000
+                    }}>
+                        {error}
+                    </div>
+                )}
 
-            <style jsx>{`
-                @keyframes pulse {
-                    0%, 100% { 
-                        opacity: 1; 
-                        transform: scale(1);
+                <style jsx>{`
+                    @keyframes pulse {
+                        0%, 100% { 
+                            opacity: 1; 
+                            transform: scale(1);
+                        }
+                        50% { 
+                            opacity: 0.6; 
+                            transform: scale(1.1);
+                        }
                     }
-                    50% { 
-                        opacity: 0.6; 
-                        transform: scale(1.1);
-                    }
-                }
 
-                @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                }
-            `}</style>
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                `}</style>
         </div>
     );
 }
