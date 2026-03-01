@@ -28,6 +28,7 @@ import RecruiterClgs from './pages/RecruiterClgs';
 import Messages from './pages/Messages';
 import Applications from './pages/Applications';
 import Notifications from './pages/Notifications';
+import CareerGuidance from './pages/CareerGuidance';
 
 function App() {
   return (
@@ -65,6 +66,7 @@ function App() {
               <Route path="clgs" element={<RecruiterClgs />} />
               <Route path="messages" element={<Messages />} />
               <Route path="notifications" element={<Notifications />} />
+              <Route path="career-guidance" element={<CareerGuidance />} />
               <Route path="departments" element={<Dashboard departments />} />
             </Route>
           </Route>

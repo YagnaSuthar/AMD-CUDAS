@@ -153,6 +153,7 @@ export default function StudentDashboard() {
                             };
 
                             const formatStatus = (status) => {
+                                if (status === 'AI_COMPLETED') return 'Submitted';
                                 return status.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
                             };
 
@@ -196,14 +197,30 @@ export default function StudentDashboard() {
                                     
                                     {pipeline.status === 'AI_COMPLETED' && (
                                         <div style={{ marginTop: '10px' }}>
-                                            <p style={{ fontSize: '0.9rem', color: 'var(--color-success)', marginBottom: '5px' }}>
-                                                ✓ AI interview completed successfully!
+                                            <p style={{ fontSize: '0.9rem', color: 'var(--color-success)', marginBottom: '5px', fontWeight: '600' }}>
+                                                ✓ AI interview submitted successfully!
+                                            </p>
+                                            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '8px' }}>
+                                                Your interview has been reviewed by the recruiter. You will be notified about the next steps.
                                             </p>
                                             {pipeline.ai_session_id && (
                                                 <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-                                                    Session: {pipeline.ai_session_id.slice(0, 8)}...
+                                                    Session ID: {pipeline.ai_session_id.slice(0, 8)}...
                                                 </p>
                                             )}
+                                            <div style={{ 
+                                                display: 'inline-flex', 
+                                                alignItems: 'center', 
+                                                gap: '6px', 
+                                                padding: '6px 12px', 
+                                                backgroundColor: 'var(--color-bg-secondary)', 
+                                                borderRadius: '20px',
+                                                fontSize: '0.8rem',
+                                                color: 'var(--color-text-muted)'
+                                            }}>
+                                                <FiCheckCircle style={{ color: 'var(--color-success)' }} />
+                                                Interview completed - No retakes allowed
+                                            </div>
                                         </div>
                                     )}
                                     

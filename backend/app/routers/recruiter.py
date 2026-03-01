@@ -201,6 +201,91 @@ async def list_students(
     return out
 
 
+@router.get("/dashboard")
+async def get_recruiter_dashboard(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(recruiter_only),
+):
+    """Get recruiter dashboard statistics including interview performance data."""
+    if isinstance(current_user, dict):
+        raise HTTPException(status_code=403, detail="Admin cannot access recruiter dashboard")
+
+    recruiter_id = current_user.id
+
+    # Get all pipelines for this recruiter
+    pipeline_result = await db.execute(
+        select(InterviewPipeline)
+        .where(InterviewPipeline.recruiter_id == recruiter_id)
+        .order_by(InterviewPipeline.updated_at.desc())
+    )
+    pipelines = list(pipeline_result.scalars().all())
+
+    # Count by status
+    status_counts = {}
+    for pipeline in pipelines:
+        status = pipeline.status.value if hasattr(pipeline.status, "value") else str(pipeline.status)
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+    # Get AI interview sessions with scores
+    ai_session_ids = [p.ai_session_id for p in pipelines if p.ai_session_id]
+    interview_data = []
+    
+    if ai_session_ids:
+        # Get interview sessions and reports
+        session_result = await db.execute(
+            select(InterviewSession, InterviewReport, InterviewPipeline, AuthUser)
+            .join(InterviewReport, InterviewSession.session_id == InterviewReport.session_id, isouter=True)
+            .join(InterviewPipeline, InterviewSession.session_id == InterviewPipeline.ai_session_id, isouter=True)
+            .join(AuthUser, InterviewSession.student_id == AuthUser.id)
+            .where(InterviewSession.session_id.in_(ai_session_ids))
+            .order_by(InterviewSession.start_time.desc())
+        )
+        
+        for session, report, pipeline, student in session_result:
+            interview_data.append({
+                "session_id": str(session.session_id),
+                "student_name": student.name,
+                "student_email": student.email,
+                "student_department": student.department,
+                "job_role": session.job_role,
+                "status": session.status.value if hasattr(session.status, "value") else str(session.status),
+                "started_at": session.start_time.isoformat() if session.start_time else None,
+                "ended_at": session.end_time.isoformat() if session.end_time else None,
+                "final_score": float(report.final_score) if report else None,
+                "communication_score": float(report.communication_score) if report else None,
+                "recommendation": report.recommendation if report else None,
+                "pipeline_status": pipeline.status.value if pipeline else None,
+                "strengths": report.strengths if report else [],
+                "weaknesses": report.weaknesses if report else [],
+            })
+
+    # Calculate statistics
+    total_interviews = len(interview_data)
+    completed_interviews = len([i for i in interview_data if i["status"] == "completed"])
+    average_score = 0
+    if completed_interviews > 0:
+        scores = [i["final_score"] for i in interview_data if i["final_score"] is not None]
+        average_score = sum(scores) / len(scores) if scores else 0
+
+    # Get recent activity (last 10)
+    recent_activity = interview_data[:10]
+
+    return {
+        "statistics": {
+            "total_assigned": len(pipelines),
+            "ai_completed": status_counts.get("AI_COMPLETED", 0),
+            "round2_invited": status_counts.get("ROUND2_INVITED", 0),
+            "round2_completed": status_counts.get("ROUND2_COMPLETED", 0),
+            "hired": status_counts.get("HIRED", 0),
+            "total_interviews": total_interviews,
+            "completed_interviews": completed_interviews,
+            "average_score": round(average_score, 2),
+        },
+        "recent_interviews": recent_activity,
+        "status_breakdown": status_counts,
+    }
+
+
 @router.get("/student/{student_id}", response_model=RecruiterStudentProfileResponse)
 async def get_student_profile(
     student_id: str,

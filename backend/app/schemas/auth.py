@@ -79,6 +79,7 @@ class UserResponse(BaseModel):
     parent_id: Optional[str] = None
     skills: Optional[list[str]] = None
     resume_url: Optional[str] = None
+    goal: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -93,6 +94,11 @@ class AddUserRequest(BaseModel):
 class UpdateProfileRequest(BaseModel):
     phone_number: Optional[str] = None
     skills: Optional[list[str]] = None
+    goal: Optional[str] = None
+
+
+class CareerRoadmapResponse(BaseModel):
+    roadmap: str
 
 
 class CollegeResponse(BaseModel):
@@ -322,3 +328,4 @@ class LeaderboardEntry(BaseModel):
     average_marks: float
     certificate_points: int
     total_score: float
+    badge: Optional[str] = None

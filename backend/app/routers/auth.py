@@ -352,6 +352,7 @@ async def get_me(current_user=Depends(get_current_user)):
         parent_id=str(current_user.parent_id) if current_user.parent_id else None,
         skills=current_user.skills if current_user.skills else [],
         resume_url=current_user.resume_url,
+        goal=current_user.goal,
     )
 
 
@@ -364,7 +365,7 @@ async def update_profile(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    """Update the current user's profile (phone number, skills)."""
+    """Update the current user's profile (phone number, skills, goal)."""
     if isinstance(current_user, dict):
         raise HTTPException(status_code=403, detail="Admin profile cannot be updated")
 
@@ -372,6 +373,8 @@ async def update_profile(
         current_user.phone_number = body.phone_number
     if body.skills is not None:
         current_user.skills = body.skills
+    if body.goal is not None:
+        current_user.goal = body.goal
 
     await db.commit()
     return MessageResponse(message="Profile updated successfully.")

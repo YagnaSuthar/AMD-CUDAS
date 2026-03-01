@@ -125,7 +125,14 @@ class InterviewService:
         db.add(session)
         await db.flush()
 
-        await attach_session_to_pipeline(db=db, student_id=student_id, session_id=session.session_id)
+        try:
+            await attach_session_to_pipeline(db=db, student_id=student_id, session_id=session.session_id)
+        except Exception:
+            logger.exception(
+                "InterviewService: failed to attach session %s to pipeline for student %s",
+                session.session_id,
+                student_id,
+            )
 
         logger.info(
             "InterviewService: created session %s for student %s",

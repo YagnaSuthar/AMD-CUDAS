@@ -20,7 +20,7 @@ from app.schemas.auth import (
     StudentAcademicResponse, StudentMarksDetail,
     DepartmentCreate, DepartmentResponse,
     MentorAssignmentCreate, MentorAssignmentResponse,
-    LeaderboardEntry,
+    LeaderboardEntry, CareerRoadmapResponse,
 )
 from app.services.user_service import get_children, can_create_role, get_user_by_email
 from app.services.email_service import send_credentials_email, send_reset_password_email
@@ -1059,6 +1059,28 @@ async def upload_certificate(
     return MessageResponse(message="Certificate uploaded successfully.")
 
 
+@router.post("/certificates/backfill-points", response_model=MessageResponse)
+async def backfill_certificate_points(
+    points: int = 10,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(RoleChecker(["CUDAS_ADMIN", "COLLEGE_PRINCIPAL"])),
+):
+    """Backfill points for certificates that currently have 0 points."""
+    if isinstance(current_user, dict):
+        return MessageResponse(message="Backfill completed.")
+
+    if points < 0:
+        raise HTTPException(status_code=400, detail="Points must be >= 0")
+
+    result = await db.execute(
+        update(Certificate)
+        .where(Certificate.points == 0)
+        .values(points=points)
+    )
+    updated = result.rowcount or 0
+    return MessageResponse(message=f"Backfilled points for {updated} certificates.")
+
+
 # ── Leaderboard ─────────────────────────────────────────────────────────
 
 
@@ -1124,6 +1146,15 @@ async def get_leaderboard(
 
     res = await db.execute(query)
     rows = res.all()
+
+    def _badge_for_score(total_score: float) -> str | None:
+        if total_score >= 90:
+            return "gold"
+        if total_score >= 75:
+            return "silver"
+        if total_score >= 50:
+            return "bronze"
+        return None
     
     leaderboard = []
     for i, r in enumerate(rows):
@@ -1140,8 +1171,63 @@ async def get_leaderboard(
             semester=r.semester,
             average_marks=round(avg, 2),
             certificate_points=pts,
-            total_score=round(total, 2)
+            total_score=round(total, 2),
+            badge=_badge_for_score(total)
         ))
     
     return leaderboard
+
+
+# ── Career Roadmap ───────────────────────────────────────────────────────────
+
+
+@router.post("/student/career-roadmap", response_model=CareerRoadmapResponse)
+async def generate_career_roadmap(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Generate a personalized career roadmap based on student's goal, academics, and skills."""
+    if current_user.role != "STUDENT":
+        raise HTTPException(status_code=403, detail="Only students can generate career roadmaps")
+    
+    if not current_user.goal:
+        raise HTTPException(status_code=400, detail="Please set your career goal first")
+    
+    # Get student's academic data
+    marks_result = await db.execute(
+        select(InternalMarks).where(InternalMarks.student_id == current_user.id)
+    )
+    marks = marks_result.scalars().all()
+    
+    # Calculate academic performance
+    total_marks = sum(m.marks_obtained for m in marks)
+    total_max = sum(m.max_marks for m in marks)
+    avg_percentage = (total_marks / total_max * 100) if total_max > 0 else 0
+    
+    # Get certificates
+    cert_result = await db.execute(
+        select(Certificate).where(Certificate.student_id == current_user.id)
+    )
+    certificates = cert_result.scalars().all()
+    cert_points = sum(c.points for c in certificates)
+    
+    # Prepare student data for AI
+    student_data = {
+        "goal": current_user.goal,
+        "department": current_user.department or "Not specified",
+        "semester": current_user.semester or 0,
+        "skills": current_user.skills or [],
+        "average_percentage": round(avg_percentage, 2),
+        "total_certificates": len(certificates),
+        "certificate_points": cert_points,
+        "subjects": [{"name": m.subject_name, "percentage": round(m.marks_obtained / m.max_marks * 100, 2)} for m in marks]
+    }
+    
+    # Generate roadmap using AI service
+    try:
+        from app.services.ai_service import generate_career_roadmap
+        roadmap = await generate_career_roadmap(student_data)
+        return CareerRoadmapResponse(roadmap=roadmap)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate career roadmap: {str(e)}")
 

@@ -111,7 +111,7 @@ Return JSON:
 
 # ── Memory / Context Agent ────────────────────────────────────────────────
 
-MEMORY_UPDATE_PROMPT = """Update interview assessment. Return JSON only.
+MEMORY_UPDATE_PROMPT = """You are an AI assistant that updates interview assessments. You must respond with valid JSON only.
 
 Previous summary: {previous_summary}
 Weak areas: {weak_areas}
@@ -124,8 +124,12 @@ Rules:
 2. Update weak/strong areas based on latest answer
 3. Remove weak areas if candidate later showed strength
 
-Return JSON:
-{{"summary": "updated summary", "weak_areas": ["area1"], "strong_areas": ["area1"]}}"""
+IMPORTANT: Respond with ONLY a JSON object. No explanations, no code blocks, no Python functions.
+
+Example format:
+{{"summary": "updated summary", "weak_areas": ["area1"], "strong_areas": ["area1"]}}
+
+Your JSON response:"""
 
 
 # ── Feedback & Report ─────────────────────────────────────────────────────

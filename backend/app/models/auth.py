@@ -93,6 +93,7 @@ class AuthUser(Base):
     company_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     skills: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     resume_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    goal: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow

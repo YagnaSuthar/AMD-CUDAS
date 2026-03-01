@@ -168,3 +168,50 @@ async def mark_notifications_read(
     )
     await db.commit()
     return {"detail": "Notifications marked as read"}
+
+
+@router.put("/notifications/{notification_id}/read")
+async def mark_single_notification_read(
+    notification_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(student_only),
+):
+    """Student marks a single notification as read (compat endpoint)."""
+    if isinstance(current_user, dict):
+        raise HTTPException(status_code=403, detail="Admin cannot mark notifications")
+
+    await db.execute(
+        update(Notification)
+        .where(
+            Notification.id == notification_id,
+            Notification.user_id == current_user.id,
+        )
+        .values(is_read=True, read_at=datetime.now(timezone.utc))
+    )
+    await db.commit()
+    return {"detail": "Notification marked as read"}
+
+
+@router.delete("/notifications/{notification_id}")
+async def delete_notification(
+    notification_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(student_only),
+):
+    """Student deletes a notification."""
+    if isinstance(current_user, dict):
+        raise HTTPException(status_code=403, detail="Admin cannot delete notifications")
+
+    result = await db.execute(
+        select(Notification).where(
+            Notification.id == notification_id,
+            Notification.user_id == current_user.id,
+        )
+    )
+    notification = result.scalar_one_or_none()
+    if notification is None:
+        raise HTTPException(status_code=404, detail="Notification not found")
+
+    await db.delete(notification)
+    await db.commit()
+    return {"detail": "Notification deleted"}

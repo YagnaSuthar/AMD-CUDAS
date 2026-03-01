@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ROLE_LABELS } from '../utils/roles';
 import api from '../utils/api';
-import { FiUser, FiMail, FiPhone, FiBriefcase, FiSave, FiShield, FiBookOpen, FiHash } from 'react-icons/fi';
+import { FiUser, FiMail, FiPhone, FiBriefcase, FiSave, FiShield, FiBookOpen, FiHash, FiTarget, FiEdit2, FiX } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 
 export default function Profile() {
     const { user, fetchUser } = useAuth();
     const [phoneNumber, setPhoneNumber] = useState('');
+    const [goal, setGoal] = useState('');
+    const [isEditingGoal, setIsEditingGoal] = useState(false);
+    const [tempGoal, setTempGoal] = useState('');
     const [loading, setLoading] = useState(false);
     const [profileData, setProfileData] = useState(null);
 
@@ -20,6 +23,7 @@ export default function Profile() {
             const res = await api.get('/auth/me');
             setProfileData(res.data);
             setPhoneNumber(res.data.phone_number || '');
+            setGoal(res.data.goal || '');
         } catch (err) {
             toast.error('Failed to load profile');
         }
@@ -37,6 +41,34 @@ export default function Profile() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleSaveGoal = async () => {
+        if (!tempGoal.trim()) return;
+        
+        setLoading(true);
+        try {
+            await api.put('/auth/profile', { goal: tempGoal });
+            setGoal(tempGoal);
+            setIsEditingGoal(false);
+            toast.success('Career goal updated successfully!');
+            await fetchUser();
+            await loadProfile();
+        } catch (err) {
+            toast.error(err.response?.data?.detail || 'Failed to update goal');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const startEditingGoal = () => {
+        setTempGoal(goal);
+        setIsEditingGoal(true);
+    };
+
+    const cancelEditingGoal = () => {
+        setTempGoal('');
+        setIsEditingGoal(false);
     };
 
     if (!profileData) {
@@ -121,6 +153,60 @@ export default function Profile() {
                             <div className="profile-field-content">
                                 <label>Roll Number</label>
                                 <span>{data.roll_number}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {data.role === 'STUDENT' && (
+                        <div className="profile-field">
+                            <div className="profile-field-icon"><FiTarget /></div>
+                            <div className="profile-field-content">
+                                <label>Career Goal</label>
+                                {isEditingGoal ? (
+                                    <div className="profile-goal-edit">
+                                        <textarea
+                                            className="profile-input"
+                                            value={tempGoal}
+                                            onChange={(e) => setTempGoal(e.target.value)}
+                                            placeholder="What do you want to achieve in your career?"
+                                            style={{
+                                                width: '100%',
+                                                minHeight: '80px',
+                                                resize: 'vertical',
+                                                marginBottom: '10px'
+                                            }}
+                                        />
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            <button
+                                                onClick={handleSaveGoal}
+                                                disabled={loading || !tempGoal.trim()}
+                                                className="btn btn-primary profile-save-btn"
+                                            >
+                                                <FiSave />
+                                                {loading ? 'Saving...' : 'Save'}
+                                            </button>
+                                            <button
+                                                onClick={cancelEditingGoal}
+                                                className="btn btn-secondary"
+                                                style={{ padding: '8px 12px' }}
+                                            >
+                                                <FiX />
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="profile-goal-display">
+                                        <span>{goal || 'No career goal set yet'}</span>
+                                        <button
+                                            onClick={startEditingGoal}
+                                            className="btn btn-secondary btn-sm"
+                                            style={{ marginLeft: '10px' }}
+                                        >
+                                            <FiEdit2 />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

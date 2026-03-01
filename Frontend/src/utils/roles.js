@@ -1,6 +1,6 @@
 import {
     FiHome, FiUsers, FiUpload, FiCheckSquare, FiBarChart2,
-    FiBookOpen, FiBriefcase, FiSettings, FiCalendar, FiFileText, FiAward, FiLayers, FiTrendingUp, FiMessageSquare, FiInbox, FiBell
+    FiBookOpen, FiBriefcase, FiSettings, FiCalendar, FiFileText, FiAward, FiLayers, FiTrendingUp, FiMessageSquare, FiInbox, FiBell, FiTarget
 } from 'react-icons/fi';
 
 // Role constants
@@ -72,6 +72,7 @@ export const SIDEBAR_ROUTES = {
         { path: '/dashboard/timetable', label: 'Exam Timetable', icon: FiCalendar },
         { path: '/dashboard/certificates', label: 'Certificates', icon: FiAward },
         { path: '/dashboard/skills', label: 'Skills', icon: FiFileText },
+        { path: '/dashboard/career-guidance', label: 'Career Guidance', icon: FiTarget },
         { path: '/dashboard/jobs', label: 'Jobs', icon: FiBriefcase },
         { path: '/dashboard/interview', label: 'AI Interview', icon: FiBriefcase },
         { path: '/dashboard/notifications', label: 'Notifications', icon: FiBell },

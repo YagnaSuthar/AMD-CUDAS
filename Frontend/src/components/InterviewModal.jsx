@@ -66,6 +66,16 @@ export default function InterviewModal({ onClose }) {
     useEffect(() => {
         const init = async () => {
             try {
+                // First check if student has already completed an AI interview
+                const pipelineRes = await api.get('/pipeline/student');
+                const completedInterview = pipelineRes.data?.find(p => p.status === 'AI_COMPLETED');
+                
+                if (completedInterview) {
+                    setError('You have already completed your AI interview. No retakes are allowed.');
+                    setState(STATES.ERROR);
+                    return;
+                }
+
                 // Fetch config
                 const cfgRes = await api.get('/ai/interview/config');
                 setConfig(cfgRes.data);

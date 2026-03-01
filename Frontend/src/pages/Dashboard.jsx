@@ -10,6 +10,7 @@ import PrincipalDashboard from './PrincipalDashboard';
 import HodDashboard from './HodDashboard';
 import FacultyDashboard from './FacultyDashboard';
 import StudentDashboard from './StudentDashboard';
+import RecruiterDashboard from './RecruiterDashboard';
 
 const COLORS = ['#00bcd4', '#a87ef0', '#ffb703', '#22c55e', '#ef4444', '#667eea'];
 
@@ -60,6 +61,10 @@ export default function Dashboard({ analytics = false, departments = false }) {
 
     if (user.role === 'STUDENT') {
         return <StudentDashboard />;
+    }
+
+    if (user.role === 'RECRUITER') {
+        return <RecruiterDashboard />;
     }
 
     // --- CUDAS ADMIN DASHBOARD ---

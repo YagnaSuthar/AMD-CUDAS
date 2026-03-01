@@ -14,7 +14,9 @@ export default function Notifications() {
             setLoading(true);
             setError('');
             const res = await api.get('/messages/notifications');
-            setNotifications(res.data || []);
+            const data = res.data;
+            const list = Array.isArray(data) ? data : (data?.notifications ?? []);
+            setNotifications(Array.isArray(list) ? list : []);
         } catch (err) {
             setError(err?.response?.data?.detail || 'Failed to fetch notifications');
         } finally {
@@ -24,7 +26,7 @@ export default function Notifications() {
 
     const markAsRead = async (notificationId) => {
         try {
-            await api.put(`/notifications/${notificationId}/read`);
+            await api.post('/messages/notifications/mark-read', { notification_ids: [notificationId] });
             setNotifications(prev =>
                 prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n)
             );
@@ -35,7 +37,7 @@ export default function Notifications() {
 
     const deleteNotification = async (notificationId) => {
         try {
-            await api.delete(`/notifications/${notificationId}`);
+            await api.delete(`/messages/notifications/${notificationId}`);
             setNotifications(prev => prev.filter(n => n.id !== notificationId));
         } catch (err) {
             console.error('Failed to delete notification:', err);
@@ -144,13 +146,13 @@ export default function Notifications() {
                             >
                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
                                     <div style={{ marginTop: '2px' }}>
-                                        {getNotificationIcon(notification.type)}
+                                        {getNotificationIcon(notification.notification_type || notification.type)}
                                     </div>
 
                                     <div style={{ flex: 1 }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                                             <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '600' }}>
-                                                {notification.subject}
+                                                {notification.title || notification.subject || 'Notification'}
                                             </h4>
                                             {getStatusBadge(notification.is_read)}
                                         </div>
@@ -160,7 +162,7 @@ export default function Notifications() {
                                             color: 'var(--color-text-secondary)',
                                             lineHeight: '1.5'
                                         }}>
-                                            {notification.body}
+                                            {notification.message || notification.body || ''}
                                         </p>
 
                                         <div style={{

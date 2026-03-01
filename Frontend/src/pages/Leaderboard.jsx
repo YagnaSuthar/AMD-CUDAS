@@ -123,6 +123,7 @@ export default function Leaderboard() {
                                     <th>Dept & Sem</th>
                                     <th>Avg Marks</th>
                                     <th>Cert Points</th>
+                                    <th>Badge</th>
                                     <th>Total Score</th>
                                 </tr>
                             </thead>
@@ -159,6 +160,38 @@ export default function Leaderboard() {
                                             <span className="points-badge" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', padding: '2px 8px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 600 }}>
                                                 +{item.certificate_points} pts
                                             </span>
+                                        </td>
+                                        <td>
+                                            {item.badge ? (
+                                                <span
+                                                    style={{
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        padding: '2px 10px',
+                                                        borderRadius: '999px',
+                                                        fontSize: '0.8rem',
+                                                        fontWeight: 700,
+                                                        textTransform: 'capitalize',
+                                                        border: '1px solid var(--color-border)',
+                                                        background:
+                                                            item.badge === 'gold'
+                                                                ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(251, 191, 36, 0.15))'
+                                                                : item.badge === 'silver'
+                                                                    ? 'linear-gradient(135deg, rgba(148, 163, 184, 0.25), rgba(203, 213, 225, 0.15))'
+                                                                    : 'linear-gradient(135deg, rgba(217, 119, 6, 0.25), rgba(251, 146, 60, 0.15))',
+                                                        color:
+                                                            item.badge === 'gold'
+                                                                ? '#fbbf24'
+                                                                : item.badge === 'silver'
+                                                                    ? '#cbd5e1'
+                                                                    : '#fb923c',
+                                                    }}
+                                                >
+                                                    {item.badge}
+                                                </span>
+                                            ) : (
+                                                <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>—</span>
+                                            )}
                                         </td>
                                         <td>
                                             <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-secondary)' }}>

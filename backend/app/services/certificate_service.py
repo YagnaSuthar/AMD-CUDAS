@@ -55,6 +55,7 @@ async def create_certificate_and_block(
     file_name: str,
     file_path: str,
     file_hash: str,
+    points: int = 10,
 ) -> tuple[Certificate, CertificateBlock]:
     existing = await db.execute(select(Certificate).where(Certificate.file_hash == file_hash))
     if existing.scalar_one_or_none() is not None:
@@ -72,6 +73,7 @@ async def create_certificate_and_block(
                 file_name=file_name,
                 file_path=file_path,
                 file_hash=file_hash,
+                points=points,
                 uploaded_at=timestamp,
             )
             db.add(cert)

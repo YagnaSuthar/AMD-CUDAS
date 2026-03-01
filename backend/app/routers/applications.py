@@ -201,6 +201,19 @@ async def get_recruiter_applications(
                 if report:
                     ai_score = report.final_score
 
+            # Determine the correct status based on pipeline status
+            display_status = app.status.value
+            if pipeline:
+                # Use pipeline status as the source of truth for interview progress
+                display_status = pipeline.status.value
+                # Also update the application status to stay in sync
+                if pipeline.status == PipelineStatus.AI_COMPLETED and app.status == ApplicationStatus.AI_ASSIGNED:
+                    app.status = ApplicationStatus.AI_COMPLETED
+                elif pipeline.status == PipelineStatus.ROUND2_INVITED and app.status != ApplicationStatus.REJECTED:
+                    app.status = ApplicationStatus.AI_COMPLETED  # Keep as AI_COMPLETED but pipeline shows next step
+                elif pipeline.status == PipelineStatus.HIRED:
+                    app.status = ApplicationStatus.AI_COMPLETED  # Keep as AI_COMPLETED but pipeline shows final status
+
             result.append({
                 "id": str(app.id),
                 "job_id": str(app.job_id),
@@ -209,11 +222,14 @@ async def get_recruiter_applications(
                 "student_id": str(app.student_id),
                 "student_name": student.name if student else "Unknown",
                 "student_email": student.email if student else "Unknown",
-                "status": app.status.value,
+                "status": display_status,  # Use pipeline-based status
                 "ai_score": ai_score,
                 "cover_letter": app.cover_letter,
                 "applied_at": app.created_at.isoformat() if app.created_at else None,
             })
+
+        # Commit any status changes to database
+        await db.commit()
 
         return result
     except Exception as exc:
