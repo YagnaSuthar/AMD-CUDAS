@@ -276,7 +276,7 @@ http://localhost:5173
 
 • React
 • Vite
-• TailwindCSS
+• ClassbaseCSS
 
 ---
 
