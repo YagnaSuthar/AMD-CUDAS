@@ -51,7 +51,7 @@
 
   /* ── Gradient ──────────────────────────────────────────────────────── */
   --gradient-primary: linear-gradient(135deg, #00bcd4 0%, #2c63bd 50%, #124775 100%);
-  --gradient-secondary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gradient-secondary: linear-gradient(135deg, #00bcd4 0%, #124775 100%);
   --gradient-accent: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
 
   /* ── Shadow ────────────────────────────────────────────────────────── */

@@ -53,16 +53,54 @@ export default function StudentDashboard() {
     useEffect(() => {
         (async () => {
             try {
-                const [acaRes, ttRes, pipelineRes] = await Promise.all([
-                    api.get('/college/student/academic'),
-                    api.get('/college/student/timetable'),
-                    api.get('/pipeline/student'),
-                ]);
-                setData(acaRes.data);
-                setTimetable(ttRes.data);
-                setPipelines(pipelineRes.data || []);
-            } catch (err) { console.error(err); }
-            finally { setLoading(false); }
+                console.log('🔄 Fetching student dashboard data...');
+                
+                // Try each API call separately to isolate the issue
+                try {
+                    const acaRes = await api.get('/college/student/academic');
+                    console.log('✅ Academic API success:', acaRes.data);
+                    setData(acaRes.data);
+                } catch (acaErr) {
+                    console.error('❌ Academic API failed:', acaErr);
+                    if (acaErr.response) {
+                        console.error('Status:', acaErr.response.status);
+                        console.error('Error data:', acaErr.response.data);
+                    }
+                    setData(null); // Explicitly set to null on error
+                }
+                
+                try {
+                    const ttRes = await api.get('/college/student/timetable');
+                    console.log('✅ Timetable API success:', ttRes.data);
+                    setTimetable(ttRes.data);
+                } catch (ttErr) {
+                    console.error('❌ Timetable API failed:', ttErr);
+                    if (ttErr.response) {
+                        console.error('Status:', ttErr.response.status);
+                        console.error('Error data:', ttErr.response.data);
+                    }
+                }
+                
+                try {
+                    const pipelineRes = await api.get('/pipeline/student');
+                    console.log('✅ Pipeline API success:', pipelineRes.data);
+                    setPipelines(pipelineRes.data || []);
+                } catch (pipelineErr) {
+                    console.error('❌ Pipeline API failed:', pipelineErr);
+                    if (pipelineErr.response) {
+                        console.error('Status:', pipelineErr.response.status);
+                        console.error('Error data:', pipelineErr.response.data);
+                    }
+                    setPipelines([]);
+                }
+                
+            } catch (err) { 
+                console.error('❌ General error in dashboard data fetch:', err);
+                setData(null);
+            }
+            finally { 
+                setLoading(false); 
+            }
         })();
     }, []);
 
@@ -81,6 +119,13 @@ export default function StudentDashboard() {
         Marks: m.marks_obtained,
         Max: m.max_marks,
     }));
+
+    // Debug: Log current data state
+    console.log('🎯 Current data state:', data);
+    console.log('📈 GPA:', data?.gpa);
+    console.log('📊 Marks count:', data?.marks?.length);
+    console.log('🎨 Radar data length:', radarData.length);
+    console.log('📊 Bar data length:', barData.length);
 
     // Countdown to next exam
     const now = new Date();

@@ -1,75 +1,89 @@
-# 🚀 CUDAS AI Agents – Full Stack FastAPI Backend
+# 🚀 CUDAS – AI Powered Academic & Career Development System
 
-A modular FastAPI backend containing multiple AI agents:  
-- Academic Agent  
-- Multilingual Agent  
-- Interview Agent  
-- Performance Agent  
+CUDAS is a **Full Stack AI Platform** designed to assist students with **academic planning, interview preparation, career guidance, and multilingual support**.
 
-Structured using feature-based architecture for scalability and clean code organization.
+The platform integrates **multiple specialized AI agents** powered by **FastAPI, PostgreSQL, React, and Groq LLM** to deliver personalized academic and career insights.
 
-## Setup Instructions
+### 🌟 Key Highlights
 
-### 1. Backend Setup
+* 🤖 Modular AI Agent Architecture
+* 🎤 AI Mock Interview System
+* 📚 Personalized Academic Planning
+* 🧭 Career Guidance & Skill Analysis
+* 🎓 Course Recommendation Engine
+* 🌍 Multilingual AI Support
 
-The backend requires a PostgreSQL database and an LLM provider (Groq).
+---
 
-```bash
-cd backend
+# 👨‍💻 Project Team
 
-# Create Virtual Environment & Install Dependencies
-python -m venv venv
-.\venv\Scripts\activate  # Windows
-# source venv/bin/activate # Mac/Linux
+### 🚀 Leader
 
-pip install -r app/requirements.txt
+**Dhrumil Kharadi**
+
+### 👥 Members
+
+• **Nirja Patel**
+• **Yagna Suthar**
+
+---
+
+# 🤖 AI Agents
+
+• 🎤 **AI Interview Conductor Agent** – Conducts AI-based interviews and generates structured performance evaluations.
+
+• 📚 **Academic Planner Agent** – Analyzes academic data to create personalized study plans and performance insights.
+
+• 🧭 **Career Advisor Agent** – Identifies skill gaps and provides tailored career roadmaps.
+
+• 🎓 **Course Recommendation Agent** – Recommends personalized courses aligned with interests and career goals.
+
+• 🌍 **Multilingual Voice Assistant Agent** – Delivers voice-enabled multilingual academic and career support.
+
+---
+---
+
+# 🏗 System Architecture
+
+CUDAS follows a **modular AI agent architecture** where each agent performs a specific task while communicating through the FastAPI backend.
+
+```
+User
+ │
+ ▼
+Frontend (React / Vite)
+ │
+ ▼
+FastAPI Backend
+ │
+ ▼
+AI Agent Router
+ │
+ ├── Academic Planner Agent
+ ├── AI Interview Conductor Agent
+ ├── Career Advisor Agent
+ ├── Course Recommendation Agent
+ └── Multilingual Voice Assistant Agent
+ │
+ ▼
+Groq LLM API
+ │
+ ▼
+PostgreSQL Database
 ```
 
-#### Environment Variables
-Create a `.env` file in the `backend/app/` directory based on `.env.example`:
+This architecture ensures:
 
-1.  **Database:** Ensure PostgreSQL is running.
-    `DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/cudas`
-2.  **LLM:** Add your Groq API key:
-    `GROQ_API_KEY=your_key_here`
-3.  **Authentication (NEW):**
-    `JWT_SECRET_KEY=generate_a_secure_random_string`
-    `JWT_REFRESH_SECRET=generate_another_random_string`
-4.  **Email settings (for verification/passwords):**
-    `SMTP_EMAIL=your_email@gmail.com`
-    `SMTP_PASSWORD=your_app_password`
-5.  **CUDAS Admin (Root User):**
-    `CUDAS_ADMIN_EMAIL=admin@cudas.com`
-    `CUDAS_ADMIN_PASSWORD=secure_password`
-
-#### Running the Backend
-The new database tables for Auth (Users, Colleges, Companies) will be created automatically on startup.
-```bash
-cd backend/app
-uvicorn main:app --reload
-```
-
-### 2. Frontend Setup
-
-The frontend is built with React + Vite and features a modern, animated GUI.
-
-```bash
-cd Frontend
-
-# Install Dependencies
-npm install
-
-# Start Development Server
-npm run dev
-```
-
-The frontend runs on `localhost:5173` and automatically proxies `/api` requests to the backend at `localhost:8000`.
+• Clean modular design
+• Easy scalability for new AI agents
+• Efficient AI processing
+• Maintainable backend structure
 
 ---
 
 # 📁 Project Structure
 
-"""
+```
 project/
 │
 ├── backend/
@@ -80,7 +94,9 @@ project/
 │   │   │
 │   │   ├── core/
 │   │   │   ├── config.py
-│   │   │   └── database.py
+│   │   │   ├── database.py
+│   │   │   ├── security.py
+│   │   │   └── dependencies.py
 │   │   │
 │   │   ├── api/
 │   │   │   ├── router.py
@@ -89,30 +105,10 @@ project/
 │   │   │       ├── router.py
 │   │   │       │
 │   │   │       └── agents/
-│   │   │           │
 │   │   │           ├── academic/
-│   │   │           │   ├── router.py
-│   │   │           │   ├── service.py
-│   │   │           │   ├── schema.py
-│   │   │           │   └── agent.py
-│   │   │           │
 │   │   │           ├── multilingual/
-│   │   │           │   ├── router.py
-│   │   │           │   ├── service.py
-│   │   │           │   ├── schema.py
-│   │   │           │   └── agent.py
-│   │   │           │
 │   │   │           ├── interview/
-│   │   │           │   ├── router.py
-│   │   │           │   ├── service.py
-│   │   │           │   ├── schema.py
-│   │   │           │   └── agent.py
-│   │   │           │
 │   │   │           └── performance/
-│   │   │               ├── router.py
-│   │   │               ├── service.py
-│   │   │               ├── schema.py
-│   │   │               └── agent.py
 │   │   │
 │   │   ├── models/
 │   │   ├── schemas/
@@ -121,6 +117,183 @@ project/
 │   ├── requirements.txt
 │   └── .env
 │
-└── frontend/   (Optional React / NextJS frontend)
-"""
+└── frontend/
+    ├── src/
+    ├── public/
+    └── package.json
+```
+
 ---
+
+# ⚙️ Backend Setup
+
+### 1️⃣ Navigate to Backend
+
+```
+cd backend
+```
+
+### 2️⃣ Create Virtual Environment
+
+```
+python -m venv venv
+```
+
+Activate the environment:
+
+Windows
+
+```
+venv\Scripts\activate
+```
+
+Mac/Linux
+
+```
+source venv/bin/activate
+```
+
+---
+
+### 3️⃣ Install Dependencies
+
+```
+pip install -r requirements.txt
+```
+
+---
+
+# 🗄 Database Setup
+
+CUDAS uses **PostgreSQL** as the primary database.
+
+Create a database:
+
+```
+cudas
+```
+
+Example database connection:
+
+```
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/cudas
+```
+
+---
+
+# 🔐 Environment Variables
+
+Create a `.env` file inside:
+
+```
+backend/app/
+```
+
+Example configuration:
+
+```
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/cudas
+
+GROQ_API_KEY=your_groq_api_key
+
+JWT_SECRET_KEY=your_secret_key
+JWT_REFRESH_SECRET=your_refresh_secret
+
+SMTP_EMAIL=your_email@gmail.com
+SMTP_PASSWORD=your_app_password
+
+CUDAS_ADMIN_EMAIL=admin@cudas.com
+CUDAS_ADMIN_PASSWORD=secure_password
+```
+
+---
+
+# ▶️ Run Backend Server
+
+```
+cd backend/app
+
+uvicorn main:app --reload
+```
+
+Backend will run on:
+
+```
+http://localhost:8000
+```
+
+API documentation:
+
+```
+http://localhost:8000/docs
+```
+
+---
+
+# 🎨 Frontend Setup
+
+Navigate to frontend directory:
+
+```
+cd frontend
+```
+
+Install dependencies:
+
+```
+npm install
+```
+
+Run development server:
+
+```
+npm run dev
+```
+
+Frontend will run on:
+
+```
+http://localhost:5173
+```
+
+---
+
+# 🛠 Tech Stack
+
+### Backend
+
+• FastAPI
+• PostgreSQL
+• SQLAlchemy
+• AsyncPG
+• JWT Authentication
+
+### AI Integration
+
+• Groq LLM API
+
+### Frontend
+
+• React
+• Vite
+• TailwindCSS
+
+---
+
+# 🚀 Future Improvements
+
+• Docker containerization
+• Vector database for RAG
+• AI memory system
+• Voice-based interaction
+• Real-time AI analytics
+
+---
+
+# ⭐ Support
+
+If you like this project:
+
+⭐ Star the repository
+⭐ Contribute improvements
+⭐ Share feedback

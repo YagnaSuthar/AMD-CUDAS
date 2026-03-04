@@ -765,7 +765,7 @@
 
 /* Enhanced Roadmap Hero */
 .roadmap-hero {
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+    background: linear-gradient(135deg, #00bcd4 0%, #2c63bd 50%, #124775 100%);
     border-radius: 24px;
     padding: 48px;
     margin-bottom: 40px;
