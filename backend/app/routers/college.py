@@ -1181,17 +1181,22 @@ async def get_leaderboard(
 # ── Career Roadmap ───────────────────────────────────────────────────────────
 
 
-@router.post("/student/career-roadmap", response_model=CareerRoadmapResponse)
+@router.post("/student/career-roadmap")
 async def generate_career_roadmap(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     """Generate a personalized career roadmap based on student's goal, academics, and skills."""
+    import logging
+    _logger = logging.getLogger(__name__)
+
     if current_user.role != "STUDENT":
-        raise HTTPException(status_code=403, detail="Only students can generate career roadmaps")
+        return {"success": False, "error": "Only students can generate career roadmaps"}
     
     if not current_user.goal:
-        raise HTTPException(status_code=400, detail="Please set your career goal first")
+        return {"success": False, "error": "Please set your career goal first"}
+    
+    _logger.info("Career roadmap request from user %s, goal='%s'", current_user.id, current_user.goal)
     
     # Get student's academic data
     marks_result = await db.execute(
@@ -1199,19 +1204,16 @@ async def generate_career_roadmap(
     )
     marks = marks_result.scalars().all()
     
-    # Calculate academic performance
     total_marks = sum(m.marks_obtained for m in marks)
     total_max = sum(m.max_marks for m in marks)
     avg_percentage = (total_marks / total_max * 100) if total_max > 0 else 0
     
-    # Get certificates
     cert_result = await db.execute(
         select(Certificate).where(Certificate.student_id == current_user.id)
     )
     certificates = cert_result.scalars().all()
     cert_points = sum(c.points for c in certificates)
     
-    # Prepare student data for AI
     student_data = {
         "goal": current_user.goal,
         "department": current_user.department or "Not specified",
@@ -1220,14 +1222,88 @@ async def generate_career_roadmap(
         "average_percentage": round(avg_percentage, 2),
         "total_certificates": len(certificates),
         "certificate_points": cert_points,
+        "certifications": [{"title": c.title, "points": c.points} for c in certificates],
         "subjects": [{"name": m.subject_name, "percentage": round(m.marks_obtained / m.max_marks * 100, 2)} for m in marks]
     }
     
-    # Generate roadmap using AI service
+    _logger.info("Student profile built: %d subjects, %d certs, avg=%.1f%%",
+                 len(marks), len(certificates), avg_percentage)
+
+    # ── Ensure academic profile is in RAG knowledge base ─────────────────
     try:
-        from app.services.ai_service import generate_career_roadmap
-        roadmap = await generate_career_roadmap(student_data)
-        return CareerRoadmapResponse(roadmap=roadmap)
+        from app.models.rag import Document
+        existing_profile = await db.execute(
+            select(Document).where(
+                Document.user_id == current_user.id,
+                Document.title.like("Academic Profile -%"),
+            )
+        )
+        if existing_profile.scalar_one_or_none() is None:
+            # Build academic profile text and index it
+            profile_lines = [
+                f"Student: {current_user.name}",
+                f"Department: {student_data['department']}",
+                f"Semester: {student_data['semester']}",
+                f"Career Goal: {student_data['goal']}",
+                f"Average Academic Performance: {student_data['average_percentage']}%",
+                f"Skills: {', '.join(student_data['skills']) if student_data['skills'] else 'None'}",
+                f"Total Certificates: {student_data['total_certificates']} ({cert_points} points)",
+            ]
+            if student_data['certifications']:
+                profile_lines.append("Certifications:")
+                for cert in student_data['certifications']:
+                    profile_lines.append(f"  - {cert['title']} ({cert['points']} pts)")
+            if student_data['subjects']:
+                profile_lines.append("Subjects:")
+                for subj in student_data['subjects'][:10]:
+                    profile_lines.append(f"  - {subj['name']}: {subj['percentage']}%")
+
+            profile_text = "\n".join(profile_lines)
+
+            from app.services.chunking_service import ChunkingService
+            from app.services.embedding_service import EmbeddingService
+            from app.services.vector_store_service import VectorStoreService
+
+            chunker = ChunkingService()
+            chunks = chunker.chunk_text(profile_text)
+            if chunks:
+                embedder = EmbeddingService()
+                vectors = embedder.embed_batch(chunks)
+                store = VectorStoreService(db)
+                await store.store_document_with_embeddings(
+                    user_id=current_user.id,
+                    title=f"Academic Profile - {current_user.name}",
+                    raw_content=profile_text,
+                    chunks=chunks,
+                    vectors=vectors,
+                    content_type="text/plain",
+                    agent_type="career_roadmap",
+                )
+                await db.flush()
+                _logger.info("RAG: Auto-indexed academic profile with %d chunks", len(chunks))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate career roadmap: {str(e)}")
+        _logger.warning("RAG auto-indexing failed (non-fatal): %s", e)
+
+    # Generate roadmap using the Career Roadmap Agent (LLM-backed)
+    try:
+        from app.agents.career_roadmap.agent import CareerRoadmapAgent
+        agent = CareerRoadmapAgent(db)
+        roadmap = await agent.generate_roadmap(
+            user_id=current_user.id,
+            student_data=student_data,
+        )
+        _logger.info("Career roadmap generated successfully: '%s' with %d steps",
+                     roadmap.get("title", "N/A"), len(roadmap.get("steps", [])))
+        return {"success": True, "data": roadmap}
+    except Exception as e:
+        _logger.error("Career roadmap generation failed: %s", e, exc_info=True)
+        # Fallback to old template-based generator
+        try:
+            from app.services.ai_service import generate_career_roadmap as _old_generate
+            roadmap_text = await _old_generate(student_data)
+            _logger.info("Fallback roadmap generated (legacy format)")
+            return {"success": True, "data": {"roadmap": roadmap_text}}
+        except Exception:
+            return {"success": False, "error": f"Failed to generate career roadmap: {str(e)}"}
+
 

@@ -82,7 +82,14 @@ async def lifespan(app: FastAPI):
                 """
             )
         )
+        # Enable pgvector extension for RAG embeddings BEFORE creating tables
+        try:
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        except Exception as e:
+            print(f"Warning: Could not create vector extension (may already exist or need admin): {e}")
+
         await conn.run_sync(Base.metadata.create_all)
+
     yield
 
 
@@ -125,6 +132,7 @@ from app.routers.pipeline import router as pipeline_router  # noqa: E402
 from app.routers.recruiter import router as recruiter_router  # noqa: E402
 from app.routers.messages import router as messages_router  # noqa: E402
 from app.api.ai.agents.interview.router import router as ai_interview_router  # noqa: E402
+from app.routers.rag import router as rag_router  # noqa: E402
 
 app.include_router(auth_router)
 app.include_router(admin_router)
@@ -137,3 +145,4 @@ app.include_router(pipeline_router)
 app.include_router(recruiter_router)
 app.include_router(messages_router)
 app.include_router(ai_interview_router, prefix="/ai/interview", tags=["AI Interview"])
+app.include_router(rag_router)

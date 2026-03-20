@@ -59,5 +59,12 @@ class Settings(BaseSettings):
     CUDAS_ADMIN_EMAIL: str = "admin@cudas.com"
     CUDAS_ADMIN_PASSWORD: str = "admin123"
 
+    # ── RAG / Embedding ──────────────────────────────────────────────────
+    EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
+    EMBEDDING_DIMENSION: int = 384
+    RAG_CHUNK_SIZE: int = 500
+    RAG_CHUNK_OVERLAP: int = 50
+    RAG_TOP_K: int = 5
+
 
 settings = Settings()

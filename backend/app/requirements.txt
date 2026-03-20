@@ -19,3 +19,10 @@ python-jose[cryptography]
 passlib[bcrypt]
 pypdf
 qrcode[pil]
+pgvector
+langchain-community
+langchain-huggingface
+sentence-transformers
+tiktoken
+langchain-text-splitters
+langchain_text_splitters

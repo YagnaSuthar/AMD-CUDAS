@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { FiTarget, FiBookOpen, FiAward, FiBriefcase, FiTrendingUp, FiLoader, FiEdit2, FiSave, FiX, FiCheck, FiAlertCircle, FiStar, FiCompass, FiZap, FiShield } from 'react-icons/fi';
+import RoadmapContainer from '../components/RoadmapContainer';
+import { FiTarget, FiBookOpen, FiAward, FiBriefcase, FiTrendingUp, FiLoader, FiEdit2, FiSave, FiX, FiCheck, FiCompass, FiZap, FiShield, FiSend, FiMessageCircle } from 'react-icons/fi';
 import '../style/roadmap.css';
 
 export default function CareerGuidance() {
@@ -13,16 +14,20 @@ export default function CareerGuidance() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
+    // Career Guidance Chat
+    const [guidanceQuery, setGuidanceQuery] = useState('');
+    const [guidanceResponse, setGuidanceResponse] = useState(null);
+    const [guidanceLoading, setGuidanceLoading] = useState(false);
+
     useEffect(() => {
         setGoal(user?.goal || '');
     }, [user]);
 
     const handleSaveGoal = async () => {
         try {
-            const response = await api.put('/auth/profile', { goal: tempGoal });
+            await api.put('/auth/profile', { goal: tempGoal });
             setGoal(tempGoal);
             setIsEditingGoal(false);
-            // Update user context
             user.goal = tempGoal;
         } catch (err) {
             setError('Failed to save goal');
@@ -38,15 +43,96 @@ export default function CareerGuidance() {
 
         setLoading(true);
         setError('');
+        setRoadmap(null);
+
         try {
             const response = await api.post('/college/student/career-roadmap');
-            console.log('Roadmap response:', response.data); // Debug log
-            setRoadmap(response.data);
+            console.log('=== ROADMAP API RESPONSE ===');
+            console.log('Full response:', JSON.stringify(response.data, null, 2));
+
+            const apiData = response.data;
+
+            // Validate response
+            if (!apiData.success) {
+                console.error('API returned error:', apiData.error);
+                setError(apiData.error || 'Failed to generate roadmap');
+                return;
+            }
+
+            const roadmapData = apiData.data;
+            console.log('Roadmap data:', roadmapData);
+            console.log('Steps array:', roadmapData?.steps);
+            console.log('Steps count:', roadmapData?.steps?.length);
+
+            // Validate roadmap structure
+            if (roadmapData?.steps && Array.isArray(roadmapData.steps) && roadmapData.steps.length > 0) {
+                // Ensure each step has required fields
+                const validatedSteps = roadmapData.steps.map((step, idx) => ({
+                    id: step.id || idx + 1,
+                    title: step.title || `Step ${idx + 1}`,
+                    description: step.description || '',
+                    skills: Array.isArray(step.skills) ? step.skills : [],
+                    resources: Array.isArray(step.resources) ? step.resources : [],
+                    timeline: step.timeline || '',
+                }));
+
+                const validatedRoadmap = {
+                    title: roadmapData.title || goal,
+                    summary: roadmapData.summary || '',
+                    steps: validatedSteps,
+                };
+
+                console.log('Validated roadmap:', validatedRoadmap);
+                console.log('Setting roadmap state — should render now');
+                setRoadmap(validatedRoadmap);
+            } else if (roadmapData?.roadmap) {
+                // Legacy markdown format — wrap in structured format
+                console.log('Legacy markdown format detected');
+                setRoadmap({
+                    title: goal,
+                    summary: 'Career roadmap based on your profile',
+                    steps: [{
+                        id: 1,
+                        title: 'Your Career Roadmap',
+                        description: roadmapData.roadmap.substring(0, 500),
+                        skills: [],
+                        resources: [],
+                        timeline: 'See details below'
+                    }],
+                });
+            } else {
+                console.error('Invalid roadmap data structure:', roadmapData);
+                setError('Invalid roadmap data received from server');
+            }
         } catch (err) {
-            setError('Failed to generate career roadmap');
-            console.error('Roadmap error:', err);
+            console.error('Roadmap generation error:', err);
+            setError(err.response?.data?.error || 'Failed to generate career roadmap');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleGuidanceQuery = async () => {
+        if (!guidanceQuery.trim()) return;
+
+        setGuidanceLoading(true);
+        setGuidanceResponse(null);
+        try {
+            const response = await api.post('/rag/query-career-guidance', {
+                query: guidanceQuery
+            });
+            console.log('=== GUIDANCE API RESPONSE ===', response.data);
+
+            if (response.data.success) {
+                setGuidanceResponse(response.data.data);
+            } else {
+                setError(response.data.error || 'Failed to get career guidance');
+            }
+        } catch (err) {
+            setError('Failed to get career guidance');
+            console.error(err);
+        } finally {
+            setGuidanceLoading(false);
         }
     };
 
@@ -60,187 +146,22 @@ export default function CareerGuidance() {
         setIsEditingGoal(false);
     };
 
-    // Helper functions to parse and format roadmap content
-    const extractSection = (content, sectionTitle) => {
-        const lines = content.split('\n');
-        let sectionContent = [];
-        let inSection = false;
-        
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (line.startsWith('## ') && line.toLowerCase().includes(sectionTitle.toLowerCase())) {
-                inSection = true;
-                continue;
-            }
-            if (line.startsWith('## ') && inSection) {
-                break;
-            }
-            if (inSection && line && !line.startsWith('#')) {
-                sectionContent.push(line);
-            }
-        }
-        
-        const result = sectionContent.join(' ').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        return result || 'Content not available';
-    };
-
-    const formatSkillsSection = (content) => {
-        const lines = content.split('\n');
-        const technicalSkills = [];
-        const softSkills = [];
-        
-        let currentSection = null;
-        
-        lines.forEach(line => {
-            if (line.toLowerCase().includes('technical skills')) {
-                currentSection = technicalSkills;
-            } else if (line.toLowerCase().includes('soft skills')) {
-                currentSection = softSkills;
-            } else if (line.startsWith('-') && currentSection) {
-                const skill = line.replace(/^-\s*\*\*/, '').replace(/\*\*/, '').trim();
-                if (skill) currentSection.push(skill);
-            }
-        });
-        
-        return (
-            <div className="skills-grid">
-                <div className="skill-category">
-                    <h4>Technical Skills</h4>
-                    <ul>
-                        {technicalSkills.length > 0 ? technicalSkills.map((skill, idx) => (
-                            <li key={idx}>{skill}</li>
-                        )) : <li>Core programming, Data structures, System design</li>}
-                    </ul>
-                </div>
-                <div className="skill-category">
-                    <h4>Soft Skills</h4>
-                    <ul>
-                        {softSkills.length > 0 ? softSkills.map((skill, idx) => (
-                            <li key={idx}>{skill}</li>
-                        )) : <li>Communication, Team collaboration, Problem-solving</li>}
-                    </ul>
-                </div>
-            </div>
-        );
-    };
-
-    const extractTimelineItems = (content, sectionTitle) => {
-        const lines = content.split('\n');
-        let items = [];
-        let inSection = false;
-        
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (line.startsWith('## ') && line.toLowerCase().includes(sectionTitle.toLowerCase())) {
-                inSection = true;
-                continue;
-            }
-            if (line.startsWith('## ') && inSection) {
-                break;
-            }
-            if (inSection && line.match(/^\d+\./)) {
-                const cleanLine = line.replace(/^\d+\.\s*/, '').replace(/\*\*(.*?)\*\*/g, '$1');
-                if (cleanLine) {
-                    items.push(<li key={items.length}>{cleanLine}</li>);
-                }
-            }
-        }
-        
-        if (items.length === 0) {
-            // Default items based on section
-            if (sectionTitle.includes('Short-term')) {
-                return [
-                    <li key="default1">Build foundational skills through online courses</li>,
-                    <li key="default2">Create personal projects to showcase abilities</li>,
-                    <li key="default3">Network with professionals in target field</li>
-                ];
-            } else if (sectionTitle.includes('Medium-term')) {
-                return [
-                    <li key="default1">Apply for internships to gain practical experience</li>,
-                    <li key="default2">Contribute to open-source projects</li>,
-                    <li key="default3">Obtain relevant certifications</li>
-                ];
-            } else {
-                return [
-                    <li key="default1">Apply for entry-level positions in target field</li>,
-                    <li key="default2">Build professional network</li>,
-                    <li key="default3">Continue learning and skill development</li>
-                ];
-            }
-        }
-        
-        return items;
-    };
-
-    const formatResourcesSection = (content) => {
-        const defaultResources = {
-            'Online Learning': ['Coursera, edX courses', 'YouTube tutorials', 'Technical blogs'],
-            'Certifications': ['Industry-recognized certifications', 'Cloud computing certs', 'Domain-specific certs'],
-            'Practice Platforms': ['LeetCode for coding', 'GitHub for projects', 'Kaggle for data science']
-        };
-        
-        return (
-            <div className="resources-grid">
-                {Object.entries(defaultResources).map(([category, items]) => (
-                    <div key={category} className="resource-category">
-                        <h4>{category}</h4>
-                        <ul>
-                            {items.map((item, idx) => (
-                                <li key={idx}>{item}</li>
-                            ))}
-                        </ul>
-                    </div>
-                ))}
-            </div>
-        );
-    };
-
-    const formatChallengesSection = (content) => {
-        const defaultChallenges = [
-            { title: 'Academic Pressure', solution: 'Time management and prioritization' },
-            { title: 'Skill Gap', solution: 'Consistent learning and practice' },
-            { title: 'Competition', solution: 'Differentiate with unique projects' },
-            { title: 'Work-Life Balance', solution: 'Set boundaries and maintain health' }
-        ];
-        
-        return (
-            <div className="challenges-list">
-                {defaultChallenges.map((challenge, idx) => (
-                    <div key={idx} className="challenge-item">
-                        <div className="challenge-title">⚠️ {challenge.title}</div>
-                        <div className="challenge-solution">💡 {challenge.solution}</div>
-                    </div>
-                ))}
-            </div>
-        );
-    };
-
-    const formatSuccessTips = (content) => {
-        const defaultTips = [
-            'Stay consistent with daily efforts',
-            'Seek regular feedback for improvement',
-            'Build practical projects and portfolio',
-            'Network with industry professionals',
-            'Stay curious and keep learning'
-        ];
-        
-        return (
-            <ul className="success-tips-list">
-                {defaultTips.map((tip, idx) => (
-                    <li key={idx}>{tip}</li>
-                ))}
-            </ul>
-        );
-    };
-
     return (
         <div className="dashboard-content">
             <div className="page-header slide-in-left">
                 <h1 className="gradient-text">Career Guidance</h1>
-                <p>Plan your path to success with personalized career guidance</p>
+                <p>Plan your path to success with AI-powered personalized career guidance</p>
             </div>
 
-            {/* Goal Section with Modern Design */}
+            {/* Error Message — top level for visibility */}
+            {error && (
+                <div className="roadmap-error-banner">
+                    <p>⚠️ {error}</p>
+                    <button onClick={() => setError('')} className="error-dismiss">✕</button>
+                </div>
+            )}
+
+            {/* Goal Section */}
             <div className="career-goal-section">
                 <div className="goal-header">
                     <div className="goal-icon-wrapper">
@@ -258,7 +179,7 @@ export default function CareerGuidance() {
                             <textarea
                                 value={tempGoal}
                                 onChange={(e) => setTempGoal(e.target.value)}
-                                placeholder="What's your dream career? Be specific! (e.g., 'Become a senior full-stack developer at a FAANG company', 'Start my own AI startup', 'Lead data science team at a fintech company')"
+                                placeholder="What's your dream career? Be specific! (e.g., 'Become a senior full-stack developer at a FAANG company')"
                                 className="goal-textarea"
                                 maxLength={500}
                             />
@@ -279,20 +200,18 @@ export default function CareerGuidance() {
                             </div>
                         </div>
                         <div className="goal-editor-actions">
-                            <button 
+                            <button
                                 className="btn btn-primary goal-save-btn"
                                 onClick={handleSaveGoal}
-                                disabled={!tempGoal.trim() || loading}
+                                disabled={!tempGoal.trim()}
                             >
-                                {loading ? <FiLoader className="spinning" /> : <FiSave />}
-                                {loading ? 'Saving...' : 'Save Goal'}
+                                <FiSave /> Save Goal
                             </button>
-                            <button 
+                            <button
                                 className="btn btn-secondary goal-cancel-btn"
                                 onClick={cancelEditingGoal}
                             >
-                                <FiX />
-                                Cancel
+                                <FiX /> Cancel
                             </button>
                         </div>
                     </div>
@@ -304,14 +223,10 @@ export default function CareerGuidance() {
                                 <p>{goal}</p>
                             </div>
                             <div className="goal-actions">
-                                <button 
-                                    className="btn btn-outline-primary goal-edit-btn"
-                                    onClick={startEditingGoal}
-                                >
-                                    <FiEdit2 />
-                                    Edit Goal
+                                <button className="btn btn-secondary goal-edit-btn" onClick={startEditingGoal}>
+                                    <FiEdit2 /> Edit Goal
                                 </button>
-                                <button 
+                                <button
                                     className="btn btn-primary goal-roadmap-btn"
                                     onClick={generateRoadmap}
                                     disabled={loading}
@@ -321,36 +236,27 @@ export default function CareerGuidance() {
                                 </button>
                             </div>
                         </div>
-                        
+
                         {/* Quick Career Insights */}
                         <div className="career-insights">
-                            <h4 className="insights-title">
-                                <FiZap />
-                                Quick Career Insights
-                            </h4>
+                            <h4 className="insights-title"><FiZap /> Quick Career Insights</h4>
                             <div className="insights-grid">
                                 <div className="insight-card">
-                                    <div className="insight-icon">
-                                        <FiTrendingUp />
-                                    </div>
+                                    <div className="insight-icon"><FiTrendingUp /></div>
                                     <div className="insight-content">
                                         <h5>Growth Potential</h5>
                                         <p>High demand in tech industry with 22% projected growth</p>
                                     </div>
                                 </div>
                                 <div className="insight-card">
-                                    <div className="insight-icon">
-                                        <FiAward />
-                                    </div>
+                                    <div className="insight-icon"><FiAward /></div>
                                     <div className="insight-content">
                                         <h5>Salary Range</h5>
-                                        <p>$80K - $150K+ depending on experience and location</p>
+                                        <p>₹6L - ₹25L+ depending on experience and location</p>
                                     </div>
                                 </div>
                                 <div className="insight-card">
-                                    <div className="insight-icon">
-                                        <FiBookOpen />
-                                    </div>
+                                    <div className="insight-icon"><FiBookOpen /></div>
                                     <div className="insight-content">
                                         <h5>Key Skills</h5>
                                         <p>JavaScript, Python, Cloud, System Design</p>
@@ -361,20 +267,12 @@ export default function CareerGuidance() {
                     </div>
                 ) : (
                     <div className="goal-empty-state">
-                        <div className="empty-icon">
-                            <FiTarget />
-                        </div>
+                        <div className="empty-icon"><FiTarget /></div>
                         <h3>What's Your Career Dream?</h3>
-                        <p>Set your career goal to get personalized guidance, skill recommendations, and a step-by-step roadmap to achieve your dreams.</p>
-                        <button 
-                            className="btn btn-primary goal-set-btn"
-                            onClick={startEditingGoal}
-                        >
-                            <FiTarget />
-                            Set My Career Goal
+                        <p>Set your career goal to get personalized guidance, skill recommendations, and a step-by-step roadmap.</p>
+                        <button className="btn btn-primary goal-set-btn" onClick={startEditingGoal}>
+                            <FiTarget /> Set My Career Goal
                         </button>
-                        
-                        {/* Career Suggestions */}
                         <div className="career-suggestions">
                             <h4>Popular Career Paths</h4>
                             <div className="suggestion-cards">
@@ -384,19 +282,10 @@ export default function CareerGuidance() {
                                     { title: 'Product Manager', desc: 'Lead product strategy and teams', icon: '📱' },
                                     { title: 'AI/ML Engineer', desc: 'Create intelligent systems', icon: '🤖' }
                                 ].map((career) => (
-                                    <div key={career.title} className="career-card">
+                                    <div key={career.title} className="career-card" onClick={() => { setTempGoal(`Become a ${career.title}`); setIsEditingGoal(true); }}>
                                         <div className="career-card-icon">{career.icon}</div>
                                         <h5>{career.title}</h5>
                                         <p>{career.desc}</p>
-                                        <button 
-                                            className="btn btn-outline-secondary career-select-btn"
-                                            onClick={() => {
-                                                setTempGoal(`Become a ${career.title}`);
-                                                setIsEditingGoal(true);
-                                            }}
-                                        >
-                                            Choose This Path
-                                        </button>
                                     </div>
                                 ))}
                             </div>
@@ -405,53 +294,86 @@ export default function CareerGuidance() {
                 )}
             </div>
 
+            {/* AI Career Guidance Chat */}
+            {goal && (
+                <div className="guidance-chat-section">
+                    <div className="guidance-chat-header">
+                        <div className="chat-header-icon"><FiMessageCircle /></div>
+                        <div>
+                            <h3>AI Career Advisor</h3>
+                            <p>Ask anything about your career path — powered by RAG</p>
+                        </div>
+                    </div>
+
+                    <div className="guidance-chat-input">
+                        <textarea
+                            value={guidanceQuery}
+                            onChange={(e) => setGuidanceQuery(e.target.value)}
+                            placeholder="Ask me about your career..."
+                            className="guidance-textarea"
+                            rows={3}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleGuidanceQuery();
+                                }
+                            }}
+                        />
+                        <button
+                            className="btn btn-primary guidance-send-btn"
+                            onClick={handleGuidanceQuery}
+                            disabled={guidanceLoading || !guidanceQuery.trim()}
+                        >
+                            {guidanceLoading ? <FiLoader className="spinning" /> : <FiSend />}
+                        </button>
+                    </div>
+
+                    <div className="guidance-suggestions">
+                        {['What skills do I need?', 'How to prepare for interviews?', 'Recommend learning resources', 'Career switch advice'].map((s) => (
+                            <button key={s} className="guidance-suggestion-chip" onClick={() => setGuidanceQuery(s)}>
+                                {s}
+                            </button>
+                        ))}
+                    </div>
+
+                    {guidanceResponse && (
+                        <div className="guidance-response">
+                            <div className="response-header">
+                                <div className="response-badge">
+                                    <FiShield />
+                                    <span>{guidanceResponse.used_rag ? 'RAG-Enhanced' : 'Direct AI'}</span>
+                                </div>
+                                <span className="response-intent">{guidanceResponse.intent?.replace(/_/g, ' ')}</span>
+                            </div>
+                            <div className="response-content">
+                                {guidanceResponse.response?.split('\n').map((line, idx) => (
+                                    <p key={idx}>{line}</p>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* Generate Roadmap Section */}
             {goal && (
                 <div className="roadmap-main-section">
                     {!roadmap ? (
                         <div className="roadmap-generator">
                             <div className="generator-content">
-                                <div className="generator-icon">
-                                    <FiCompass />
-                                </div>
+                                <div className="generator-icon"><FiCompass /></div>
                                 <h3>Your Personalized Career Roadmap</h3>
-                                <p>Get a comprehensive career roadmap tailored to your goals, skills, and academic performance. Our AI analyzes your profile to create a step-by-step path to success.</p>
-                                
+                                <p>Get a comprehensive career roadmap tailored to your goals, skills, and academic performance.</p>
                                 <div className="generator-features">
-                                    <div className="feature-item">
-                                        <FiCheck className="feature-icon" />
-                                        <span>Personalized skill development plan</span>
-                                    </div>
-                                    <div className="feature-item">
-                                        <FiCheck className="feature-icon" />
-                                        <span>Timeline with short, medium & long-term goals</span>
-                                    </div>
-                                    <div className="feature-item">
-                                        <FiCheck className="feature-icon" />
-                                        <span>Learning resources & certification recommendations</span>
-                                    </div>
-                                    <div className="feature-item">
-                                        <FiCheck className="feature-icon" />
-                                        <span>Industry insights & salary expectations</span>
-                                    </div>
+                                    {['Personalized skill development plan', 'Timeline with actionable milestones', 'Learning resources & certifications', 'Interactive snake/zig-zag visualization'].map((f) => (
+                                        <div key={f} className="feature-item">
+                                            <FiCheck className="feature-icon" />
+                                            <span>{f}</span>
+                                        </div>
+                                    ))}
                                 </div>
-                                
-                                <button 
-                                    className="btn btn-primary btn-lg generator-btn"
-                                    onClick={generateRoadmap}
-                                    disabled={loading}
-                                >
-                                    {loading ? (
-                                        <>
-                                            <FiLoader className="spinning" />
-                                            Generating Your Roadmap...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <FiCompass />
-                                            Generate My Career Roadmap
-                                        </>
-                                    )}
+                                <button className="btn btn-primary btn-lg generator-btn" onClick={generateRoadmap} disabled={loading}>
+                                    {loading ? <><FiLoader className="spinning" /> Generating Your Roadmap...</> : <><FiCompass /> Generate My Career Roadmap</>}
                                 </button>
                             </div>
                         </div>
@@ -462,278 +384,34 @@ export default function CareerGuidance() {
                                     <h3>Your Career Roadmap</h3>
                                     <p>Personalized path to achieve your career goals</p>
                                 </div>
-                                <button 
-                                    className="btn btn-outline-primary regenerate-btn"
-                                    onClick={generateRoadmap}
-                                    disabled={loading}
-                                >
+                                <button className="btn btn-secondary regenerate-btn" onClick={generateRoadmap} disabled={loading}>
                                     {loading ? <FiLoader className="spinning" /> : <FiTrendingUp />}
                                     Regenerate
                                 </button>
                             </div>
-                            
-                            <div className="roadmap-container">
-                                <div className="roadmap-hero">
-                                    <div className="hero-content">
-                                        <h2>
-                                            {roadmap.roadmap.split('\n').find(line => line.startsWith('# Career Roadmap:'))?.replace('# Career Roadmap:', '').trim() || 'Your Career Roadmap'}
-                                        </h2>
-                                        <p>AI-powered personalized career guidance based on your unique profile</p>
-                                        <div className="hero-stats">
-                                            <div className="stat-item">
-                                                <span className="stat-number">94%</span>
-                                                <span className="stat-label">Match Score</span>
-                                            </div>
-                                            <div className="stat-item">
-                                                <span className="stat-number">12</span>
-                                                <span className="stat-label">Key Skills</span>
-                                            </div>
-                                            <div className="stat-item">
-                                                <span className="stat-number">36</span>
-                                                <span className="stat-label">Month Plan</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="hero-visual">
-                                        <div className="orbit-container">
-                                            <div className="orbit-center">
-                                                <FiTarget />
-                                            </div>
-                                            <div className="orbit orbit-1">
-                                                <FiStar />
-                                            </div>
-                                            <div className="orbit orbit-2">
-                                                <FiAward />
-                                            </div>
-                                            <div className="orbit orbit-3">
-                                                <FiTrendingUp />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
 
-                                <div className="roadmap-content-grid">
-                                    {/* Goal Analysis */}
-                                    <div className="roadmap-card analysis-card">
-                                        <div className="card-header">
-                                            <div className="card-icon analysis-icon">
-                                                <FiTarget />
-                                            </div>
-                                            <h4>Goal Analysis</h4>
-                                        </div>
-                                        <div className="card-content">
-                                            <div className="analysis-text">
-                                                <div dangerouslySetInnerHTML={{ __html: extractSection(roadmap.roadmap, 'Career Goal Analysis') || 'Your career goal has been analyzed and a personalized path has been created for you.' }} />
-                                            </div>
-                                            <div className="match-meter">
-                                                <div className="meter-label">Goal Match</div>
-                                                <div className="meter-bar">
-                                                    <div className="meter-fill" style={{ width: '94%' }}></div>
-                                                </div>
-                                                <span className="meter-value">94%</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Performance */}
-                                    <div className="roadmap-card performance-card">
-                                        <div className="card-header">
-                                            <div className="card-icon performance-icon">
-                                                <FiTrendingUp />
-                                            </div>
-                                            <h4>Current Performance</h4>
-                                        </div>
-                                        <div className="card-content">
-                                            <div className="performance-metrics">
-                                                <div className="metric">
-                                                    <span className="metric-label">Academic Score</span>
-                                                    <span className="metric-value excellent">94%</span>
-                                                </div>
-                                                <div className="metric">
-                                                    <span className="metric-label">Skills Level</span>
-                                                    <span className="metric-value good">Intermediate</span>
-                                                </div>
-                                                <div className="metric">
-                                                    <span className="metric-label">Progress</span>
-                                                    <span className="metric-value">On Track</span>
-                                                </div>
-                                            </div>
-                                            <div className="performance-insight">
-                                                <div dangerouslySetInnerHTML={{ __html: extractSection(roadmap.roadmap, 'Current Academic Performance') || 'Your academic performance has been assessed to provide personalized recommendations.' }} />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Skills */}
-                                    <div className="roadmap-card skills-card">
-                                        <div className="card-header">
-                                            <div className="card-icon skills-icon">
-                                                <FiZap />
-                                            </div>
-                                            <h4>Skill Development</h4>
-                                        </div>
-                                        <div className="card-content">
-                                            {formatSkillsSection(roadmap.roadmap)}
-                                        </div>
-                                    </div>
-
-                                    {/* Timeline */}
-                                    <div className="roadmap-card timeline-card full-width">
-                                        <div className="card-header">
-                                            <div className="card-icon timeline-icon">
-                                                <FiCompass />
-                                            </div>
-                                            <h4>Career Timeline</h4>
-                                        </div>
-                                        <div className="card-content">
-                                            <div className="timeline-modern">
-                                                <div className="timeline-phase">
-                                                    <div className="phase-header">
-                                                        <div className="phase-marker short"></div>
-                                                        <div className="phase-info">
-                                                            <h5>Short-term</h5>
-                                                            <span>Next 6 months</span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="phase-content">
-                                                        <ul>
-                                                            {extractTimelineItems(roadmap.roadmap, 'Short-term Goals (Next 6 Months)')}
-                                                        </ul>
-                                                    </div>
-                                                </div>
-
-                                                <div className="timeline-phase">
-                                                    <div className="phase-header">
-                                                        <div className="phase-marker medium"></div>
-                                                        <div className="phase-info">
-                                                            <h5>Medium-term</h5>
-                                                            <span>6-18 months</span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="phase-content">
-                                                        <ul>
-                                                            {extractTimelineItems(roadmap.roadmap, 'Medium-term Goals (6-18 Months)')}
-                                                        </ul>
-                                                    </div>
-                                                </div>
-
-                                                <div className="timeline-phase">
-                                                    <div className="phase-header">
-                                                        <div className="phase-marker long"></div>
-                                                        <div className="phase-info">
-                                                            <h5>Long-term</h5>
-                                                            <span>18+ months</span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="phase-content">
-                                                        <ul>
-                                                            {extractTimelineItems(roadmap.roadmap, 'Long-term Goals (18+ Months)')}
-                                                        </ul>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Resources */}
-                                    <div className="roadmap-card resources-card">
-                                        <div className="card-header">
-                                            <div className="card-icon resources-icon">
-                                                <FiBookOpen />
-                                            </div>
-                                            <h4>Learning Resources</h4>
-                                        </div>
-                                        <div className="card-content">
-                                            {formatResourcesSection(roadmap.roadmap)}
-                                        </div>
-                                    </div>
-
-                                    {/* Challenges */}
-                                    <div className="roadmap-card challenges-card">
-                                        <div className="card-header">
-                                            <div className="card-icon challenges-icon">
-                                                <FiAlertCircle />
-                                            </div>
-                                            <h4>Challenges & Solutions</h4>
-                                        </div>
-                                        <div className="card-content">
-                                            {formatChallengesSection(roadmap.roadmap)}
-                                        </div>
-                                    </div>
-
-                                    {/* Success Tips */}
-                                    <div className="roadmap-card tips-card full-width">
-                                        <div className="card-header">
-                                            <div className="card-icon tips-icon">
-                                                <FiStar />
-                                            </div>
-                                            <h4>Success Tips</h4>
-                                        </div>
-                                        <div className="card-content">
-                                            {formatSuccessTips(roadmap.roadmap)}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            {/* Snake/Zig-Zag Roadmap UI */}
+                            <RoadmapContainer roadmap={roadmap} />
                         </div>
                     )}
                 </div>
             )}
 
-            {/* Error Message */}
-            {error && (
-                <div className="dashboard-card fade-in-up" style={{ 
-                    backgroundColor: 'var(--color-error-bg)', 
-                    border: '1px solid var(--color-error)',
-                    color: 'var(--color-error)'
-                }}>
-                    <p>{error}</p>
-                </div>
-            )}
-
             {/* Additional Resources */}
             <div className="dashboard-card fade-in-up fade-in-delay-2">
-                <h3>
-                    <FiBookOpen style={{ marginRight: '8px' }} />
-                    Additional Resources
-                </h3>
+                <h3><FiBookOpen style={{ marginRight: '8px' }} /> Additional Resources</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
-                    <div style={{ 
-                        padding: '15px',
-                        backgroundColor: 'var(--color-bg-secondary)',
-                        borderRadius: '8px',
-                        border: '1px solid var(--color-border)'
-                    }}>
-                        <FiBriefcase style={{ marginBottom: '10px', color: 'var(--color-secondary)' }} />
-                        <h4 style={{ marginBottom: '8px' }}>Job Opportunities</h4>
-                        <p style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>
-                            Explore job listings that match your career goals and skills.
-                        </p>
-                    </div>
-                    <div style={{ 
-                        padding: '15px',
-                        backgroundColor: 'var(--color-bg-secondary)',
-                        borderRadius: '8px',
-                        border: '1px solid var(--color-border)'
-                    }}>
-                        <FiAward style={{ marginBottom: '10px', color: 'var(--color-warning)' }} />
-                        <h4 style={{ marginBottom: '8px' }}>Skill Development</h4>
-                        <p style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>
-                            Identify and develop key skills needed for your target career.
-                        </p>
-                    </div>
-                    <div style={{ 
-                        padding: '15px',
-                        backgroundColor: 'var(--color-bg-secondary)',
-                        borderRadius: '8px',
-                        border: '1px solid var(--color-border)'
-                    }}>
-                        <FiTrendingUp style={{ marginBottom: '10px', color: 'var(--color-success)' }} />
-                        <h4 style={{ marginBottom: '8px' }}>Interview Preparation</h4>
-                        <p style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>
-                            Practice AI-powered interviews tailored to your career goals.
-                        </p>
-                    </div>
+                    {[
+                        { icon: <FiBriefcase />, title: 'Job Opportunities', desc: 'Explore job listings that match your career goals and skills.', color: 'var(--color-secondary)' },
+                        { icon: <FiAward />, title: 'Skill Development', desc: 'Identify and develop key skills needed for your target career.', color: 'var(--color-warning)' },
+                        { icon: <FiTrendingUp />, title: 'Interview Preparation', desc: 'Practice AI-powered interviews tailored to your career goals.', color: 'var(--color-success)' }
+                    ].map((r) => (
+                        <div key={r.title} style={{ padding: '15px', backgroundColor: 'var(--color-bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
+                            <div style={{ marginBottom: '10px', color: r.color }}>{r.icon}</div>
+                            <h4 style={{ marginBottom: '8px' }}>{r.title}</h4>
+                            <p style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>{r.desc}</p>
+                        </div>
+                    ))}
                 </div>
             </div>
         </div>

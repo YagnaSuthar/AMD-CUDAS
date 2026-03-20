@@ -388,22 +388,36 @@ async def upload_resume(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    """Upload a resume file for the current user."""
+    """Upload a resume file for the current user.
+
+    Pipeline:
+      1. Save file to disk
+      2. Extract text via OCR (pypdf)
+      3. Extract skills from text
+      4. Update user profile (skills, resume_url, StudentProfile.resume_text)
+      5. RAG: Chunk → Embed → Store in pgvector (Document + Chunk + ChunkEmbedding)
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
     if isinstance(current_user, dict):
         raise HTTPException(status_code=403, detail="Admin cannot upload resume")
-        
+
+    _logger.info("Resume upload started for user %s", current_user.id)
+
     os.makedirs(RESUME_DIR, exist_ok=True)
     ext = os.path.splitext(file.filename)[1] if file.filename else ".pdf"
-    # Prefix with 'resume_' to distinguish from other certificates
     unique_name = f"resume_{current_user.id}{ext}"
     file_path = os.path.join(RESUME_DIR, unique_name)
 
     try:
         with open(file_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
+        _logger.info("Resume file saved: %s", file_path)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {exc}") from exc
 
+    # ── Step 2: OCR text extraction ───────────────────────────────────────
     extracted_text = ""
     try:
         try:
@@ -414,9 +428,12 @@ async def upload_resume(
         if PdfReader is not None:
             reader = PdfReader(file_path)
             extracted_text = "\n".join([(p.extract_text() or "") for p in reader.pages]).strip()
-    except Exception:
+            _logger.info("OCR extracted %d chars from %d pages", len(extracted_text), len(reader.pages))
+    except Exception as e:
+        _logger.warning("OCR extraction failed: %s", e)
         extracted_text = ""
 
+    # ── Step 3: Extract skills from text ──────────────────────────────────
     extracted_skills: list[str] = []
     try:
         if extracted_text:
@@ -449,10 +466,11 @@ async def upload_resume(
                 seen.add(k)
                 extracted_skills.append(s)
             extracted_skills = extracted_skills[:50]
+            _logger.info("Extracted %d skills from resume text", len(extracted_skills))
     except Exception:
         extracted_skills = []
 
-    # Use /certificates mount defined in main.py
+    # ── Step 4: Update user profile ───────────────────────────────────────
     current_user.resume_url = f"/certificates/{unique_name}"
 
     if extracted_skills:
@@ -468,9 +486,8 @@ async def upload_resume(
         current_user.skills = merged
 
     from app.models.interview import StudentProfile
-
-    # Verify user exists in database before creating profile
     from app.models.auth import AuthUser
+
     user_result = await db.execute(select(AuthUser).where(AuthUser.id == current_user.id))
     user_exists = user_result.scalar_one_or_none()
     if user_exists is None:
@@ -489,11 +506,110 @@ async def upload_resume(
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to update student profile: {str(e)}") from e
 
+    # ── Step 5: RAG Pipeline — Chunk → Embed → Store in pgvector ──────────
+    rag_msg = ""
+    if extracted_text and len(extracted_text.strip()) > 50:
+        try:
+            from app.services.chunking_service import ChunkingService
+            from app.services.embedding_service import EmbeddingService
+            from app.services.vector_store_service import VectorStoreService
+            from app.models.rag import Document
+            from sqlalchemy import delete
+
+            _logger.info("RAG Pipeline: Starting for resume of user %s", current_user.id)
+
+            # Delete old resume documents for this user (avoid duplicates on re-upload)
+            old_docs = await db.execute(
+                select(Document).where(
+                    Document.user_id == current_user.id,
+                    Document.title.like("Resume -%"),
+                )
+            )
+            for old_doc in old_docs.scalars().all():
+                await db.execute(delete(Document).where(Document.id == old_doc.id))
+                _logger.info("Deleted old resume document: %s", old_doc.id)
+            await db.flush()
+
+            # Chunk the text
+            chunker = ChunkingService()
+            chunks = chunker.chunk_text(extracted_text)
+            _logger.info("RAG Pipeline: Chunked resume into %d segments", len(chunks))
+
+            if chunks:
+                # Embed the chunks
+                embedder = EmbeddingService()
+                vectors = embedder.embed_batch(chunks)
+                _logger.info("RAG Pipeline: Embedded %d chunks (dim=%d)", len(vectors), len(vectors[0]) if vectors else 0)
+
+                # Store in pgvector
+                store = VectorStoreService(db)
+                doc_id = await store.store_document_with_embeddings(
+                    user_id=current_user.id,
+                    title=f"Resume - {current_user.name}",
+                    raw_content=extracted_text,
+                    chunks=chunks,
+                    vectors=vectors,
+                    content_type="application/pdf",
+                    agent_type="career_roadmap",
+                )
+                _logger.info("RAG Pipeline: Stored resume document %s with %d chunks in pgvector", doc_id, len(chunks))
+                rag_msg = f" RAG: {len(chunks)} chunks embedded."
+
+            # Also create a structured profile summary document for richer retrieval
+            profile_summary = _build_profile_summary(current_user, extracted_skills)
+            if profile_summary:
+                # Delete old profile summary
+                old_profiles = await db.execute(
+                    select(Document).where(
+                        Document.user_id == current_user.id,
+                        Document.title.like("Profile Summary -%"),
+                    )
+                )
+                for old_doc in old_profiles.scalars().all():
+                    await db.execute(delete(Document).where(Document.id == old_doc.id))
+                await db.flush()
+
+                profile_chunks = chunker.chunk_text(profile_summary)
+                if profile_chunks:
+                    profile_vectors = embedder.embed_batch(profile_chunks)
+                    await store.store_document_with_embeddings(
+                        user_id=current_user.id,
+                        title=f"Profile Summary - {current_user.name}",
+                        raw_content=profile_summary,
+                        chunks=profile_chunks,
+                        vectors=profile_vectors,
+                        content_type="text/plain",
+                        agent_type="career_roadmap",
+                    )
+                    _logger.info("RAG Pipeline: Stored profile summary with %d chunks", len(profile_chunks))
+
+        except Exception as e:
+            _logger.error("RAG Pipeline failed (non-fatal): %s", e, exc_info=True)
+            # RAG failure is non-fatal — the resume is still saved
+    else:
+        _logger.warning("Skipping RAG pipeline — extracted text too short (%d chars)", len(extracted_text.strip()) if extracted_text else 0)
+
     try:
         await db.commit()
+        _logger.info("Resume upload committed successfully for user %s", current_user.id)
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to save changes: {str(e)}") from e
-    
-    return MessageResponse(message="Resume uploaded successfully.")
+
+    return MessageResponse(message=f"Resume uploaded successfully.{rag_msg}")
+
+
+def _build_profile_summary(user, skills: list[str]) -> str:
+    """Build a structured text summary of the user's profile for RAG embedding."""
+    lines = [
+        f"Student Name: {user.name}",
+        f"Department: {user.department or 'Not specified'}",
+        f"Semester: {user.semester or 'Not specified'}",
+        f"Career Goal: {user.goal or 'Not specified'}",
+        f"Skills: {', '.join(skills) if skills else 'None extracted'}",
+    ]
+    if hasattr(user, 'skills') and user.skills:
+        all_skills = list(set((user.skills or []) + skills))
+        lines[-1] = f"Skills: {', '.join(all_skills)}"
+    return "\n".join(lines)
 

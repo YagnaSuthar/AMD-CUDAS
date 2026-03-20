@@ -51,3 +51,8 @@ from app.models.pipeline import (  # noqa: F401
     InterviewPipeline,
     PipelineStatus,
 )
+from app.models.rag import (  # noqa: F401
+    Document,
+    Chunk,
+    ChunkEmbedding,
+)

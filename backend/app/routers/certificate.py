@@ -58,6 +58,46 @@ async def upload_certificate_blockchain(
         file_hash=file_hash,
     )
 
+    # ── RAG: Index certificate for knowledge base ─────────────────────────
+    rag_msg = ""
+    try:
+        import logging
+        _logger = logging.getLogger(__name__)
+
+        cert_text = f"Certificate: {title}\n"
+        if description:
+            cert_text += f"Description: {description}\n"
+        cert_text += f"Uploaded by student ID: {current_user.id}\n"
+        cert_text += f"Student name: {current_user.name}\n"
+        if hasattr(current_user, 'department') and current_user.department:
+            cert_text += f"Department: {current_user.department}\n"
+
+        if len(cert_text.strip()) > 20:
+            from app.services.chunking_service import ChunkingService
+            from app.services.embedding_service import EmbeddingService
+            from app.services.vector_store_service import VectorStoreService
+
+            chunker = ChunkingService()
+            chunks = chunker.chunk_text(cert_text)
+            if chunks:
+                embedder = EmbeddingService()
+                vectors = embedder.embed_batch(chunks)
+                store = VectorStoreService(db)
+                await store.store_document_with_embeddings(
+                    user_id=current_user.id,
+                    title=f"Certificate - {title}",
+                    raw_content=cert_text,
+                    chunks=chunks,
+                    vectors=vectors,
+                    content_type="text/plain",
+                    agent_type="career_roadmap",
+                )
+                _logger.info("RAG: Indexed certificate '%s' with %d chunks for user %s", title, len(chunks), current_user.id)
+                rag_msg = f" RAG: {len(chunks)} chunks indexed."
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("RAG indexing for certificate failed (non-fatal): %s", e)
+
     verification_url = str(request.base_url).rstrip("/") + f"/api/certificates/verify/{file_hash}"
     qr_base64_png = await generate_qr_base64_png(verification_url)
 
