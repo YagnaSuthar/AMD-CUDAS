@@ -134,3 +134,6 @@ app.include_router(messages_router)
 app.include_router(ai_interview_router, prefix="/ai/interview", tags=["AI Interview"])
 app.include_router(rag_router)
 app.include_router(verification_router)
+
+from app.routers.projects import router as projects_router  # noqa: E402
+app.include_router(projects_router)

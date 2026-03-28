@@ -27,6 +27,7 @@ from app.agents.Interview.prompts import (
     GREETING_COMFORTABLE_YES,
     GREETING_COMFORTABLE_NO,
     GREETING_START_NO,
+    get_feedback_for_answer,
 )
 from app.agents.Interview.sub_agents.answer_evaluator.agent import evaluate_answer
 from app.agents.Interview.sub_agents.memory_agent.agent import update_memory
@@ -125,8 +126,6 @@ class InterviewService:
         db.add(session)
         await db.flush()
 
-        import logging
-        logger = logging.getLogger(__name__)
         logger.info("start_interview: created session_id=%s for student_id=%s", session.session_id, student_id)
 
         try:
@@ -323,10 +322,22 @@ class InterviewService:
         await db.flush()
 
         # Evaluate (now includes behavior classification)
+        # Pass current session difficulty so evaluator can recommend decrease
+        sess_result_pre = await db.execute(
+            select(InterviewSession).where(
+                InterviewSession.session_id == session_id,
+            )
+        )
+        session_pre = sess_result_pre.scalar_one()
+        current_diff = session_pre.current_difficulty
+        if isinstance(current_diff, Difficulty):
+            current_diff = current_diff.value
+
         eval_data = await evaluate_answer(
             question=question.question_text,
             answer=answer_text,
             llm=llm,
+            difficulty=current_diff,
         )
 
         behavior_flag = eval_data.get("behavior_flag", "neutral")
@@ -364,14 +375,11 @@ class InterviewService:
             behavior=behavior_flag,
         )
 
-        # Generate behavior-reactive agent response
-        is_correct = technical_score >= 5
+        # Generate behavior-reactive agent response using weighted scores
+        weighted = eval_data.get("weighted_score", 0.5)
         has_answer = bool(answer_text.strip())
-        if not has_answer:
-            agent_response = BEHAVIOR_RESPONSES["no_answer"]
-        else:
-            key = f"{behavior_flag}_{'correct' if is_correct else 'incorrect'}"
-            agent_response = BEHAVIOR_RESPONSES.get(key, BEHAVIOR_RESPONSES["neutral_correct"])
+        answer_type = eval_data.get("answer_type", "VALID")
+        agent_response = get_feedback_for_answer(weighted, has_answer, answer_type)
 
         # Update session difficulty
         next_diff = eval_data.get("next_difficulty", "medium")
@@ -478,8 +486,6 @@ class InterviewService:
         await db.flush()
         logger.info("end_interview: flushed DB for session_id=%s", session_id)
 
-        import logging
-        logger = logging.getLogger(__name__)
         logger.info("end_interview: calling mark_pipeline_ai_completed for session_id=%s", session_id)
 
         await mark_pipeline_ai_completed(db=db, session_id=session_id)
@@ -499,8 +505,6 @@ class InterviewService:
         db: AsyncSession,
     ) -> InterviewReportResponse:
         """Fetch the saved report for a completed interview session."""
-        import logging
-        logger = logging.getLogger(__name__)
         logger.info("get_report called for session_id=%s", session_id)
 
         result = await db.execute(

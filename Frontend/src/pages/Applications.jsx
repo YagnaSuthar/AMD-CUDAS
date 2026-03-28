@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { FiInbox, FiCheckCircle, FiXCircle, FiClock, FiBriefcase, FiUser, FiMail, FiAward, FiInfo } from 'react-icons/fi';
+import { FiInbox, FiCheckCircle, FiXCircle, FiClock, FiBriefcase, FiUser, FiMail, FiAward, FiInfo, FiTrash2 } from 'react-icons/fi';
 
 export default function Applications() {
     const { user } = useAuth();
@@ -13,6 +13,21 @@ export default function Applications() {
     const [actionLoading, setActionLoading] = useState({});
     const [round2Schedule, setRound2Schedule] = useState({});
     const [reportModal, setReportModal] = useState({ show: false, report: null });
+    const [deleteModal, setDeleteModal] = useState({ show: false, appId: null, studentName: '' });
+
+    const handleDeleteApplication = async () => {
+        try {
+            setActionLoading({ ...actionLoading, [deleteModal.appId]: 'delete' });
+            await api.delete(`/applications/${deleteModal.appId}`);
+            setDeleteModal({ show: false, appId: null, studentName: '' });
+            await fetchApplications();
+        } catch (e) {
+            setError(e?.response?.data?.detail || 'Failed to delete application');
+            setDeleteModal({ show: false, appId: null, studentName: '' });
+        } finally {
+            setActionLoading({ ...actionLoading, [deleteModal.appId]: null });
+        }
+    };
 
     const fetchReport = async (sessionId) => {
         try {
@@ -259,26 +274,45 @@ export default function Applications() {
                                             </td>
                                             <td>
                                                 {(app.status === 'PENDING' || app.status === 'AI_ASSIGNED') && (
-                                                    <button
-                                                        className="btn btn-sm btn-primary"
-                                                        onClick={() => inviteToAiInterview(app.id, app.student_id, app.job_id)}
-                                                        disabled={actionLoading[app.id] === 'ai'}
-                                                        style={{
-                                                            padding: '6px 12px',
-                                                            fontSize: '0.8rem',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '4px',
-                                                        }}
-                                                    >
-                                                        {actionLoading[app.id] === 'ai' ? (
-                                                            'Assigning...'
-                                                        ) : app.status === 'AI_ASSIGNED' ? (
-                                                            <><FiCheckCircle size={14} /> Reassign AI</>
-                                                        ) : (
-                                                            <><FiBriefcase size={14} /> Invite AI Interview</>
-                                                        )}
-                                                    </button>
+                                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                                        <button
+                                                            className="btn btn-sm btn-primary"
+                                                            onClick={() => inviteToAiInterview(app.id, app.student_id, app.job_id)}
+                                                            disabled={actionLoading[app.id] === 'ai' || actionLoading[app.id] === 'delete'}
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                fontSize: '0.8rem',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '4px',
+                                                            }}
+                                                        >
+                                                            {actionLoading[app.id] === 'ai' ? (
+                                                                'Assigning...'
+                                                            ) : app.status === 'AI_ASSIGNED' ? (
+                                                                <><FiCheckCircle size={14} /> Reassign AI</>
+                                                            ) : (
+                                                                <><FiBriefcase size={14} /> Invite AI Interview</>
+                                                            )}
+                                                        </button>
+                                                        <button
+                                                            className="btn btn-sm"
+                                                            onClick={() => setDeleteModal({ show: true, appId: app.id, studentName: app.student_name })}
+                                                            disabled={actionLoading[app.id] === 'delete'}
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                fontSize: '0.8rem',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '4px',
+                                                                backgroundColor: 'var(--color-bg-alt)',
+                                                                color: 'var(--color-error)',
+                                                                border: '1px solid var(--color-error)'
+                                                            }}
+                                                        >
+                                                            <FiTrash2 size={14} /> {actionLoading[app.id] === 'delete' ? 'Deleting...' : 'Delete'}
+                                                        </button>
+                                                    </div>
                                                 )}
                                                 {app.status === 'AI_COMPLETED' && (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -320,6 +354,23 @@ export default function Applications() {
                                                         >
                                                             {actionLoading[app.id] === 'round2' ? 'Inviting...' : (<><FiBriefcase size={14} /> Round 2</>)}
                                                         </button>
+                                                        <button
+                                                            className="btn btn-sm"
+                                                            onClick={() => setDeleteModal({ show: true, appId: app.id, studentName: app.student_name })}
+                                                            disabled={actionLoading[app.id] === 'delete'}
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                fontSize: '0.8rem',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '4px',
+                                                                backgroundColor: 'var(--color-bg-alt)',
+                                                                color: 'var(--color-error)',
+                                                                border: '1px solid var(--color-error)'
+                                                            }}
+                                                        >
+                                                            <FiTrash2 size={14} /> {actionLoading[app.id] === 'delete' ? 'Deleting...' : 'Delete'}
+                                                        </button>
                                                     </div>
                                                 )}
                                                 {app.status === 'ROUND2_INVITED' && (
@@ -334,13 +385,73 @@ export default function Applications() {
                                                                 {new Date(app.round2_scheduled_at).toLocaleString()}
                                                             </span>
                                                         )}
+                                                        <button
+                                                            className="btn btn-sm"
+                                                            onClick={() => setDeleteModal({ show: true, appId: app.id, studentName: app.student_name })}
+                                                            disabled={actionLoading[app.id] === 'delete'}
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                fontSize: '0.8rem',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '4px',
+                                                                backgroundColor: 'var(--color-bg-alt)',
+                                                                color: 'var(--color-error)',
+                                                                border: '1px solid var(--color-error)',
+                                                                marginTop: '8px'
+                                                            }}
+                                                        >
+                                                            <FiTrash2 size={14} /> Delete
+                                                        </button>
                                                     </div>
                                                 )}
                                                 {app.status === 'HIRED' && (
-                                                    <span style={{ fontSize: '0.8rem', color: 'var(--color-success)' }}>
-                                                        <FiAward style={{ marginRight: '4px' }} />
-                                                        Hired
-                                                    </span>
+                                                    <div style={{ display: 'grid', gap: '6px' }}>
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--color-success)' }}>
+                                                            <FiAward style={{ marginRight: '4px' }} />
+                                                            Hired
+                                                        </span>
+                                                        <button
+                                                            className="btn btn-sm"
+                                                            onClick={() => setDeleteModal({ show: true, appId: app.id, studentName: app.student_name })}
+                                                            disabled={actionLoading[app.id] === 'delete'}
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                fontSize: '0.8rem',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '4px',
+                                                                backgroundColor: 'var(--color-bg-alt)',
+                                                                color: 'var(--color-error)',
+                                                                border: '1px solid var(--color-error)',
+                                                                marginTop: '8px'
+                                                            }}
+                                                        >
+                                                            <FiTrash2 size={14} /> Delete
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {app.status === 'REJECTED' && (
+                                                    <div style={{ display: 'grid', gap: '6px' }}>
+                                                        <button
+                                                            className="btn btn-sm"
+                                                            onClick={() => setDeleteModal({ show: true, appId: app.id, studentName: app.student_name })}
+                                                            disabled={actionLoading[app.id] === 'delete'}
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                fontSize: '0.8rem',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '4px',
+                                                                backgroundColor: 'var(--color-bg-alt)',
+                                                                color: 'var(--color-error)',
+                                                                border: '1px solid var(--color-error)',
+                                                                marginTop: '8px'
+                                                            }}
+                                                        >
+                                                            <FiTrash2 size={14} /> Delete
+                                                        </button>
+                                                    </div>
                                                 )}
                                             </td>
                                         </tr>
@@ -366,7 +477,7 @@ export default function Applications() {
                     zIndex: 9999,
                 }}>
                     <div style={{
-                        backgroundColor: 'var(--color-bg)',
+                        backgroundColor: 'var(--color-bg-card)',
                         borderRadius: '8px',
                         padding: '24px',
                         maxWidth: '600px',
@@ -388,6 +499,53 @@ export default function Applications() {
                         >
                             Close
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {deleteModal.show && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 9999,
+                }}>
+                    <div style={{
+                        backgroundColor: 'var(--color-bg-card)',
+                        borderRadius: '8px',
+                        padding: '24px',
+                        maxWidth: '400px',
+                        width: '90%',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    }}>
+                        <h3 style={{ marginTop: 0, marginBottom: '16px', color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <FiTrash2 /> Delete Application
+                        </h3>
+                        <p style={{ marginBottom: '24px', lineHeight: '1.5' }}>
+                            Are you sure you want to delete the application for <strong>{deleteModal.studentName}</strong>? This action cannot be undone.
+                        </p>
+                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                            <button
+                                className="btn btn-secondary"
+                                onClick={() => setDeleteModal({ show: false, appId: null, studentName: '' })}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="btn"
+                                onClick={handleDeleteApplication}
+                                style={{ backgroundColor: 'var(--color-error)', color: 'white' }}
+                            >
+                                Delete
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

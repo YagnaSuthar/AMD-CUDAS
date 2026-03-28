@@ -30,6 +30,7 @@ import Applications from './pages/Applications';
 import Notifications from './pages/Notifications';
 import CareerGuidance from './pages/CareerGuidance';
 import Round2Meeting from './pages/Round2Meeting';
+import InterviewLive from './pages/InterviewLive';
 
 function App() {
   return (
@@ -46,6 +47,9 @@ function App() {
 
           {/* Protected Dashboard Routes */}
           <Route path="/dashboard" element={<ProtectedRoute />}>
+            {/* InterviewLive renders fullscreen — no sidebar/header */}
+            <Route path="interview/live" element={<InterviewLive />} />
+
             <Route element={<DashboardLayout />}>
               <Route index element={<Dashboard />} />
               <Route path="users" element={<UserManagement />} />

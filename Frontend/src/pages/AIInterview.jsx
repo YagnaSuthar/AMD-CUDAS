@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import InterviewModal from '../components/InterviewModal';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FiMic, FiCpu, FiActivity, FiZap, FiShield, FiMessageCircle, FiClock, FiCheckCircle, FiXCircle } from 'react-icons/fi';
 import api from '../utils/api';
@@ -18,12 +18,14 @@ const STATUS_CONFIG = {
     completed: { label: 'Completed', color: 'var(--color-success)', icon: FiCheckCircle },
     active: { label: 'Active', color: 'var(--color-secondary)', icon: FiClock },
     cancelled: { label: 'Cancelled', color: 'var(--color-text-muted)', icon: FiXCircle },
+    early_exit: { label: 'Early Exit', color: 'var(--color-warning)', icon: FiActivity },
+    tab_switch: { label: 'Tab Switch', color: 'var(--color-danger)', icon: FiXCircle },
     paused: { label: 'Paused', color: 'var(--color-warning)', icon: FiClock },
 };
 
 export default function AIInterview() {
     const { user } = useAuth();
-    const [showInterview, setShowInterview] = useState(false);
+    const navigate = useNavigate();
     const [history, setHistory] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(true);
 
@@ -40,7 +42,7 @@ export default function AIInterview() {
             }
         };
         fetchHistory();
-    }, [showInterview]); // Refresh when modal closes
+    }, []);
 
     const formatDate = (dateStr) => {
         if (!dateStr) return '—';
@@ -79,7 +81,7 @@ export default function AIInterview() {
                     </p>
                     <button
                         className="iv-hero-btn"
-                        onClick={() => setShowInterview(true)}
+                        onClick={() => navigate('/dashboard/interview/live?mode=practice')}
                     >
                         <span className="iv-hero-btn-pulse" />
                         <FiMic className="iv-hero-btn-icon" />
@@ -145,7 +147,11 @@ export default function AIInterview() {
                 ) : (
                     <div className="iv-history-list">
                         {history.map((session) => {
-                            const statusCfg = STATUS_CONFIG[session.status] || STATUS_CONFIG.active;
+                            let statusKey = session.status?.toLowerCase() || 'active';
+                            if (session.ended_reason === 'early_exit') statusKey = 'early_exit';
+                            if (session.ended_reason === 'TAB_SWITCH') statusKey = 'tab_switch';
+
+                            const statusCfg = STATUS_CONFIG[statusKey] || STATUS_CONFIG.active;
                             const StatusIcon = statusCfg.icon;
                             return (
                                 <div key={session.session_id} className="iv-history-card">
@@ -183,10 +189,6 @@ export default function AIInterview() {
                     </div>
                 )}
             </div>
-
-            {showInterview && (
-                <InterviewModal onClose={() => setShowInterview(false)} />
-            )}
         </div>
     );
 }

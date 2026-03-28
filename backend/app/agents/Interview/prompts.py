@@ -161,36 +161,244 @@ GREETING_COMFORTABLE_NO = (
 GREETING_START_NO = "Alright, we will schedule it later."
 
 
-# ── Behavior-Reactive Response Templates (No LLM call) ───────────────────
+# ── Feedback Sentence Pools (No LLM call — selected by answer quality) ────
 
-BEHAVIOR_RESPONSES = {
-    "arrogant_correct": (
-        "Thank you for your answer. That's technically correct. "
-        "Let me challenge you with something more nuanced."
-    ),
-    "arrogant_incorrect": (
-        "I appreciate your confidence, but let me clarify — the correct approach "
-        "involves a different perspective. Let's move to the next question."
-    ),
-    "polite_correct": (
-        "Excellent answer! You've demonstrated a strong understanding of this topic. "
-        "Well done. Let's continue."
-    ),
-    "polite_incorrect": (
-        "Good attempt! The concept you're thinking of is close, but there's a "
-        "subtle difference. Don't worry, let's move on to the next question."
-    ),
-    "neutral_correct": (
-        "That's correct. Good job. Let's proceed to the next question."
-    ),
-    "neutral_incorrect": (
-        "Not quite the answer I was looking for, but that's okay. "
-        "Let's move on to the next one."
-    ),
-    "no_answer": (
-        "Are you able to hear me? Would you like me to repeat the question?"
-    ),
-    "timeout_reminder": (
-        "Take your time. Whenever you're ready, you can share your answer."
-    ),
+import random
+
+FEEDBACK_POOLS = {
+    # weighted_score >= 0.7
+    "good": [
+        "Great explanation! You clearly understand this concept well.",
+        "I appreciate your confidence. That was a clear and structured answer.",
+        "Well done! You explained it very effectively. Let's continue.",
+        "Excellent answer! You've demonstrated a strong grasp of this topic.",
+        "Nice work! That was precise and well-articulated.",
+    ],
+    # weighted_score 0.4 – 0.7
+    "average": [
+        "That's a fair attempt. You're on the right track.",
+        "Good effort, but try to be more precise next time.",
+        "You're heading in the right direction. Let's see how you handle the next one.",
+        "Not bad! A bit more depth would have made it stronger.",
+        "Decent answer. Let's keep going and see how you do.",
+    ],
+    # weighted_score < 0.4
+    "poor": [
+        "It seems you're not very familiar with this concept. No worries, let's try something else.",
+        "That's okay, we'll move to a different area. Don't worry about it.",
+        "Let's try a simpler question on this topic to build your confidence.",
+        "No problem. Not every question is easy. Let's move forward.",
+        "I understand, this can be tricky. Let's try another angle.",
+    ],
+    # no answer provided
+    "no_answer": [
+        "Are you able to hear me? Would you like me to repeat the question?",
+        "Take your time. Whenever you're ready, you can share your answer.",
+    ],
+    # skipped / refusal
+    "skipped": [
+        "I understand you'd like to skip this question. Let's continue with the next one.",
+        "No worries, we'll move on. Let's try a different topic.",
+        "That's okay! Let me ask you something else.",
+        "Understood. Let's proceed to the next question.",
+    ],
 }
+
+# Legacy mapping kept for backward compatibility
+BEHAVIOR_RESPONSES = {
+    "arrogant_correct": FEEDBACK_POOLS["good"][0],
+    "arrogant_incorrect": FEEDBACK_POOLS["poor"][0],
+    "polite_correct": FEEDBACK_POOLS["good"][0],
+    "polite_incorrect": FEEDBACK_POOLS["average"][0],
+    "neutral_correct": FEEDBACK_POOLS["good"][0],
+    "neutral_incorrect": FEEDBACK_POOLS["average"][0],
+    "no_answer": FEEDBACK_POOLS["no_answer"][0],
+    "timeout_reminder": FEEDBACK_POOLS["no_answer"][1],
+}
+
+
+def get_feedback_for_answer(weighted_score: float, has_answer: bool, answer_type: str = "VALID") -> str:
+    """Select a feedback sentence based on the candidate's answer quality.
+
+    - SKIPPED/REFUSAL/IRRELEVANT → skipped pool
+    - weighted_score >= 0.7 → good pool
+    - weighted_score 0.4–0.7 → average pool
+    - weighted_score < 0.4 → poor pool
+    - no answer → no_answer pool
+    """
+    if answer_type in ("SKIPPED", "REFUSAL", "IRRELEVANT"):
+        return random.choice(FEEDBACK_POOLS["skipped"])
+    if not has_answer:
+        return random.choice(FEEDBACK_POOLS["no_answer"])
+    if weighted_score >= 0.7:
+        return random.choice(FEEDBACK_POOLS["good"])
+    if weighted_score >= 0.4:
+        return random.choice(FEEDBACK_POOLS["average"])
+    return random.choice(FEEDBACK_POOLS["poor"])
+
+
+# ── RAG-Enhanced Question Generation ─────────────────────────────────────
+
+RAG_QUESTION_GENERATION_PROMPT = """Generate one interview question using the candidate's CV data. Return JSON only.
+
+Job Description: {job_description}
+Student skills: {skill_summary}
+Last question asked: {last_question}
+Summary of last answer: {last_answer_summary}
+Student behavior: {behavior}
+Difficulty: {difficulty}
+
+RELEVANT CV CONTEXT (from candidate's actual resume/documents):
+{rag_context}
+
+Rules:
+1. Use the CV context to ask SPECIFIC questions about the candidate's actual experience
+2. Reference their real projects, skills, or experience from the CV context
+3. Must NOT repeat the last question topic
+4. If candidate mentioned a technology in their answer, ask a deeper follow-up about it
+5. If behavior is "arrogant", ask a harder probing question
+6. If last answer was weak, ask a deeper follow-up on the same topic
+7. If last answer was detailed, move to the next logical topic from their CV
+8. Use a human, professional, conversational tone — NOT robotic
+9. Clear, specific, answerable in 2-3 minutes
+
+Return JSON:
+{{"question": "question text", "topic": "specific topic", "difficulty": "easy|medium|hard"}}"""
+
+
+RAG_FOLLOWUP_PROMPT = """Generate a follow-up question based on the candidate's answer and related CV data. Return JSON only.
+
+Previous question: {last_question}
+Candidate's answer: {last_answer}
+Difficulty: {difficulty}
+
+RELATED CONCEPTS FROM CANDIDATE'S CV:
+{followup_context}
+
+Rules:
+1. Ask a follow-up that connects the candidate's answer to related concepts from their CV
+2. Make the interview feel natural — like a real interviewer who read their resume
+3. Example: If they mentioned "React hooks", ask about useEffect or state management from their projects
+4. Tone: professional, conversational, human-like
+
+Return JSON:
+{{"question": "question text", "topic": "specific topic", "difficulty": "easy|medium|hard"}}"""
+
+
+# ── Weighted Scoring Evaluation ───────────────────────────────────────────
+
+WEIGHTED_EVALUATION_PROMPT = """Evaluate this interview answer on three dimensions. Return JSON only.
+
+QUESTION: {question}
+ANSWER: {answer}
+DIFFICULTY LEVEL: {difficulty}
+
+IMPORTANT: Do NOT treat skipped, refusal, or irrelevant answers as confident or correct.
+If the candidate says things like "skip", "I don't know", "pass", "next question",
+or provides no meaningful technical content, you MUST score technical_score as 0.0-0.1
+and communication/behavior scores as 0.1-0.3 at most.
+
+Score each dimension from 0.0 to 1.0:
+
+1. technical_score: How technically accurate and complete is the answer?
+   - 0.0-0.1: Skipped, refused, or no relevant content at all
+   - 0.1-0.3: Incorrect or barely relevant content
+   - 0.3-0.6: Partially correct, missing key concepts
+   - 0.6-0.8: Mostly correct with good understanding
+   - 0.8-1.0: Excellent, thorough, and precise
+
+2. communication_score: How clearly and professionally did they communicate?
+   - 0.0-0.2: Skipped or extremely brief (one-word, no explanation)
+   - 0.2-0.4: Incoherent or very poorly structured
+   - 0.4-0.6: Understandable but poorly structured
+   - 0.6-0.8: Clear and well-organized
+   - 0.8-1.0: Exceptional clarity and articulation
+
+3. behavior_score: How professional and appropriate is their demeanor?
+   - 0.0-0.3: Rude, dismissive, or inappropriate
+   - 0.3-0.6: Neutral, minimal engagement
+   - 0.6-0.8: Professional and engaged
+   - 0.8-1.0: Excellent attitude, enthusiastic, thoughtful
+
+Also classify behavior tone:
+- "polite": respectful, professional
+- "arrogant": dismissive, condescending
+- "neutral": neither polite nor arrogant
+
+Determine next difficulty:
+- If weighted_score < 0.4: "easy"
+- If weighted_score 0.4-0.7: "medium"
+- If weighted_score > 0.7: "hard"
+
+Return JSON:
+{{"technical_score": 0.7, "communication_score": 0.8, "behavior_score": 0.9, "behavior_flag": "neutral", "next_difficulty": "medium"}}"""
+
+
+# ── Student Report ────────────────────────────────────────────────────────
+
+STUDENT_REPORT_PROMPT = """Generate a friendly, developmental interview report for the student. Return JSON only.
+
+Session summary: {session_summary}
+Technical score: {avg_technical:.2f}/1.0
+Communication score: {avg_communication:.2f}/1.0
+Behavior score: {avg_behavior:.2f}/1.0
+Final weighted score: {final_score:.2f}/1.0
+Weak areas: {weak_areas}
+Strong areas: {strong_areas}
+Questions asked: {total_questions}
+
+Generate a supportive report with:
+1. weak_areas: List of specific technical gaps identified
+2. missing_skills: Skills the student should learn
+3. improvements: Concrete suggestions for improvement
+4. learning_path: Recommended topics/resources to study (ordered by priority)
+5. encouragement: A friendly encouraging message
+
+Tone: Friendly, supportive, constructive. Like a mentor giving advice.
+
+Return JSON:
+{{"weak_areas": ["area1"], "missing_skills": ["skill1"], "improvements": ["suggestion1"], "learning_path": ["topic1: description"], "encouragement": "message"}}"""
+
+
+# ── Recruiter Report ──────────────────────────────────────────────────────
+
+RECRUITER_REPORT_PROMPT = """Generate a professional recruiter assessment report. Return JSON only.
+
+Session summary: {session_summary}
+Technical score: {avg_technical:.2f}/1.0
+Communication score: {avg_communication:.2f}/1.0
+Behavior score: {avg_behavior:.2f}/1.0
+Final weighted score: {final_score:.2f}/1.0
+Weak areas: {weak_areas}
+Strong areas: {strong_areas}
+Behavior history: {behavior_summary}
+Total questions: {total_questions}
+Interview ended: {ended_reason}
+
+Based on the final weighted score, provide a recommendation:
+- final_score >= 0.8: "STRONGLY_HIRE" — Exceptional candidate
+- final_score >= 0.6: "SHOULD_HIRE" — Good candidate, meets expectations
+- final_score >= 0.4: "WEAK_HIRE" — Below expectations, consider with reservations
+- final_score < 0.4: "REJECT" — Does not meet minimum requirements
+
+Generate:
+1. technical_assessment: Professional summary of technical ability
+2. communication_assessment: Assessment of communication skills
+3. behavior_analysis: Analysis of professional behavior
+4. strengths: Key strengths observed
+5. weaknesses: Key weaknesses observed
+6. recommendation: One of STRONGLY_HIRE, SHOULD_HIRE, WEAK_HIRE, REJECT
+7. justification: Brief justification for the recommendation
+
+Return JSON:
+{{"technical_assessment": "text", "communication_assessment": "text", "behavior_analysis": "text", "strengths": ["s1"], "weaknesses": ["w1"], "recommendation": "SHOULD_HIRE", "justification": "text"}}"""
+
+
+# ── Early Exit Message ────────────────────────────────────────────────────
+
+EARLY_EXIT_MESSAGE = (
+    "Thank you for your time. Based on our conversation so far, "
+    "we will conclude the interview here. "
+    "You will receive a detailed report with feedback and suggestions for improvement."
+)
+

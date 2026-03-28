@@ -1,154 +1,92 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { FiUpload, FiAward, FiCheckCircle, FiClock, FiFile, FiGithub, FiCode, FiAlertCircle, FiX } from 'react-icons/fi';
+import { FiUpload, FiAward, FiCheckCircle, FiClock, FiFile, FiGithub, FiCode, FiTrash2, FiExternalLink, FiAlertCircle } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 
 export default function CertificateManagement() {
     const { user } = useAuth();
     const [certs, setCerts] = useState([]);
-    const [projects, setProjects] = useState([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [file, setFile] = useState(null);
 
-    const [githubUrl, setGithubUrl] = useState('');
-    const [projectTitle, setProjectTitle] = useState('');
-    const [projectDescription, setProjectDescription] = useState('');
-    const [projectTechStack, setProjectTechStack] = useState('');
-    const [verifyingProject, setVerifyingProject] = useState(false);
-    const [verificationResult, setVerificationResult] = useState(null);
+    // Project state
+    const [projects, setProjects] = useState([]);
+    const [projUploading, setProjUploading] = useState(false);
+    const [projName, setProjName] = useState('');
+    const [projDesc, setProjDesc] = useState('');
+    const [projGithub, setProjGithub] = useState('');
+    const [projTech, setProjTech] = useState('');
 
-    // Modal state for viewing project details
-    const [selectedProject, setSelectedProject] = useState(null);
-
-    useEffect(() => { fetchCerts(); }, []);
+    useEffect(() => { fetchCerts(); fetchProjects(); }, []);
 
     const fetchCerts = async () => {
         try {
             setLoading(true);
-            const [certRes, projRes] = await Promise.all([
-                api.get('/college/student/certificates'),
-                api.get('/college/student/projects')
-            ]);
-            setCerts(certRes.data);
-            setProjects(projRes.data);
+            const res = await api.get('/college/student/certificates');
+            setCerts(res.data);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
     };
 
-    const isValidGithubUrl = (url) => {
-        if (!url) return true; // empty is valid (optional field)
-        return /^https?:\/\/(www\.)?github\.com\/[^/]+\/[^/]+/i.test(url.trim());
-    };
-
     const handleUpload = async (e) => {
         e.preventDefault();
-
-        // Validate: at least one input required
-        if (!file && !githubUrl.trim()) {
-            toast.error('Please upload a certificate file or enter a GitHub URL');
-            return;
-        }
-
-        // Validate: certificate needs a title + file
-        if (file && !title) {
-            toast.error('Title is required for certificate upload');
-            return;
-        }
-
-        // Validate: Project needs a title
-        if (githubUrl.trim() && !projectTitle.trim()) {
-            toast.error('Project Name is required when submitting a GitHub project');
-            return;
-        }
-
-        // Validate: GitHub URL format
-        if (githubUrl.trim() && !isValidGithubUrl(githubUrl)) {
-            toast.error('Please enter a valid GitHub URL (e.g. https://github.com/user/repo)');
-            return;
-        }
-
+        if (!title || !file) { toast.error('Title and file are required'); return; }
         setUploading(true);
         try {
-            // First submit to backend saving (using the single /certificates endpoint)
             const formData = new FormData();
-            
-            // If file is provided, submit the certificate
-            if (file) {
-                formData.append('title', title);
-                if (description) formData.append('description', description);
-                formData.append('file', file);
-            }
-            
-            // If github URL is provided, append its details (api handles optional file/url logic)
-            if (githubUrl.trim()) {
-                // If NO file is provided, use the project title/desc for the form
-                if (!file) {
-                    formData.append('title', projectTitle);
-                    if (projectDescription) formData.append('description', projectDescription);
-                }
-                
-                formData.append('github_url', githubUrl.trim());
-                if (projectTechStack) formData.append('tech_stack', projectTechStack);
-            }
-
+            formData.append('title', title);
+            if (description) formData.append('description', description);
+            formData.append('file', file);
             await api.post('/college/student/certificates', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-            
-            if (file) toast.success('Certificate uploaded successfully');
-            if (githubUrl.trim() && !file) toast.success('Project submitted successfully');
-
-            // If GitHub URL is provided, trigger project verification asynchronously
-            if (githubUrl.trim()) {
-                setVerifyingProject(true);
-                try {
-                    const verifyFormData = new FormData();
-                    verifyFormData.append('link', githubUrl.trim());
-                    verifyFormData.append('project_description', projectDescription);
-                    verifyFormData.append('tech_stack', projectTechStack);
-                    
-                    const verifyRes = await api.post('/verify', verifyFormData, {
-                        headers: { 'Content-Type': 'multipart/form-data' }
-                    });
-                    setVerificationResult(verifyRes.data);
-                    
-                    const status = verifyRes.data?.status || 'unknown';
-                    const score = verifyRes.data?.confidence_score || 0;
-                    if (status === 'verified') {
-                        toast.success(`Project verified! Score: ${(score * 100).toFixed(0)}%`);
-                    } else if (status === 'suspicious') {
-                        toast.warning(`Project flagged as suspicious. Score: ${(score * 100).toFixed(0)}%`);
-                    } else {
-                        toast.error(`Project verification failed. Score: ${(score * 100).toFixed(0)}%`);
-                    }
-                } catch (verifyErr) {
-                    console.error('Project verification error:', verifyErr);
-                    toast.warning('Project submitted. AI Verification may take a moment.');
-                } finally {
-                    setVerifyingProject(false);
-                }
-            }
-
-            // Reset states
-            if (file) {
-                setTitle('');
-                setDescription('');
-                setFile(null);
-            }
-            if (githubUrl.trim()) {
-                setProjectTitle('');
-                setProjectDescription('');
-                setProjectTechStack('');
-                setGithubUrl('');
-            }
+            toast.success('Certificate uploaded successfully');
+            setTitle('');
+            setDescription('');
+            setFile(null);
             fetchCerts();
         } catch (err) {
             toast.error(err.response?.data?.detail || 'Upload failed');
         } finally { setUploading(false); }
+    };
+
+    const fetchProjects = async () => {
+        try {
+            const res = await api.get('/projects');
+            setProjects(res.data.projects || []);
+        } catch (err) { console.error('Failed to fetch projects:', err); }
+    };
+
+    const handleProjectUpload = async (e) => {
+        e.preventDefault();
+        if (!projName || !projGithub) { toast.error('Project name and GitHub link are required'); return; }
+        setProjUploading(true);
+        try {
+            await api.post('/projects', {
+                project_name: projName,
+                description: projDesc || null,
+                github_url: projGithub,
+                tech_stack: projTech || null,
+            });
+            toast.success('Project uploaded & verification started!');
+            setProjName(''); setProjDesc(''); setProjGithub(''); setProjTech('');
+            fetchProjects();
+        } catch (err) {
+            toast.error(err.response?.data?.detail || 'Project upload failed');
+        } finally { setProjUploading(false); }
+    };
+
+    const handleDeleteProject = async (id) => {
+        if (!window.confirm('Delete this project?')) return;
+        try {
+            await api.delete(`/projects/${id}`);
+            toast.success('Project deleted');
+            fetchProjects();
+        } catch (err) { toast.error('Failed to delete project'); }
     };
 
     const handleDownloadPortfolio = async () => {
@@ -334,8 +272,8 @@ export default function CertificateManagement() {
     return (
         <div className="dashboard-content fade-in">
             <div className="page-header slide-in-left">
-                <h1 className="gradient-text">Certificates & Projects</h1>
-                <p>Upload certificates and GitHub projects for AI-powered verification</p>
+                <h1 className="gradient-text">Certificates & Skills</h1>
+                <p>Upload certificates and track verification status</p>
             </div>
 
             {/* Stats */}
@@ -363,23 +301,21 @@ export default function CertificateManagement() {
                 </div>
             </div>
 
-            {/* Upload Section — Two Side-by-Side Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }} className="fade-in-up fade-in-delay-1">
-
-                {/* Card 1: Upload Certificate */}
-                <div className="cert-upload-card">
-                    <div className="cert-upload-card-header">
-                        <div className="cert-upload-card-icon">
-                            <FiUpload size={22} />
-                        </div>
-                        <div>
-                            <h3>Upload Certificate</h3>
-                            <p>Add certifications to build your profile</p>
-                        </div>
+            {/* Upload Form — Premium Design */}
+            <div className="cert-upload-card fade-in-up fade-in-delay-1">
+                <div className="cert-upload-card-header">
+                    <div className="cert-upload-card-icon">
+                        <FiUpload size={22} />
                     </div>
+                    <div>
+                        <h3>Upload Certificate</h3>
+                        <p>Add your certifications to build your profile</p>
+                    </div>
+                </div>
 
-                    <form onSubmit={handleUpload} className="cert-upload-form-inner">
-                        {/* Drop Zone */}
+                <form onSubmit={handleUpload} className="cert-upload-form-inner">
+                    <div className="cert-upload-grid">
+                        {/* Left — Drop Zone */}
                         <label htmlFor="cert-file" className={`cert-drop-zone ${file ? 'cert-drop-zone-active' : ''}`}>
                             <input
                                 type="file"
@@ -387,6 +323,7 @@ export default function CertificateManagement() {
                                 className="file-input-hidden"
                                 onChange={e => setFile(e.target.files[0])}
                                 accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                required
                             />
                             {file ? (
                                 <div className="cert-file-preview">
@@ -404,20 +341,21 @@ export default function CertificateManagement() {
                                     <div className="cert-drop-icon-ring">
                                         <FiUpload size={24} />
                                     </div>
-                                    <span className="cert-drop-title">Drop file here or click</span>
+                                    <span className="cert-drop-title">Drop file here or click to browse</span>
                                     <div className="cert-drop-types">
                                         <span className="cert-type-badge">PDF</span>
                                         <span className="cert-type-badge">JPG</span>
                                         <span className="cert-type-badge">PNG</span>
+                                        <span className="cert-type-badge">WEBP</span>
                                     </div>
                                 </div>
                             )}
                         </label>
 
-                        {/* Title + Description */}
+                        {/* Right — Title + Submit */}
                         <div className="cert-upload-fields">
                             <div className="cert-upload-field">
-                                <label>Certificate Title {file ? '*' : ''}</label>
+                                <label>Certificate Title *</label>
                                 <div className="cert-title-input-wrap">
                                     <FiAward className="cert-title-icon" />
                                     <input
@@ -425,6 +363,7 @@ export default function CertificateManagement() {
                                         value={title}
                                         onChange={e => setTitle(e.target.value)}
                                         placeholder="e.g. AWS Cloud Certification"
+                                        required
                                     />
                                 </div>
                             </div>
@@ -435,201 +374,144 @@ export default function CertificateManagement() {
                                     <textarea
                                         value={description}
                                         onChange={e => setDescription(e.target.value)}
-                                        placeholder="Briefly describe..."
-                                        rows="2"
+                                        placeholder="Briefly describe what you learned..."
+                                        rows="3"
                                         style={{
                                             width: '100%',
-                                            padding: '10px 14px',
+                                            padding: '12px 14px',
                                             border: '1px solid var(--color-border)',
                                             borderRadius: 'var(--radius-sm)',
                                             background: 'var(--color-bg-main)',
                                             color: 'var(--color-text-primary)',
                                             fontFamily: 'var(--font-body)',
-                                            fontSize: '0.85rem',
+                                            fontSize: '0.9rem',
                                             resize: 'vertical',
                                             transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
                                         }}
                                     />
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Only show submit if this card has content OR github card has content */}
-                        {(file || githubUrl.trim()) && (
                             <button
                                 type="submit"
                                 className="cert-upload-btn"
-                                disabled={uploading || verifyingProject}
-                                style={{ marginTop: '12px' }}
+                                disabled={uploading || !title || !file}
                             >
-                                {uploading || verifyingProject ? (
+                                {uploading ? (
                                     <>
                                         <div className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }}></div>
-                                        {verifyingProject ? 'Verifying...' : 'Uploading...'}
+                                        Uploading...
                                     </>
                                 ) : (
                                     <>
                                         <FiUpload size={16} />
-                                        Submit
+                                        Upload Certificate
                                     </>
                                 )}
                             </button>
-                        )}
-                    </form>
-                </div>
 
-                {/* Card 2: Upload GitHub Project */}
-                <div className="cert-upload-card">
-                    <div className="cert-upload-card-header">
-                        <div className="cert-upload-card-icon" style={{ background: 'linear-gradient(135deg, #24292e, #586069)' }}>
-                            <FiGithub size={22} />
-                        </div>
-                        <div>
-                            <h3>Upload Project</h3>
-                            <p>Add GitHub project for AI verification</p>
+                            <p className="cert-upload-hint">
+                                <FiCheckCircle size={12} />
+                                Certificates are verified by your college faculty
+                            </p>
                         </div>
                     </div>
+                </form>
+            </div>
 
-                    <div className="cert-upload-form-inner">
-                        <div className="cert-upload-fields">
-                            <div className="cert-upload-field">
-                                <label>Project Name *</label>
-                                <div className="cert-title-input-wrap">
-                                    <FiCode className="cert-title-icon" />
-                                    <input
-                                        type="text"
-                                        value={projectTitle}
-                                        onChange={e => setProjectTitle(e.target.value)}
-                                        placeholder="e.g. E-Commerce Backend"
-                                    />
-                                </div>
-                            </div>
+            {/* Project Upload Card — Same Design */}
+            <div className="cert-upload-card fade-in-up fade-in-delay-1" style={{ marginTop: '24px' }}>
+                <div className="cert-upload-card-header">
+                    <div className="cert-upload-card-icon" style={{ background: 'var(--gradient-secondary)' }}>
+                        <FiCode size={22} />
+                    </div>
+                    <div>
+                        <h3>Upload Project</h3>
+                        <p>Add your projects — AI verification agent will analyze them</p>
+                    </div>
+                </div>
 
-                            <div className="cert-upload-field">
-                                <label>Description (Optional)</label>
-                                <div className="cert-title-input-wrap">
-                                    <textarea
-                                        value={projectDescription}
-                                        onChange={e => setProjectDescription(e.target.value)}
-                                        placeholder="Briefly describe the project..."
-                                        rows="2"
-                                        style={{
-                                            width: '100%',
-                                            padding: '10px 14px',
-                                            border: '1px solid var(--color-border)',
-                                            borderRadius: 'var(--radius-sm)',
-                                            background: 'var(--color-bg-main)',
-                                            color: 'var(--color-text-primary)',
-                                            fontFamily: 'var(--font-body)',
-                                            fontSize: '0.85rem',
-                                            resize: 'vertical',
-                                            transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
-                                        }}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="cert-upload-field">
-                                <label>GitHub Repository URL *</label>
-                                <div className="cert-title-input-wrap">
-                                    <FiGithub className="cert-title-icon" />
-                                    <input
-                                        type="url"
-                                        value={githubUrl}
-                                        onChange={e => {
-                                            setGithubUrl(e.target.value);
-                                            setVerificationResult(null);
-                                        }}
-                                        placeholder="https://github.com/user/project"
-                                    />
-                                </div>
-                                {githubUrl && !isValidGithubUrl(githubUrl) && (
-                                    <p style={{ color: 'var(--color-danger)', fontSize: '0.8rem', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <FiAlertCircle size={12} /> Must be a valid GitHub repository URL
-                                    </p>
-                                )}
-                            </div>
-
-                            <div className="cert-upload-field">
-                                <label>Tech Stack (Optional)</label>
-                                <div className="cert-title-input-wrap">
-                                    <FiCode className="cert-title-icon" />
-                                    <input
-                                        type="text"
-                                        value={projectTechStack}
-                                        onChange={e => setProjectTechStack(e.target.value)}
-                                        placeholder="e.g. React, Node.js, PostgreSQL"
-                                    />
-                                </div>
+                <form onSubmit={handleProjectUpload} className="cert-upload-form-inner">
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div className="cert-upload-field">
+                            <label>Project Name *</label>
+                            <div className="cert-title-input-wrap">
+                                <FiCode className="cert-title-icon" />
+                                <input
+                                    type="text"
+                                    value={projName}
+                                    onChange={e => setProjName(e.target.value)}
+                                    placeholder="e.g. E-Commerce Platform"
+                                    required
+                                />
                             </div>
                         </div>
 
-                        {/* Verification Result Card */}
-                        {verificationResult && (
-                            <div style={{
-                                margin: '12px 0',
-                                padding: '14px 16px',
-                                borderRadius: 'var(--radius-sm)',
-                                border: `1px solid ${verificationResult.status === 'verified' ? 'var(--color-success)' : verificationResult.status === 'suspicious' ? 'var(--color-warning)' : 'var(--color-danger)'}`,
-                                background: 'var(--color-bg-main)',
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                                    <span style={{
-                                        display: 'inline-flex', alignItems: 'center', gap: '4px',
-                                        padding: '3px 10px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 600,
-                                        background: verificationResult.status === 'verified' ? 'rgba(16,185,129,0.15)' : verificationResult.status === 'suspicious' ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)',
-                                        color: verificationResult.status === 'verified' ? 'var(--color-success)' : verificationResult.status === 'suspicious' ? 'var(--color-warning)' : 'var(--color-danger)',
-                                    }}>
-                                        {verificationResult.status === 'verified' ? '✓ Verified' : verificationResult.status === 'suspicious' ? '⚠ Suspicious' : '✗ Failed'}
-                                    </span>
-                                    <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-                                        Score: {(verificationResult.confidence_score * 100).toFixed(0)}% | Trust: {verificationResult.trust_score}
-                                    </span>
-                                </div>
-                                {verificationResult.issues?.length > 0 && (
-                                    <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-                                        {verificationResult.issues.slice(0, 3).map((issue, i) => (
-                                            <li key={i}>{issue}</li>
-                                        ))}
-                                    </ul>
-                                )}
-                                {verificationResult.recommendations?.length > 0 && (
-                                    <div style={{ marginTop: '6px', fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
-                                        <strong>Tip:</strong> {verificationResult.recommendations[0]}
-                                    </div>
-                                )}
+                        <div className="cert-upload-field">
+                            <label>GitHub Link *</label>
+                            <div className="cert-title-input-wrap">
+                                <FiGithub className="cert-title-icon" />
+                                <input
+                                    type="url"
+                                    value={projGithub}
+                                    onChange={e => setProjGithub(e.target.value)}
+                                    placeholder="https://github.com/user/repo"
+                                    required
+                                />
                             </div>
-                        )}
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 0', fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
-                            <FiCode size={12} />
-                            <span>AI verifies repo existence, tech stack, and project authenticity</span>
                         </div>
 
-                        {/* Submit button for Project Card */}
-                        {(githubUrl.trim()) && (
+                        <div className="cert-upload-field">
+                            <label>Project Description</label>
+                            <div className="cert-title-input-wrap">
+                                <textarea
+                                    value={projDesc}
+                                    onChange={e => setProjDesc(e.target.value)}
+                                    placeholder="Describe what your project does..."
+                                    rows="3"
+                                    style={{
+                                        width: '100%', padding: '12px 14px',
+                                        border: '1px solid var(--color-border)',
+                                        borderRadius: 'var(--radius-sm)',
+                                        background: 'var(--color-bg-main)',
+                                        color: 'var(--color-text-primary)',
+                                        fontFamily: 'var(--font-body)',
+                                        fontSize: '0.9rem', resize: 'vertical',
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="cert-upload-field">
+                            <label>Tech Stack</label>
+                            <div className="cert-title-input-wrap">
+                                <FiCode className="cert-title-icon" />
+                                <input
+                                    type="text"
+                                    value={projTech}
+                                    onChange={e => setProjTech(e.target.value)}
+                                    placeholder="React, Node.js, MongoDB"
+                                />
+                            </div>
                             <button
-                                type="button"
+                                type="submit"
                                 className="cert-upload-btn"
-                                onClick={handleUpload}
-                                disabled={uploading || verifyingProject}
-                                style={{ marginTop: '12px' }}
+                                disabled={projUploading || !projName || !projGithub}
+                                style={{ marginTop: '12px', width: '100%' }}
                             >
-                                {uploading || verifyingProject ? (
-                                    <>
-                                        <div className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }}></div>
-                                        {verifyingProject ? 'Verifying...' : 'Uploading...'}
-                                    </>
+                                {projUploading ? (
+                                    <><div className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }}></div> Verifying...</>
                                 ) : (
-                                    <>
-                                        <FiUpload size={16} />
-                                        Submit Project
-                                    </>
+                                    <><FiUpload size={16} /> Upload & Verify Project</>
                                 )}
                             </button>
-                        )}
+                            <p className="cert-upload-hint">
+                                <FiCheckCircle size={12} />
+                                AI agent will scrape GitHub & verify your project
+                            </p>
+                        </div>
                     </div>
-                </div>
+                </form>
             </div>
 
             {/* Certificates List Header & Portfolio Button */}
@@ -679,145 +561,73 @@ export default function CertificateManagement() {
                 )}
             </div>
 
-            {/* Projects List Header */}
-            <div className="data-table-header fade-in-up fade-in-delay-3" style={{ marginTop: '32px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* Projects List */}
+            <div className="data-table-header fade-in-up" style={{ marginBottom: '16px', marginTop: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 style={{ margin: 0 }}>My Projects <span className="table-count">({projects.length})</span></h3>
             </div>
 
-            {/* Projects List */}
-            <div className="cert-grid fade-in-up fade-in-delay-3">
+            <div className="cert-grid fade-in-up">
                 {projects.length === 0 ? (
                     <div className="empty-state">
                         <FiCode className="empty-state-icon" />
                         <h3>No Projects Yet</h3>
-                        <p>Upload your first GitHub project to get started.</p>
+                        <p>Upload your first project to get AI-verified.</p>
                     </div>
                 ) : (
                     projects.map((p, i) => (
-                        <div 
-                            key={p.id} 
-                            className="cert-card" 
-                            style={{ animationDelay: `${i * 0.05}s`, cursor: 'pointer' }}
-                            onClick={() => setSelectedProject(p)}
-                        >
-                            <div className="cert-card-icon" style={{ background: 'linear-gradient(135deg, #24292e, #586069)' }}>
-                                <FiGithub />
+                        <div key={p.id} className="cert-card" style={{ animationDelay: `${i * 0.05}s` }}>
+                            <div className="cert-card-icon" style={{ background: 'var(--gradient-secondary)' }}>
+                                <FiCode />
                             </div>
                             <div className="cert-card-body">
                                 <h4>{p.project_name}</h4>
-                                <div className="cert-card-meta">
-                                    <span className={`status-badge ${p.verification_status === 'verified' ? 'status-badge-approved' : p.verification_status === 'suspicious' ? 'status-badge-pending' : 'status-badge-rejected'}`} style={{
-                                        background: p.verification_status === 'suspicious' ? 'rgba(245,158,11,0.15)' : p.verification_status === 'rejected' ? 'rgba(239,68,68,0.15)' : undefined,
-                                        color: p.verification_status === 'suspicious' ? 'var(--color-warning)' : p.verification_status === 'rejected' ? 'var(--color-danger)' : undefined
-                                    }}>
-                                        {p.verification_status === 'verified' ? '✓ Verified' : p.verification_status === 'suspicious' ? '⚠ Suspicious' : p.verification_status === 'rejected' ? '✗ Failed' : '⏳ Pending'}
+                                {p.tech_stack && (
+                                    <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', margin: '4px 0 8px' }}>
+                                        {p.tech_stack}
+                                    </p>
+                                )}
+                                <div className="cert-card-meta" style={{ gap: '8px', flexWrap: 'wrap' }}>
+                                    <span className={`status-badge ${
+                                        p.verification_status === 'verified' ? 'status-badge-approved' :
+                                        p.verification_status === 'failed' ? 'status-badge-rejected' :
+                                        p.verification_status === 'suspicious' ? 'status-badge-pending' :
+                                        'status-badge-pending'
+                                    }`}>
+                                        {p.verification_status === 'verified' ? '✓ Verified' :
+                                         p.verification_status === 'failed' ? '✗ Failed' :
+                                         p.verification_status === 'suspicious' ? '⚠ Suspicious' :
+                                         '⏳ Pending'}
                                     </span>
+                                    {p.verification_score != null && (
+                                        <span className="cert-points" style={{
+                                            color: p.verification_score >= 0.7 ? 'var(--color-success)' :
+                                                   p.verification_score >= 0.4 ? 'var(--color-warning, #f59e0b)' :
+                                                   'var(--color-error)'
+                                        }}>
+                                            Score: {Math.round(p.verification_score * 100)}%
+                                        </span>
+                                    )}
                                 </div>
-                                <a href={p.github_url} target="_blank" rel="noopener noreferrer"
-                                    className="cert-view-link">View Repository →</a>
+                                <div style={{ display: 'flex', gap: '8px', marginTop: '8px', alignItems: 'center' }}>
+                                    <a href={p.github_url} target="_blank" rel="noopener noreferrer"
+                                        className="cert-view-link" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <FiGithub size={13} /> GitHub →
+                                    </a>
+                                    <button onClick={() => handleDeleteProject(p.id)}
+                                        style={{
+                                            background: 'none', border: 'none', color: 'var(--color-error)',
+                                            cursor: 'pointer', padding: '4px', opacity: 0.7,
+                                        }}
+                                        title="Delete project"
+                                    >
+                                        <FiTrash2 size={14} />
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ))
                 )}
             </div>
-
-            {/* Project Details Modal */}
-            {selectedProject && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: 'rgba(0,0,0,0.5)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1000,
-                    padding: '20px'
-                }} onClick={() => setSelectedProject(null)} className="fade-in">
-                    <div style={{
-                        background: 'var(--color-bg-base)',
-                        borderRadius: '16px',
-                        padding: '30px',
-                        maxWidth: '500px',
-                        width: '100%',
-                        boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
-                        border: '1px solid var(--color-border)',
-                        position: 'relative'
-                    }} onClick={e => e.stopPropagation()}>
-                        <button 
-                            onClick={() => setSelectedProject(null)}
-                            style={{
-                                position: 'absolute', top: '16px', right: '16px',
-                                background: 'transparent', border: 'none',
-                                color: 'var(--color-text-muted)', cursor: 'pointer',
-                                padding: '4px', display: 'flex'
-                            }}
-                        >
-                            <FiX size={20} />
-                        </button>
-                        
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
-                            <div className="cert-card-icon" style={{ 
-                                background: 'linear-gradient(135deg, #24292e, #586069)', 
-                                margin: 0, width: '48px', height: '48px',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                borderRadius: '12px', color: 'white'
-                            }}>
-                                <FiGithub size={24} />
-                            </div>
-                            <div>
-                                <h2 style={{ margin: 0, fontSize: '1.4rem' }}>{selectedProject.project_name}</h2>
-                                <span className={`status-badge ${selectedProject.verification_status === 'verified' ? 'status-badge-approved' : selectedProject.verification_status === 'suspicious' ? 'status-badge-pending' : 'status-badge-rejected'}`} style={{
-                                    background: selectedProject.verification_status === 'suspicious' ? 'rgba(245,158,11,0.15)' : selectedProject.verification_status === 'rejected' ? 'rgba(239,68,68,0.15)' : undefined,
-                                    color: selectedProject.verification_status === 'suspicious' ? 'var(--color-warning)' : selectedProject.verification_status === 'rejected' ? 'var(--color-danger)' : undefined,
-                                    marginTop: '6px', display: 'inline-flex'
-                                }}>
-                                    {selectedProject.verification_status === 'verified' ? '✓ Verified' : selectedProject.verification_status === 'suspicious' ? '⚠ Suspicious' : selectedProject.verification_status === 'rejected' ? '✗ Failed' : '⏳ Pending'}
-                                </span>
-                            </div>
-                        </div>
-
-                        {selectedProject.description && (
-                            <div style={{ marginBottom: '20px' }}>
-                                <h4 style={{ margin: '0 0 8px 0', color: 'var(--color-text-secondary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Description</h4>
-                                <p style={{ margin: 0, fontSize: '0.95rem', lineHeight: 1.5, color: 'var(--color-text-primary)' }}>
-                                    {selectedProject.description}
-                                </p>
-                            </div>
-                        )}
-
-                        {selectedProject.tech_stack && (
-                            <div style={{ marginBottom: '24px' }}>
-                                <h4 style={{ margin: '0 0 8px 0', color: 'var(--color-text-secondary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tech Stack</h4>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                    {selectedProject.tech_stack.split(',').map((tech, idx) => (
-                                        <span key={idx} style={{
-                                            background: 'var(--color-bg-main)',
-                                            border: '1px solid var(--color-border)',
-                                            padding: '4px 10px',
-                                            borderRadius: '20px',
-                                            fontSize: '0.85rem',
-                                            color: 'var(--color-text-primary)'
-                                        }}>
-                                            {tech.trim()}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        <a 
-                            href={selectedProject.github_url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="btn btn-primary"
-                            style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px', padding: '12px' }}
-                        >
-                            <FiGithub />
-                            Open Repository
-                        </a>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

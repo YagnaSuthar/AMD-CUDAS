@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { FiBriefcase, FiCheckCircle, FiClock, FiAward, FiMic, FiMapPin, FiDollarSign, FiShield } from 'react-icons/fi';
+import { FiBriefcase, FiCheckCircle, FiClock, FiAward, FiMic, FiMapPin, FiDollarSign, FiShield, FiX, FiTrash2 } from 'react-icons/fi';
 
 export default function Jobs() {
     const { user } = useAuth();
@@ -13,6 +13,7 @@ export default function Jobs() {
 
     const [jobs, setJobs] = useState([]);
     const [applications, setApplications] = useState([]);
+    const [selectedJob, setSelectedJob] = useState(null);
 
     const [title, setTitle] = useState('');
     const [packageLpa, setPackageLpa] = useState('');
@@ -62,6 +63,18 @@ export default function Jobs() {
         fetchApplications();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.role]);
+
+    const deleteJob = async (jobId, e) => {
+        e.stopPropagation();
+        if (!window.confirm("Are you sure you want to delete this job posting? This action cannot be undone.")) return;
+        try {
+            await api.delete(`/jobs/${jobId}`);
+            setJobs(prevJobs => prevJobs.filter(j => j.id !== jobId));
+            if (selectedJob && selectedJob.id === jobId) setSelectedJob(null);
+        } catch (err) {
+            setError(err?.response?.data?.detail || 'Failed to delete job');
+        }
+    };
 
     const getApplicationForJob = (jobId) => {
         return applications.find(app => app.job_id === jobId);
@@ -204,7 +217,8 @@ export default function Jobs() {
                             <div
                                 key={j.id || idx}
                                 className="job-card"
-                                style={{ animationDelay: `${idx * 0.07}s` }}
+                                style={{ animationDelay: `${idx * 0.07}s`, cursor: 'pointer' }}
+                                onClick={() => setSelectedJob(j)}
                             >
                                 {/* Gradient accent bar */}
                                 <div className="job-card-accent"></div>
@@ -263,7 +277,7 @@ export default function Jobs() {
                                             {!app ? (
                                                 <button
                                                     className="btn btn-sm btn-primary"
-                                                    onClick={() => applyToJob(j.id)}
+                                                    onClick={(e) => { e.stopPropagation(); applyToJob(j.id); }}
                                                 >
                                                     Apply Now
                                                 </button>
@@ -272,6 +286,7 @@ export default function Jobs() {
                                                     href="/dashboard/interview"
                                                     className="btn btn-sm btn-secondary"
                                                     style={{ textDecoration: 'none' }}
+                                                    onClick={(e) => e.stopPropagation()}
                                                 >
                                                     <FiMic size={14} />
                                                     Start AI Interview
@@ -295,9 +310,19 @@ export default function Jobs() {
                                     )}
 
                                     {isRecruiter && (
-                                        <span style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>
-                                            {j.status || 'Active'}
-                                        </span>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                                            <span style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>
+                                                {j.status || 'Active'}
+                                            </span>
+                                            <button 
+                                                className="btn btn-sm" 
+                                                style={{ padding: '6px', color: '#ff4d4d', background: 'rgba(255, 77, 77, 0.1)', border: '1px solid rgba(255, 77, 77, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                onClick={(e) => deleteJob(j.id, e)}
+                                                title="Delete Job"
+                                            >
+                                                <FiTrash2 size={16} />
+                                            </button>
+                                        </div>
                                     )}
 
                                     {!isStudent && !isRecruiter && <span></span>}
@@ -305,6 +330,73 @@ export default function Jobs() {
                             </div>
                         );
                     })}
+                </div>
+            )}
+
+            {/* Job Details Modal */}
+            {selectedJob && (
+                <div className="job-modal-overlay fade-in" onClick={() => setSelectedJob(null)}>
+                    <div className="job-modal-content slide-in-up" onClick={(e) => e.stopPropagation()}>
+                        <button className="job-modal-close" onClick={() => setSelectedJob(null)}>
+                            <FiX size={24} />
+                        </button>
+                        
+                        <div className="job-modal-header">
+                            <h2 className="gradient-text" style={{ fontSize: '1.8rem', marginBottom: '8px' }}>
+                                <FiBriefcase size={24} style={{ marginRight: '12px', verticalAlign: 'bottom', color: 'var(--color-secondary)' }} />
+                                {selectedJob.title}
+                            </h2>
+                            <div className="job-meta-list" style={{ marginTop: '20px' }}>
+                                {selectedJob.package_lpa && (
+                                    <div className="job-meta-item">
+                                        <div className="job-meta-icon"><FiDollarSign size={16} /></div>
+                                        <div><div className="job-meta-label">Package</div><div className="job-meta-value" style={{ fontSize: '1rem' }}>{selectedJob.package_lpa} LPA</div></div>
+                                    </div>
+                                )}
+                                {selectedJob.location && (
+                                    <div className="job-meta-item">
+                                        <div className="job-meta-icon"><FiMapPin size={16} /></div>
+                                        <div><div className="job-meta-label">Location</div><div className="job-meta-value" style={{ fontSize: '1rem' }}>{selectedJob.location}</div></div>
+                                    </div>
+                                )}
+                                {selectedJob.bond && (
+                                    <div className="job-meta-item">
+                                        <div className="job-meta-icon"><FiShield size={16} /></div>
+                                        <div><div className="job-meta-label">Bond</div><div className="job-meta-value" style={{ fontSize: '1rem' }}>{selectedJob.bond}</div></div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="job-modal-body">
+                            <h4 style={{ color: 'var(--color-secondary)', fontFamily: 'var(--font-heading)', letterSpacing: '1px', marginBottom: '12px', textTransform: 'uppercase' }}>Job Description</h4>
+                            <div className="job-modal-description">
+                                {selectedJob.description?.split('\\n').map((para, i) => (
+                                    <p key={i}>{para}</p>
+                                ))}
+                            </div>
+                        </div>
+
+                        {isStudent && (
+                            <div className="job-modal-footer">
+                                {(() => {
+                                    const app = getApplicationForJob(selectedJob.id);
+                                    if (!app) {
+                                        return <button className="btn btn-primary" style={{ width: '100%', padding: '14px' }} onClick={(e) => { e.stopPropagation(); applyToJob(selectedJob.id); }}>Apply Now</button>;
+                                    } else {
+                                        const statusDisplay = getStatusDisplay(app.status);
+                                        const StatusIcon = statusDisplay?.icon;
+                                        return (
+                                            <div className="job-status-display" style={{ color: statusDisplay.color, justifyContent: 'center', padding: '14px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', fontSize: '1.05rem' }}>
+                                                {StatusIcon && <StatusIcon size={20} />}
+                                                <span>You have already applied! Status: {statusDisplay.label}</span>
+                                            </div>
+                                        );
+                                    }
+                                })()}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>

@@ -66,3 +66,8 @@ from app.models.career_advisory import (  # noqa: F401
 from app.models.project import (  # noqa: F401
     Project,
 )
+from app.models.roadmap import (  # noqa: F401
+    RoadmapStep,
+    RoadmapBranch,
+    BranchStep,
+)

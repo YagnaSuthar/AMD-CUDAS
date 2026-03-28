@@ -183,12 +183,19 @@ class QuestionOutput(BaseModel):
 
 
 class EvaluationOutput(BaseModel):
-    clarity: int = Field(ge=0, le=10)
-    depth: int = Field(ge=0, le=10)
-    confidence: int = Field(ge=0, le=10)
-    technical_score: int = Field(ge=0, le=10, default=5)
+    model_config = {"extra": "ignore"}
+
+    clarity: float = Field(ge=0, le=10)
+    depth: float = Field(ge=0, le=10)
+    confidence: float = Field(ge=0, le=10)
+    technical_score: float = Field(ge=0, le=10, default=5)
     behavior_flag: str = "neutral"
     next_difficulty: str = "medium"
+    # Weighted 0-1 scores from the upgraded evaluator
+    answer_type: str = "VALID"
+    communication_score: float = Field(ge=0.0, le=1.0, default=0.5)
+    behavior_score: float = Field(ge=0.0, le=1.0, default=0.5)
+    weighted_score: float = Field(ge=0.0, le=1.0, default=0.5)
 
 
 class MemoryOutput(BaseModel):
@@ -209,12 +216,18 @@ class TTSOutput(BaseModel):
 
 
 class FeedbackOutput(BaseModel):
+    model_config = {"extra": "ignore"}
+
     final_score: float = Field(ge=0.0, le=10.0)
     communication_score: float = Field(ge=0.0, le=10.0, default=0.0)
+    behavior_score: float = Field(ge=0.0, le=1.0, default=0.0)
     strengths: List[str] = []
     weaknesses: List[str] = []
     behavior_summary: str = ""
     recommendation: str = ""
+    # Detailed report sections
+    student_report: Optional[dict] = None
+    recruiter_report: Optional[dict] = None
 
 
 # ── Rebuild forward refs so nested models resolve ────────────────────────

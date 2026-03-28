@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { FiAward, FiTrendingUp, FiHash, FiBarChart2, FiMic, FiBriefcase, FiClock, FiCheckCircle, FiXCircle, FiInfo } from 'react-icons/fi';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell } from 'recharts';
-import InterviewModal from '../components/InterviewModal';
+import { useNavigate } from 'react-router-dom';
 import '../style/interview.css';
 
 /* ── SVG Gauge ─────────────────────────────────────────────────────── */
@@ -42,8 +42,7 @@ export default function StudentDashboard() {
     const [timetable, setTimetable] = useState([]);
     const [pipelines, setPipelines] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [showInterview, setShowInterview] = useState(false);
-    const [selectedPipeline, setSelectedPipeline] = useState(null);
+    const navigate = useNavigate();
 
     const fetchPipelines = useCallback(async () => {
         const pipelineRes = await api.get('/pipeline/student');
@@ -175,10 +174,7 @@ export default function StudentDashboard() {
                         <p>No AI interviews assigned yet. Check back later for new opportunities!</p>
                         <button 
                             className="btn btn-primary" 
-                            onClick={() => {
-                                setSelectedPipeline(null);
-                                setShowInterview(true);
-                            }}
+                            onClick={() => navigate('/dashboard/interview/live?mode=practice')}
                             style={{ marginTop: '10px' }}
                         >
                             Practice AI Interview
@@ -243,10 +239,7 @@ export default function StudentDashboard() {
                                             </p>
                                             <button 
                                                 className="btn btn-primary btn-sm"
-                                                onClick={() => {
-                                                    setSelectedPipeline(pipeline);
-                                                    setShowInterview(true);
-                                                }}
+                                                onClick={() => navigate(`/dashboard/interview/live?job_id=${pipeline.job_id}`)}
                                             >
                                                 <FiMic style={{ marginRight: '6px' }} />
                                                 Start AI Interview
@@ -466,18 +459,6 @@ export default function StudentDashboard() {
                 </div>
             )}
             
-            {showInterview && (
-                <InterviewModal
-                    onClose={() => {
-                        setShowInterview(false);
-                        setSelectedPipeline(null);
-                        setTimeout(() => {
-                            fetchPipelines().catch((e) => console.error('Failed to refresh pipelines', e));
-                        }, 800);
-                    }}
-                    pipeline={selectedPipeline}
-                />
-            )}
         </div>
     );
 }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import RoadmapContainer from '../components/RoadmapContainer';
-import { FiTarget, FiBookOpen, FiAward, FiBriefcase, FiTrendingUp, FiLoader, FiEdit2, FiSave, FiX, FiCheck, FiCompass, FiZap, FiShield, FiSend, FiMessageCircle } from 'react-icons/fi';
+import { FiTarget, FiBookOpen, FiAward, FiBriefcase, FiTrendingUp, FiLoader, FiEdit2, FiSave, FiX, FiCheck, FiCompass, FiZap, FiShield, FiSend, FiMessageCircle, FiLock, FiCheckCircle, FiClock } from 'react-icons/fi';
 import '../style/roadmap.css';
 
 export default function CareerGuidance() {
@@ -11,8 +11,10 @@ export default function CareerGuidance() {
     const [isEditingGoal, setIsEditingGoal] = useState(false);
     const [tempGoal, setTempGoal] = useState('');
     const [roadmap, setRoadmap] = useState(null);
+    const [phaseBranches, setPhaseBranches] = useState({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [goalChangeInfo, setGoalChangeInfo] = useState(null);
 
     // Career Guidance Chat
     const [guidanceQuery, setGuidanceQuery] = useState('');
@@ -21,92 +23,147 @@ export default function CareerGuidance() {
 
     useEffect(() => {
         setGoal(user?.goal || '');
+        // Set goal change info from user data
+        if (user) {
+            setGoalChangeInfo({
+                goal_change_count: user.goal_change_count || 0,
+                last_goal_updated_at: user.last_goal_updated_at,
+                discipline_score: user.discipline_score || 100,
+                locked_until: user.locked_until
+            });
+            // Load existing saved roadmap from DB on mount
+            if (user.goal) {
+                loadSavedRoadmap(user.goal);
+            }
+        }
     }, [user]);
+
+    // Load saved roadmap + weekly plans from DB
+    const loadSavedRoadmap = async (effectiveGoal) => {
+        setLoading(true);
+        setError('');
+        try {
+            const response = await api.get('/rag/my-roadmap');
+            const apiData = response.data?.data;
+
+            if (apiData && apiData.steps && apiData.steps.length > 0) {
+                // Saved roadmap exists — restore it
+                const rawSteps = apiData.steps;
+                const firstPendingIndex = rawSteps.findIndex((s) => s.status === 'pending');
+
+                const transformedSteps = rawSteps.map((step, idx) => {
+                    const isLocked = firstPendingIndex !== -1 && step.status === 'pending' && idx > firstPendingIndex;
+                    return {
+                        id: step.id,
+                        title: step.title || step.phase,
+                        description: step.description,
+                        skills: step.skills || [],
+                        resources: step.resources || [],
+                        timeline: step.timeline || step.duration || `Step ${idx + 1}`,
+                        status: isLocked ? 'locked' : step.status,
+                    };
+                });
+
+                setRoadmap({
+                    title: apiData.goal || effectiveGoal,
+                    summary: 'Personalized roadmap based on your profile',
+                    steps: transformedSteps,
+                });
+
+                // Restore saved weekly branch plans
+                if (apiData.phase_branches) {
+                    const restoredBranches = {};
+                    for (const [phaseId, branchData] of Object.entries(apiData.phase_branches)) {
+                        restoredBranches[phaseId] = {
+                            loading: false,
+                            error: '',
+                            data: branchData,
+                        };
+                    }
+                    setPhaseBranches(restoredBranches);
+                }
+            } else {
+                // No saved roadmap — generate fresh
+                await generateRoadmap(false, effectiveGoal);
+            }
+        } catch (err) {
+            console.error('Error loading saved roadmap:', err);
+            // Fallback: try generating
+            await generateRoadmap(false, effectiveGoal);
+        } finally {
+            setLoading(false);
+        }
+    };
+
 
     const handleSaveGoal = async () => {
         try {
             await api.put('/auth/profile', { goal: tempGoal });
-            setGoal(tempGoal);
+            
+            const nextGoal = tempGoal;
+            setGoal(nextGoal);
             setIsEditingGoal(false);
-            user.goal = tempGoal;
+            user.goal = nextGoal;
+            
+            // Clear roadmap and force-generate a fresh one for the new goal
+            setRoadmap(null);
+            await generateRoadmap(true, nextGoal);
         } catch (err) {
-            setError('Failed to save goal');
+            setError(err.response?.data?.detail || 'Failed to save goal');
             console.error(err);
         }
     };
 
-    const generateRoadmap = async () => {
-        if (!goal) {
+    const generateRoadmap = async (forceRegenerate = false, goalOverride = null) => {
+        const effectiveGoal = (goalOverride ?? goal ?? '').trim();
+        if (!effectiveGoal) {
             setError('Please set your career goal first');
             return;
         }
 
         setLoading(true);
         setError('');
-        setRoadmap(null);
 
         try {
-            const response = await api.post('/college/student/career-roadmap');
+            const response = await api.post('/rag/generate-roadmap', { force_regenerate: forceRegenerate });
             console.log('=== ROADMAP API RESPONSE ===');
             console.log('Full response:', JSON.stringify(response.data, null, 2));
 
-            const apiData = response.data;
+            const apiResponse = response.data;
+            // Backend wraps under {success, data: {...steps, goal, ...}}
+            const apiData = apiResponse.data || apiResponse;
 
-            // Validate response
-            if (!apiData.success) {
-                console.error('API returned error:', apiData.error);
-                setError(apiData.error || 'Failed to generate roadmap');
-                return;
-            }
+            const rawSteps = Array.isArray(apiData.steps) ? apiData.steps : [];
+            const firstPendingIndex = rawSteps.findIndex((s) => s.status === 'pending');
 
-            const roadmapData = apiData.data;
-            console.log('Roadmap data:', roadmapData);
-            console.log('Steps array:', roadmapData?.steps);
-            console.log('Steps count:', roadmapData?.steps?.length);
-
-            // Validate roadmap structure
-            if (roadmapData?.steps && Array.isArray(roadmapData.steps) && roadmapData.steps.length > 0) {
-                // Ensure each step has required fields
-                const validatedSteps = roadmapData.steps.map((step, idx) => ({
-                    id: step.id || idx + 1,
-                    title: step.title || `Step ${idx + 1}`,
-                    description: step.description || '',
-                    skills: Array.isArray(step.skills) ? step.skills : [],
-                    resources: Array.isArray(step.resources) ? step.resources : [],
-                    timeline: step.timeline || '',
-                }));
-
-                const validatedRoadmap = {
-                    title: roadmapData.title || goal,
-                    summary: roadmapData.summary || '',
-                    steps: validatedSteps,
+            // Transform steps to match existing UI structure.
+            // UI "locked" state: any pending step after the first pending step.
+            const transformedSteps = rawSteps.map((step, idx) => {
+                const isLocked = firstPendingIndex !== -1 && step.status === 'pending' && idx > firstPendingIndex;
+                return {
+                    id: step.id,
+                    title: step.title || step.phase,
+                    description: step.description,
+                    skills: step.skills || [],
+                    resources: step.resources || [],
+                    timeline: step.timeline || step.duration || `Step ${idx + 1}`,
+                    status: isLocked ? 'locked' : step.status,
                 };
+            });
 
-                console.log('Validated roadmap:', validatedRoadmap);
-                console.log('Setting roadmap state — should render now');
-                setRoadmap(validatedRoadmap);
-            } else if (roadmapData?.roadmap) {
-                // Legacy markdown format — wrap in structured format
-                console.log('Legacy markdown format detected');
-                setRoadmap({
-                    title: goal,
-                    summary: 'Career roadmap based on your profile',
-                    steps: [{
-                        id: 1,
-                        title: 'Your Career Roadmap',
-                        description: roadmapData.roadmap.substring(0, 500),
-                        skills: [],
-                        resources: [],
-                        timeline: 'See details below'
-                    }],
-                });
-            } else {
-                console.error('Invalid roadmap data structure:', roadmapData);
-                setError('Invalid roadmap data received from server');
-            }
+            const validatedRoadmap = {
+                title: apiData.goal || effectiveGoal,
+                summary: apiData.current_level_estimation 
+                    ? `Personalized roadmap (${apiData.current_level_estimation})`
+                    : 'Personalized roadmap based on your profile',
+                steps: transformedSteps,
+            };
+
+            console.log('Validated roadmap:', validatedRoadmap);
+            setRoadmap(validatedRoadmap);
         } catch (err) {
             console.error('Roadmap generation error:', err);
-            setError(err.response?.data?.error || 'Failed to generate career roadmap');
+            setError(err.response?.data?.detail || 'Failed to generate career roadmap');
         } finally {
             setLoading(false);
         }
@@ -134,6 +191,129 @@ export default function CareerGuidance() {
         } finally {
             setGuidanceLoading(false);
         }
+    };
+
+    const markStepComplete = async (stepId) => {
+        try {
+            await api.post('/rag/mark-step-complete', { step_id: stepId });
+
+            // Update status IN-PLACE — only unlock the NEXT step
+            setRoadmap((prev) => {
+                if (!prev) return prev;
+
+                // First, mark the clicked step as completed
+                const updatedSteps = prev.steps.map((s) =>
+                    s.id === stepId ? { ...s, status: 'completed' } : s
+                );
+
+                // Find the first non-completed step and make ONLY that one 'pending'
+                let firstNonCompleteFound = false;
+                const finalSteps = updatedSteps.map((s) => {
+                    if (s.status === 'completed') return s;
+                    if (!firstNonCompleteFound) {
+                        firstNonCompleteFound = true;
+                        return { ...s, status: 'pending' };
+                    }
+                    return { ...s, status: 'locked' };
+                });
+
+                return { ...prev, steps: finalSteps };
+            });
+        } catch (err) {
+            setError(err.response?.data?.detail || 'Failed to mark step as complete');
+            console.error(err);
+        }
+    };
+
+    const generatePhaseDetailedRoadmap = async (phaseId, forceRegenerate = false) => {
+        setPhaseBranches((prev) => ({
+            ...prev,
+            [phaseId]: {
+                ...(prev?.[phaseId] || {}),
+                loading: true,
+                error: '',
+            },
+        }));
+
+        try {
+            const response = await api.post('/rag/generate-phase-detailed-roadmap', {
+                phase_id: phaseId,
+                force_regenerate: forceRegenerate,
+            });
+            setPhaseBranches((prev) => ({
+                ...prev,
+                [phaseId]: {
+                    loading: false,
+                    error: '',
+                    data: response.data,
+                },
+            }));
+        } catch (err) {
+            setPhaseBranches((prev) => ({
+                ...prev,
+                [phaseId]: {
+                    ...(prev?.[phaseId] || {}),
+                    loading: false,
+                    error: err.response?.data?.detail || 'Failed to generate detailed roadmap',
+                },
+            }));
+        }
+    };
+
+    const markBranchStepComplete = async (phaseId, branchStepId) => {
+        try {
+            const response = await api.post('/mark-branch-step-complete', { branch_step_id: branchStepId });
+            setPhaseBranches((prev) => ({
+                ...prev,
+                [phaseId]: {
+                    ...(prev?.[phaseId] || {}),
+                    data: response.data,
+                },
+            }));
+        } catch (err) {
+            setPhaseBranches((prev) => ({
+                ...prev,
+                [phaseId]: {
+                    ...(prev?.[phaseId] || {}),
+                    error: err.response?.data?.detail || 'Failed to mark week as complete',
+                },
+            }));
+        }
+    };
+
+    const submitProject = async (phaseId, branchStepId, githubLink) => {
+        try {
+            const response = await api.post('/submit-project', {
+                branch_step_id: branchStepId,
+                github_link: githubLink,
+            });
+            setPhaseBranches((prev) => ({
+                ...prev,
+                [phaseId]: {
+                    ...(prev?.[phaseId] || {}),
+                    data: response.data,
+                },
+            }));
+        } catch (err) {
+            setPhaseBranches((prev) => ({
+                ...prev,
+                [phaseId]: {
+                    ...(prev?.[phaseId] || {}),
+                    error: err.response?.data?.detail || 'Failed to submit project link',
+                },
+            }));
+        }
+    };
+
+    const isGoalLocked = () => {
+        if (!goalChangeInfo?.locked_until) return false;
+        return new Date(goalChangeInfo.locked_until) > new Date();
+    };
+
+    const getLockoutMessage = () => {
+        if (!isGoalLocked()) return null;
+        const lockDate = new Date(goalChangeInfo.locked_until);
+        return `Goal changes locked until ${lockDate.toLocaleDateString()} due to frequent changes. Focus on your current path!`;
     };
 
     const startEditingGoal = () => {
@@ -223,12 +403,18 @@ export default function CareerGuidance() {
                                 <p>{goal}</p>
                             </div>
                             <div className="goal-actions">
-                                <button className="btn btn-secondary goal-edit-btn" onClick={startEditingGoal}>
-                                    <FiEdit2 /> Edit Goal
+                                <button 
+                                    className="btn btn-secondary goal-edit-btn" 
+                                    onClick={startEditingGoal}
+                                    disabled={isGoalLocked()}
+                                    title={isGoalLocked() ? getLockoutMessage() : 'Edit goal'}
+                                >
+                                    {isGoalLocked() ? <FiLock /> : <FiEdit2 />} 
+                                    {isGoalLocked() ? 'Locked' : 'Edit Goal'}
                                 </button>
                                 <button
                                     className="btn btn-primary goal-roadmap-btn"
-                                    onClick={generateRoadmap}
+                                    onClick={() => generateRoadmap(false)}
                                     disabled={loading}
                                 >
                                     {loading ? <FiLoader className="spinning" /> : <FiCompass />}
@@ -236,6 +422,37 @@ export default function CareerGuidance() {
                                 </button>
                             </div>
                         </div>
+
+                        {/* Goal Change Info */}
+                        {goalChangeInfo && (
+                            <div className="goal-change-info">
+                                <div className="goal-stats">
+                                    <div className="goal-stat">
+                                        <FiCheckCircle className="stat-icon" />
+                                        <span className="stat-label">Discipline Score:</span>
+                                        <span className="stat-value">{goalChangeInfo.discipline_score}</span>
+                                    </div>
+                                    <div className="goal-stat">
+                                        <FiEdit2 className="stat-icon" />
+                                        <span className="stat-label">Goal Changes:</span>
+                                        <span className="stat-value">{goalChangeInfo.goal_change_count}</span>
+                                    </div>
+                                    {goalChangeInfo.last_goal_updated_at && (
+                                        <div className="goal-stat">
+                                            <FiClock className="stat-icon" />
+                                            <span className="stat-label">Last Updated:</span>
+                                            <span className="stat-value">{new Date(goalChangeInfo.last_goal_updated_at).toLocaleDateString()}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                {isGoalLocked() && (
+                                    <div className="goal-lockout-notice">
+                                        <FiLock className="lock-icon" />
+                                        <span>{getLockoutMessage()}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Quick Career Insights */}
                         <div className="career-insights">
@@ -372,7 +589,7 @@ export default function CareerGuidance() {
                                         </div>
                                     ))}
                                 </div>
-                                <button className="btn btn-primary btn-lg generator-btn" onClick={generateRoadmap} disabled={loading}>
+                                <button className="btn btn-primary btn-lg generator-btn" onClick={() => generateRoadmap(false)} disabled={loading}>
                                     {loading ? <><FiLoader className="spinning" /> Generating Your Roadmap...</> : <><FiCompass /> Generate My Career Roadmap</>}
                                 </button>
                             </div>
@@ -387,7 +604,14 @@ export default function CareerGuidance() {
                             </div>
 
                             {/* Snake/Zig-Zag Roadmap UI */}
-                            <RoadmapContainer roadmap={roadmap} />
+                            <RoadmapContainer
+                                roadmap={roadmap}
+                                onStepComplete={markStepComplete}
+                                phaseBranches={phaseBranches}
+                                onGeneratePhaseDetailed={generatePhaseDetailedRoadmap}
+                                onMarkBranchStepComplete={markBranchStepComplete}
+                                onSubmitProject={submitProject}
+                            />
                         </div>
                     )}
                 </div>

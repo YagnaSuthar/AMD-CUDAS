@@ -141,80 +141,36 @@ export default function Notifications() {
                         {notifications.map((notification) => (
                             <div
                                 key={notification.id}
-                                className={`notification-item ${!notification.is_read ? 'unread' : ''}`}
+                                className={`notification-card ${!notification.is_read ? 'unread' : ''}`}
                                 style={{
-                                    padding: '20px 16px',
-                                    borderBottom: '1px solid var(--color-border)',
-                                    backgroundColor: notification.is_read ? 'transparent' : 'var(--color-bg-primary)',
-                                    borderLeft: `3px solid ${notification.is_read ? 'transparent' : 'var(--color-primary)'}`,
-                                    transition: 'background-color 0.2s',
-                                    display: 'flex',
-                                    flexDirection: 'column'
+                                    padding: '16px',
+                                    border: `1px solid ${notification.is_read ? 'var(--color-border)' : 'var(--color-primary)'}`,
+                                    borderRadius: '8px',
+                                    backgroundColor: notification.is_read ? 'var(--color-bg-card)' : 'var(--color-bg-primary)',
+                                    borderLeftWidth: '4px',
+                                    borderLeftColor: notification.is_read ? 'var(--color-border)' : 'var(--color-primary)'
                                 }}
                             >
-                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                                    <div style={{ 
-                                        marginTop: '2px', 
-                                        padding: '10px', 
-                                        borderRadius: '50%', 
-                                        background: 'var(--color-bg-secondary)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                    }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                                    <div style={{ marginTop: '2px' }}>
                                         {getNotificationIcon(notification.notification_type || notification.type)}
                                     </div>
 
                                     <div style={{ flex: 1 }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                                            <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '500', color: 'var(--color-text-primary)' }}>
+                                            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '600' }}>
                                                 {notification.title || notification.subject || 'Notification'}
                                             </h4>
                                             {getStatusBadge(notification.is_read)}
                                         </div>
 
-                                        {notification.notification_type === 'AI_ASSIGNED' && notification.meta_json?.status ? (
-                                            <div style={{
-                                                margin: '12px 0',
-                                                padding: '16px',
-                                                borderRadius: '8px',
-                                                border: `1px solid ${notification.meta_json.status === 'verified' ? 'var(--color-success)' : notification.meta_json.status === 'suspicious' ? 'var(--color-warning)' : 'var(--color-danger)'}`,
-                                                background: 'var(--color-bg-main)',
-                                            }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                                                    <span style={{
-                                                        display: 'inline-flex', alignItems: 'center', gap: '4px',
-                                                        padding: '4px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 600,
-                                                        background: notification.meta_json.status === 'verified' ? 'rgba(16,185,129,0.15)' : notification.meta_json.status === 'suspicious' ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)',
-                                                        color: notification.meta_json.status === 'verified' ? 'var(--color-success)' : notification.meta_json.status === 'suspicious' ? 'var(--color-warning)' : 'var(--color-danger)',
-                                                    }}>
-                                                        {notification.meta_json.status === 'verified' ? '✓ Verified' : notification.meta_json.status === 'suspicious' ? '⚠ Suspicious' : '✗ Failed'}
-                                                    </span>
-                                                    <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                                                        Score: {Math.round(notification.meta_json.score * 100)}% | Trust: {notification.meta_json.trust_score}
-                                                    </span>
-                                                </div>
-                                                {notification.meta_json.issues?.length > 0 && (
-                                                    <ul style={{ margin: '8px 0', paddingLeft: '20px', fontSize: '0.85rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-                                                        {notification.meta_json.issues.slice(0, 3).map((issue, i) => (
-                                                            <li key={i}>{issue}</li>
-                                                        ))}
-                                                    </ul>
-                                                )}
-                                                {notification.meta_json.recommendations?.length > 0 && (
-                                                    <div style={{ marginTop: '10px', fontSize: '0.85rem', color: 'var(--color-text-primary)' }}>
-                                                        <strong>Tip:</strong> {notification.meta_json.recommendations[0]}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <p style={{
-                                                margin: '0 0 12px 0',
-                                                fontSize: '0.95rem',
-                                                color: 'var(--color-text-secondary)',
-                                                lineHeight: '1.5'
-                                            }}>
-                                                {notification.message || notification.body || ''}
-                                            </p>
-                                        )}
+                                        <p style={{
+                                            margin: '0 0 8px 0',
+                                            color: 'var(--color-text-secondary)',
+                                            lineHeight: '1.5'
+                                        }}>
+                                            {notification.message || notification.body || ''}
+                                        </p>
 
                                         <div style={{
                                             display: 'flex',
