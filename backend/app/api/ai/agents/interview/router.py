@@ -19,6 +19,8 @@ from app.api.ai.agents.interview.schema import (
     InterviewHistoryResponse,
     InterviewReportResponse,
     NextQuestionResponse,
+    ProctoringViolationRequest,
+    ProctoringViolationResponse,
     SessionDetailResponse,
     StartInterviewRequest,
     StartInterviewResponse,
@@ -331,4 +333,57 @@ async def delete_session(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Failed to delete session")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ── DELETE /interview/history/all ─────────────────────────────────────────
+
+@router.delete(
+    "/history/all",
+    summary="Delete all interview sessions for the logged-in student",
+)
+async def delete_all_history(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Delete ALL interview sessions and related data for this student."""
+    try:
+        student_id = _get_user_id(current_user)
+        count = await InterviewService.delete_all_sessions(
+            student_id=student_id,
+            db=db,
+        )
+        return {"message": f"Deleted {count} interview sessions"}
+    except Exception as exc:
+        logger.exception("Failed to delete all sessions")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ── POST /interview/violation ─────────────────────────────────────────────
+
+@router.post(
+    "/violation",
+    response_model=ProctoringViolationResponse,
+    summary="Report a proctoring violation from the frontend detector",
+)
+async def report_violation(
+    body: ProctoringViolationRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Log a proctoring violation detected by the browser-side detector agent."""
+    try:
+        from app.agents.Interview.sub_agents.detector_agent.agent import DetectorAgent
+
+        detector = DetectorAgent(db)
+        result = await detector.log_violation(
+            session_id=body.session_id,
+            violation_type=body.violation_type,
+            message=body.message,
+            severity=body.severity,
+        )
+        await db.commit()
+        return ProctoringViolationResponse(**result)
+    except Exception as exc:
+        logger.exception("Failed to log proctoring violation")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

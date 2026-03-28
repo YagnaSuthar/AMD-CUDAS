@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
+import ProctoringDetector from '../components/ProctoringDetector';
 import '../style/interviewLive.css';
 
 /**
@@ -72,6 +73,9 @@ export default function InterviewLive() {
   const [showTabWarning, setShowTabWarning] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [volumeOn, setVolumeOn] = useState(true);
+  const [proctorWarning, setProctorWarning] = useState(null);
+  const [cameraRequired, setCameraRequired] = useState(true);
+  const proctorWarningTimer = useRef(null);
 
   const recognitionRef  = useRef(null);
   const timerRef        = useRef(null);
@@ -110,21 +114,40 @@ export default function InterviewLive() {
     }
   }, [sessionId, fetchStudentReport]);
 
-  /* ── camera toggle ─────────────────────────────────────────────────── */
+  /* ── camera toggle (camera is MANDATORY — cannot be turned off) ────── */
+  const startCamera = useCallback(async () => {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      streamRef.current = s;
+      if (videoRef.current) videoRef.current.srcObject = s;
+      setCameraOn(true);
+      return true;
+    } catch {
+      setCameraOn(false);
+      return false;
+    }
+  }, []);
+
   const toggleCamera = useCallback(async () => {
     if (cameraOn) {
-      streamRef.current?.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-      setCameraOn(false);
+      // Camera must stay on during interview — show warning
+      setProctorWarning('⚠️ Camera is required for the interview. You cannot turn it off.');
+      if (proctorWarningTimer.current) clearTimeout(proctorWarningTimer.current);
+      proctorWarningTimer.current = setTimeout(() => setProctorWarning(null), 4000);
+      return;
     } else {
-      try {
-        const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        streamRef.current = s;
-        if (videoRef.current) videoRef.current.srcObject = s;
-        setCameraOn(true);
-      } catch { /* ignore */ }
+      await startCamera();
     }
-  }, [cameraOn]);
+  }, [cameraOn, startCamera]);
+
+
+  // Reattach stream to video element whenever cameraOn or state changes
+  // (video element may not exist yet when startCamera runs during init)
+  useEffect(() => {
+    if (cameraOn && streamRef.current && videoRef.current && !videoRef.current.srcObject) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [cameraOn, state]);
 
   useEffect(() => () => streamRef.current?.getTracks().forEach(t => t.stop()), []);
 
@@ -170,6 +193,24 @@ export default function InterviewLive() {
     }
   }, [sessionId, stopRecording, clearTimers, fetchStudentReport]);
 
+  /* ── proctoring callbacks (must be after endInterview) ──────────────── */
+  const handleProctorWarning = useCallback((type, message) => {
+    setProctorWarning(message);
+    if (proctorWarningTimer.current) clearTimeout(proctorWarningTimer.current);
+    proctorWarningTimer.current = setTimeout(() => setProctorWarning(null), 5000);
+  }, []);
+
+  const handleProctorViolation = useCallback((type, message) => {
+    setProctorWarning('🔴 ' + message);
+  }, []);
+
+  const handleProctorAutoEnd = useCallback(async (reason) => {
+    setProctorWarning(`🔴 Interview terminated: ${reason.replace(/_/g, ' ')}`);
+    setTimeout(async () => {
+      await endInterview(reason);
+    }, 2000);
+  }, [endInterview]);
+
   const handleTabSwitch = useCallback(async () => {
     if (![STATES.QUESTION, STATES.LISTENING, STATES.EVALUATING].includes(state)) return;
     setShowTabWarning(true);
@@ -177,14 +218,20 @@ export default function InterviewLive() {
     navigate('/dashboard/interview');
   }, [state, endInterview, navigate]);
 
-  const handleTerminate = useCallback(() => {
+  const handleTerminate = useCallback(async () => {
     clearTimers();
     stopRecording();
     window.speechSynthesis?.cancel();
     setIsSpeaking(false);
     setState(STATES.CLOSED);
     setAgentText('Interview ended.');
-    if (sessionId) api.post('/ai/interview/end', { session_id: sessionId, ended_reason: 'USER_TERMINATED' }).catch(() => {});
+    if (sessionId) {
+      try {
+        await api.post('/ai/interview/end', { session_id: sessionId, ended_reason: 'USER_TERMINATED' });
+      } catch (e) {
+        console.error('Terminate cleanup error:', e);
+      }
+    }
   }, [sessionId, stopRecording, clearTimers]);
 
   /* ── submit answer ─────────────────────────────────────────────────── */
@@ -330,6 +377,14 @@ export default function InterviewLive() {
     hasStartedRef.current = true;
     (async () => {
       try {
+        // MANDATORY: Start camera first
+        const cameraOk = await startCamera();
+        if (!cameraOk) {
+          setError('Camera access is required for the interview. Please allow camera access and try again.');
+          setState(STATES.ERROR);
+          return;
+        }
+
         let jr = 'Software Developer';
         let interviewMode = modeParam;
         if (jobIdUrl) {
@@ -358,8 +413,8 @@ export default function InterviewLive() {
         speak(r.data.greeting);
       } catch (e) { setError(e.response?.data?.detail || 'Failed to start'); setState(STATES.ERROR); }
     })();
-    return () => { clearTimers(); stopRecording(); window.speechSynthesis?.cancel(); };
-  }, [jobIdUrl, modeParam, speak, clearTimers, stopRecording]);
+    return () => { clearTimers(); stopRecording(); window.speechSynthesis?.cancel(); streamRef.current?.getTracks().forEach(t => t.stop()); };
+  }, [jobIdUrl, modeParam, speak, clearTimers, stopRecording, startCamera]);
 
   useEffect(() => {
     const onVis = () => { if (document.hidden) handleTabSwitch(); };
@@ -388,6 +443,14 @@ export default function InterviewLive() {
      ═══════════════════════════════════════════════════════════════════════ */
   return (
     <div className="meet-root">
+
+      {/* ── Proctoring Warning Banner ──────────────────────────────────── */}
+      {proctorWarning && (
+        <div className="meet-proctor-warning">
+          <span>{proctorWarning}</span>
+          <button onClick={() => setProctorWarning(null)}>✕</button>
+        </div>
+      )}
 
       {/* ── Tab-switch warning ─────────────────────────────────────────── */}
       {showTabWarning && (
@@ -418,7 +481,7 @@ export default function InterviewLive() {
       </div>
 
       {/* ── VIDEO GRID ─────────────────────────────────────────────────── */}
-      <div className={`meet-grid ${(!isActive && state !== STATES.EVALUATING) ? 'solo' : ''}`}>
+      <div className={`meet-grid ${(!isActive && state !== STATES.EVALUATING && state !== STATES.GREETING && state !== STATES.CONFIRM_START) ? 'solo' : ''}`}>
 
         {/* === AI TILE === */}
         <div className="meet-tile">
@@ -540,15 +603,25 @@ export default function InterviewLive() {
           <span className="meet-tile-label">AI Interviewer</span>
         </div>
 
-        {/* === STUDENT TILE === */}
-        {isActive && (
+        {/* === STUDENT TILE (Camera always on) === */}
+        {(isActive || state === STATES.GREETING || state === STATES.CONFIRM_START) && (
           <div className="meet-tile">
             {cameraOn ? (
-              <video ref={videoRef} className="meet-student-video" autoPlay playsInline muted />
+              <>
+                <video ref={videoRef} className="meet-student-video" autoPlay playsInline muted />
+                <ProctoringDetector
+                  videoRef={videoRef}
+                  sessionId={sessionId}
+                  active={isActive}
+                  onWarning={handleProctorWarning}
+                  onViolation={handleProctorViolation}
+                  onAutoEnd={handleProctorAutoEnd}
+                />
+              </>
             ) : (
               <div className="meet-student-placeholder">
-                <div className="meet-student-avatar">You</div>
-                <span className="meet-student-name">Camera off — click 📹 to enable</span>
+                <div className="meet-student-avatar">📷</div>
+                <span className="meet-student-name">Camera required — enable to continue</span>
               </div>
             )}
             <span className="meet-tile-label">You</span>

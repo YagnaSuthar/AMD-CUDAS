@@ -125,6 +125,7 @@ class InterviewService:
         )
         db.add(session)
         await db.flush()
+        await db.commit()
 
         logger.info("start_interview: created session_id=%s for student_id=%s", session.session_id, student_id)
 
@@ -381,8 +382,24 @@ class InterviewService:
         answer_type = eval_data.get("answer_type", "VALID")
         agent_response = get_feedback_for_answer(weighted, has_answer, answer_type)
 
-        # Update session difficulty
-        next_diff = eval_data.get("next_difficulty", "medium")
+        # Determine next difficulty using code logic (NOT trusting the LLM)
+        # This ensures difficulty always adjusts based on actual performance
+        weighted = eval_data.get("weighted_score", 0.5)
+        if weighted < 0.4:
+            next_diff = "easy"
+        elif weighted > 0.7:
+            next_diff = "hard"
+        else:
+            next_diff = "medium"
+        
+        # Override in eval_data too so frontend gets consistent info
+        eval_data["next_difficulty"] = next_diff
+        
+        logger.info(
+            "submit_answer: weighted_score=%.2f → next_difficulty=%s",
+            weighted, next_diff,
+        )
+        
         session_result = await db.execute(
             select(InterviewSession).where(
                 InterviewSession.session_id == session_id,
@@ -483,13 +500,31 @@ class InterviewService:
         )
         logger.info("end_interview: report generated for session_id=%s, data=%s", session_id, report_data)
 
+        # Get proctoring summary from DetectorAgent
+        try:
+            from app.agents.Interview.sub_agents.detector_agent.agent import DetectorAgent
+            detector = DetectorAgent(db)
+            proctor_summary = await detector.get_proctoring_summary(session_id)
+            report_data["proctoring_summary"] = proctor_summary
+            logger.info("end_interview: proctoring summary for session_id=%s — integrity=%.2f, violations=%d",
+                       session_id, proctor_summary.get("integrity_score", 1.0), proctor_summary.get("total_violations", 0))
+        except Exception as exc:
+            logger.warning("Proctoring summary failed (non-fatal): %s", exc)
+
         await db.flush()
         logger.info("end_interview: flushed DB for session_id=%s", session_id)
 
         logger.info("end_interview: calling mark_pipeline_ai_completed for session_id=%s", session_id)
 
-        await mark_pipeline_ai_completed(db=db, session_id=session_id)
-        logger.info("end_interview: mark_pipeline_ai_completed returned for session_id=%s", session_id)
+        try:
+            await mark_pipeline_ai_completed(db=db, session_id=session_id)
+            logger.info("end_interview: mark_pipeline_ai_completed returned for session_id=%s", session_id)
+        except Exception as exc:
+            logger.warning("mark_pipeline_ai_completed failed (non-fatal): %s", exc)
+
+        # Commit all changes — ensure COMPLETED status persists
+        await db.commit()
+        logger.info("end_interview: committed session_id=%s as COMPLETED", session_id)
 
         return EndInterviewResponse(
             session_id=session_id,
@@ -719,3 +754,26 @@ class InterviewService:
 
         await db.delete(session)
         await db.commit()
+
+    # ── DELETE /interview/history/all ──────────────────────────────────
+
+    @staticmethod
+    async def delete_all_sessions(
+        student_id: UUID,
+        db: AsyncSession,
+    ) -> int:
+        """Delete ALL interview sessions for this student. Returns count deleted."""
+        result = await db.execute(
+            select(InterviewSession).where(
+                InterviewSession.student_id == student_id,
+            )
+        )
+        sessions = list(result.scalars().all())
+        count = len(sessions)
+
+        for session in sessions:
+            await db.delete(session)
+
+        await db.commit()
+        logger.info("Deleted %d interview sessions for student %s", count, student_id)
+        return count

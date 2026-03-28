@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FiMic, FiCpu, FiActivity, FiZap, FiShield, FiMessageCircle, FiClock, FiCheckCircle, FiXCircle } from 'react-icons/fi';
+import { FiMic, FiCpu, FiActivity, FiZap, FiShield, FiMessageCircle, FiClock, FiCheckCircle, FiXCircle, FiTrash2 } from 'react-icons/fi';
 import api from '../utils/api';
 import '../style/interview.css';
 
@@ -53,7 +53,7 @@ export default function AIInterview() {
     };
 
     const handleDelete = async (sessionId, e) => {
-        e.stopPropagation(); // prevent card click if any
+        e.stopPropagation();
         if (!window.confirm("Are you sure you want to delete this interview record? This action cannot be undone.")) return;
 
         try {
@@ -62,6 +62,17 @@ export default function AIInterview() {
         } catch (err) {
             console.error('Failed to delete session:', err);
             alert(err.response?.data?.detail || "Failed to delete from history.");
+        }
+    };
+
+    const handleDeleteAll = async () => {
+        if (!window.confirm("Delete ALL interview history? This cannot be undone.")) return;
+        try {
+            await api.delete('/ai/interview/history/all');
+            setHistory([]);
+        } catch (err) {
+            console.error('Failed to delete all:', err);
+            alert(err.response?.data?.detail || "Failed to delete history.");
         }
     };
 
@@ -139,7 +150,14 @@ export default function AIInterview() {
 
             {/* Interview History */}
             <div className="iv-history">
-                <h3 className="iv-section-title">My Interview History</h3>
+                <div className="iv-history-header">
+                    <h3 className="iv-section-title">My Interview History</h3>
+                    {history.length > 0 && (
+                        <button className="iv-delete-all-btn" onClick={handleDeleteAll}>
+                            <FiTrash2 size={13} /> Delete All
+                        </button>
+                    )}
+                </div>
                 {loadingHistory ? (
                     <p className="iv-history-empty">Loading...</p>
                 ) : history.length === 0 ? (

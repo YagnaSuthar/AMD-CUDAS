@@ -145,6 +145,32 @@ class SessionDetailResponse(BaseModel):
     questions: List[SessionQuestionAnswer]
 
 
+# ── Proctoring / Detector Agent ───────────────────────────────────────────
+
+class ProctoringViolationRequest(BaseModel):
+    """POST /interview/violation — report a proctoring violation."""
+    session_id: uuid.UUID
+    violation_type: str = Field(..., description="NO_FACE, PHONE_DETECTED, MULTIPLE_PEOPLE, etc.")
+    message: str = Field(..., description="Human-readable violation message")
+    severity: str = Field(default="warning", description="warning or critical")
+
+
+class ProctoringViolationResponse(BaseModel):
+    logged: bool
+    should_end: bool
+    reason: str = ""
+    warning_count: int = 0
+    violation_count: int = 0
+
+
+class ProctoringSessionSummary(BaseModel):
+    total_violations: int = 0
+    violation_breakdown: dict = {}
+    integrity_score: float = 1.0
+    flags: List[str] = []
+    summary: str = ""
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  Orchestrator I/O
 # ═══════════════════════════════════════════════════════════════════════════
@@ -228,6 +254,8 @@ class FeedbackOutput(BaseModel):
     # Detailed report sections
     student_report: Optional[dict] = None
     recruiter_report: Optional[dict] = None
+    # Proctoring integrity data from DetectorAgent
+    proctoring_summary: Optional[dict] = None
 
 
 # ── Rebuild forward refs so nested models resolve ────────────────────────
