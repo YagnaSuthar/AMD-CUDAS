@@ -6,6 +6,8 @@ import './style/animation.css'
 import './style/layout.css'
 import './style/auth.css'
 import './style/dashboard.css'
+import './style/notifications.css'
+import './style/popup.css'
 import './style/landing.css'
 
 createRoot(document.getElementById('root')).render(

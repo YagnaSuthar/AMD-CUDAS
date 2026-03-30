@@ -1,15 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { FiBell, FiCheck, FiX, FiClock, FiBriefcase, FiAward, FiInfo } from 'react-icons/fi';
+import NotificationItem from '../components/NotificationItem';
+import { FiBell, FiInbox, FiCheckCircle } from 'react-icons/fi';
 
 export default function Notifications() {
     const { user } = useAuth();
     const navigate = useNavigate();
+
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [activeTab, setActiveTab] = useState('inbox');   // 'inbox' | 'read'
+    const [selectedIds, setSelectedIds] = useState(new Set());
+
+    /* ── Fetch ──────────────────────────────────────────────────────── */
 
     const fetchNotifications = async () => {
         try {
@@ -26,14 +32,75 @@ export default function Notifications() {
         }
     };
 
+    useEffect(() => {
+        fetchNotifications();
+    }, []);
+
+    /* ── Derived lists ──────────────────────────────────────────────── */
+
+    const inboxList = useMemo(
+        () => notifications.filter(n => !n.is_read),
+        [notifications]
+    );
+
+    const readList = useMemo(
+        () => notifications.filter(n => n.is_read),
+        [notifications]
+    );
+
+    const currentList = activeTab === 'inbox' ? inboxList : readList;
+
+    /* ── Actions ────────────────────────────────────────────────────── */
+
     const markAsRead = async (notificationId) => {
         try {
-            await api.post('/messages/notifications/mark-read', { notification_ids: [notificationId] });
+            await api.post('/messages/notifications/mark-read', {
+                notification_ids: [notificationId],
+            });
             setNotifications(prev =>
                 prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n)
             );
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                next.delete(notificationId);
+                return next;
+            });
         } catch (err) {
             console.error('Failed to mark as read:', err);
+        }
+    };
+
+    const markSelectedAsRead = async () => {
+        const ids = [...selectedIds].filter(id =>
+            notifications.find(n => n.id === id && !n.is_read)
+        );
+        if (ids.length === 0) return;
+        try {
+            await api.post('/messages/notifications/mark-read', {
+                notification_ids: ids,
+            });
+            setNotifications(prev =>
+                prev.map(n => ids.includes(n.id) ? { ...n, is_read: true } : n)
+            );
+            setSelectedIds(new Set());
+        } catch (err) {
+            console.error('Failed to mark selected as read:', err);
+        }
+    };
+
+    const markAllAsRead = async () => {
+        const unreadIds = inboxList.map(n => n.id);
+        if (unreadIds.length === 0) return;
+        try {
+            await api.post('/messages/notifications/mark-read', {
+                notification_ids: unreadIds,
+            });
+            setNotifications(prev =>
+                prev.map(n => unreadIds.includes(n.id) ? { ...n, is_read: true } : n)
+            );
+            setSelectedIds(new Set());
+        } catch (err) {
+            console.error('Failed to mark all as read:', err);
         }
     };
 
@@ -41,189 +108,145 @@ export default function Notifications() {
         try {
             await api.delete(`/messages/notifications/${notificationId}`);
             setNotifications(prev => prev.filter(n => n.id !== notificationId));
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                next.delete(notificationId);
+                return next;
+            });
         } catch (err) {
             console.error('Failed to delete notification:', err);
         }
     };
 
-    useEffect(() => {
-        fetchNotifications();
-    }, []);
-
-    const getNotificationIcon = (type) => {
-        switch (type) {
-            case 'MESSAGE': return <FiInfo style={{ color: 'var(--color-primary)' }} />;
-            case 'AI_ASSIGNED': return <FiClock style={{ color: 'var(--color-secondary)' }} />;
-            case 'ROUND2_INVITED': return <FiBriefcase style={{ color: 'var(--color-warning)' }} />;
-            case 'HIRED': return <FiAward style={{ color: 'var(--color-success)' }} />;
-            default: return <FiInfo style={{ color: 'var(--color-text-muted)' }} />;
+    const handleAction = (notification) => {
+        const type = notification.notification_type || notification.type || '';
+        if (type === 'ROUND2_INVITED' && notification.meta_json?.pipeline_id) {
+            navigate(`/dashboard/round2/${notification.meta_json.pipeline_id}`);
+        }
+        if (type === 'MESSAGE') {
+            navigate('/dashboard/messages');
         }
     };
 
-    const openRound2 = (pipelineId) => {
-        if (!pipelineId) return;
-        navigate(`/dashboard/round2/${pipelineId}`);
+    /* ── Selection helpers ──────────────────────────────────────────── */
+
+    const toggleSelect = (id) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
     };
 
-    const getStatusBadge = (isRead) => {
-        return isRead ? (
-            <span style={{
-                padding: '2px 8px',
-                borderRadius: '12px',
-                fontSize: '0.7rem',
-                backgroundColor: 'var(--color-bg-secondary)',
-                color: 'var(--color-text-muted)'
-            }}>
-                Read
-            </span>
-        ) : (
-            <span style={{
-                padding: '2px 8px',
-                borderRadius: '12px',
-                fontSize: '0.7rem',
-                backgroundColor: 'var(--color-primary)',
-                color: '#fff',
-                fontWeight: '600'
-            }}>
-                New
-            </span>
-        );
-    };
+    /* ── Render ─────────────────────────────────────────────────────── */
 
-    if (loading) {
-        return (
-            <div className="dashboard-content">
+    const renderSkeleton = () => (
+        <div className="notif-list-container">
+            {[1, 2, 3, 4].map(i => (
+                <div className="notif-skeleton" key={i}>
+                    <div className="notif-skeleton-checkbox" />
+                    <div className="notif-skeleton-avatar" />
+                    <div className="notif-skeleton-content">
+                        <div className="notif-skeleton-line medium" />
+                        <div className="notif-skeleton-line long" />
+                        <div className="notif-skeleton-line short" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+
+    return (
+        <div className="dashboard-content">
+            <div className="notif-page">
+
+                {/* Page Header */}
                 <div className="page-header slide-in-left">
                     <h1 className="gradient-text">Notifications</h1>
                     <p>Stay updated with your interview status and feedback</p>
                 </div>
-                <div className="spinner" style={{ margin: '40px auto' }}></div>
-            </div>
-        );
-    }
 
-    return (
-        <div className="dashboard-content">
-            <div className="page-header slide-in-left">
-                <h1 className="gradient-text">Notifications</h1>
-                <p>Stay updated with your interview status and feedback</p>
-            </div>
+                {/* Error */}
+                {error && (
+                    <div className="alert alert-error" style={{ marginBottom: '16px' }}>
+                        {error}
+                    </div>
+                )}
 
-            {error && (
-                <div className="alert alert-error" style={{ marginBottom: '16px' }}>
-                    {error}
+                {/* Tabs Bar */}
+                <div className="notif-tabs-bar fade-in-up">
+                    <div className="notif-tabs">
+                        <button
+                            className={`notif-tab ${activeTab === 'inbox' ? 'active' : ''}`}
+                            onClick={() => { setActiveTab('inbox'); setSelectedIds(new Set()); }}
+                        >
+                            <FiInbox style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                            Inbox
+                            {inboxList.length > 0 && (
+                                <span className="notif-tab-count">{inboxList.length}</span>
+                            )}
+                        </button>
+                        <button
+                            className={`notif-tab ${activeTab === 'read' ? 'active' : ''}`}
+                            onClick={() => { setActiveTab('read'); setSelectedIds(new Set()); }}
+                        >
+                            <FiCheckCircle style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                            Read
+                            {readList.length > 0 && (
+                                <span className="notif-tab-count">{readList.length}</span>
+                            )}
+                        </button>
+                    </div>
+
+                    {activeTab === 'inbox' && (
+                        <button
+                            className="notif-mark-read"
+                            onClick={selectedIds.size > 0 ? markSelectedAsRead : markAllAsRead}
+                            disabled={inboxList.length === 0}
+                        >
+                            {selectedIds.size > 0
+                                ? `Mark ${selectedIds.size} as read`
+                                : 'Mark all as read'
+                            }
+                        </button>
+                    )}
                 </div>
-            )}
 
-            <div className="dashboard-card fade-in-up">
-                <div className="data-table-header">
-                    <h3>
-                        All Notifications <span className="table-count">({notifications.length})</span>
-                    </h3>
-                    <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={fetchNotifications}
-                    >
-                        Refresh
-                    </button>
-                </div>
-
-                {notifications.length === 0 ? (
-                    <div className="empty-state">
-                        <FiBell size={48} style={{ marginBottom: '16px', opacity: 0.5 }} />
-                        <h3>No Notifications</h3>
-                        <p style={{ color: 'var(--color-text-muted)' }}>
-                            You don't have any notifications yet. Check back later for updates on your interviews.
+                {/* List */}
+                {loading ? (
+                    renderSkeleton()
+                ) : currentList.length === 0 ? (
+                    <div className="notif-empty fade-in-up">
+                        <div className="notif-empty-icon">
+                            <FiBell />
+                        </div>
+                        <h3>
+                            {activeTab === 'inbox'
+                                ? 'All caught up!'
+                                : 'No read notifications'}
+                        </h3>
+                        <p>
+                            {activeTab === 'inbox'
+                                ? "You don't have any unread notifications. Check back later for updates."
+                                : 'Read notifications will appear here.'}
                         </p>
                     </div>
                 ) : (
-                    <div style={{ display: 'grid', gap: '12px' }}>
-                        {notifications.map((notification) => (
-                            <div
-                                key={notification.id}
-                                className={`notification-card ${!notification.is_read ? 'unread' : ''}`}
-                                style={{
-                                    padding: '16px',
-                                    border: `1px solid ${notification.is_read ? 'var(--color-border)' : 'var(--color-primary)'}`,
-                                    borderRadius: '8px',
-                                    backgroundColor: notification.is_read ? 'var(--color-bg-card)' : 'var(--color-bg-primary)',
-                                    borderLeftWidth: '4px',
-                                    borderLeftColor: notification.is_read ? 'var(--color-border)' : 'var(--color-primary)'
-                                }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                                    <div style={{ marginTop: '2px' }}>
-                                        {getNotificationIcon(notification.notification_type || notification.type)}
-                                    </div>
-
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                                            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '600' }}>
-                                                {notification.title || notification.subject || 'Notification'}
-                                            </h4>
-                                            {getStatusBadge(notification.is_read)}
-                                        </div>
-
-                                        <p style={{
-                                            margin: '0 0 8px 0',
-                                            color: 'var(--color-text-secondary)',
-                                            lineHeight: '1.5'
-                                        }}>
-                                            {notification.message || notification.body || ''}
-                                        </p>
-
-                                        <div style={{
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            fontSize: '0.8rem',
-                                            color: 'var(--color-text-muted)'
-                                        }}>
-                                            <span>
-                                                {new Date(notification.created_at).toLocaleDateString()} at {new Date(notification.created_at).toLocaleTimeString()}
-                                            </span>
-
-                                            <div style={{ display: 'flex', gap: '8px' }}>
-                                                {(notification.notification_type === 'ROUND2_INVITED' || notification.type === 'ROUND2_INVITED') && (notification.meta_json?.pipeline_id) && (
-                                                    <button
-                                                        className="btn btn-sm btn-primary"
-                                                        onClick={() => openRound2(notification.meta_json.pipeline_id)}
-                                                        style={{ padding: '4px 8px', fontSize: '0.7rem' }}
-                                                    >
-                                                        Start Round 2
-                                                    </button>
-                                                )}
-                                                {!notification.is_read && (
-                                                    <button
-                                                        className="btn btn-sm btn-secondary"
-                                                        onClick={() => markAsRead(notification.id)}
-                                                        style={{ padding: '4px 8px', fontSize: '0.7rem' }}
-                                                    >
-                                                        <FiCheck style={{ marginRight: '4px' }} />
-                                                        Mark Read
-                                                    </button>
-                                                )}
-                                                <button
-                                                    className="btn btn-sm btn-error"
-                                                    onClick={() => deleteNotification(notification.id)}
-                                                    style={{ padding: '4px 8px', fontSize: '0.7rem' }}
-                                                >
-                                                    <FiX style={{ marginRight: '4px' }} />
-                                                    Delete
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {(notification.notification_type === 'ROUND2_INVITED' || notification.type === 'ROUND2_INVITED') && notification.meta_json?.round2_scheduled_at && (
-                                            <div style={{ marginTop: '8px', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                                                <FiClock style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                                                Scheduled: {new Date(notification.meta_json.round2_scheduled_at).toLocaleString()}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
+                    <div className="notif-list-container fade-in-up">
+                        <div className="notif-list">
+                            {currentList.map(notification => (
+                                <NotificationItem
+                                    key={notification.id}
+                                    notification={notification}
+                                    checked={selectedIds.has(notification.id)}
+                                    onCheck={toggleSelect}
+                                    onMarkRead={markAsRead}
+                                    onDelete={deleteNotification}
+                                    onAction={handleAction}
+                                />
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>

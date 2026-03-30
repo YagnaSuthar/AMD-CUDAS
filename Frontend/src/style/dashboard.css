@@ -1312,12 +1312,24 @@
 
 /* ── Premium Certificate Upload Card ─────────────────────────────────── */
 
+.cert-upload-duo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+@media (max-width: 900px) {
+    .cert-upload-duo-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 .cert-upload-card {
     background: var(--color-bg-card);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     overflow: hidden;
-    margin-bottom: 24px;
 }
 
 .cert-upload-card-header {
@@ -1355,6 +1367,9 @@
 
 .cert-upload-form-inner {
     padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
 .cert-upload-grid {
@@ -1563,24 +1578,26 @@
     padding: 13px 28px;
     border: none;
     border-radius: var(--radius-sm);
-    background: linear-gradient(135deg, #a87ef0, #7c3aed);
+    background: var(--gradient-primary);
     color: #fff;
     font-family: var(--font-body);
     font-weight: 600;
     font-size: 0.9rem;
     cursor: pointer;
-    transition: all 0.25s ease;
+    transition: all 0.3s ease;
     width: 100%;
+    box-shadow: 0 4px 15px rgba(0, 188, 212, 0.25);
 }
 
 .cert-upload-btn:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(168, 126, 240, 0.35);
+    box-shadow: 0 6px 24px rgba(0, 188, 212, 0.45);
 }
 
 .cert-upload-btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+    box-shadow: none;
 }
 
 .cert-upload-hint {
@@ -1592,7 +1609,60 @@
     margin: 0;
 }
 
-/* ── Responsive for new components ───────────────────────────────────── */
+/* ── Textarea in cert forms ── */
+.cert-textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-main);
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    resize: vertical;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    min-height: 80px;
+}
+
+.cert-textarea:focus {
+    outline: none;
+    border-color: var(--color-secondary);
+    box-shadow: 0 0 0 3px rgba(0, 188, 212, 0.12);
+}
+
+.cert-textarea::placeholder {
+    color: var(--color-text-muted);
+}
+
+/* ── GitHub validation error ── */
+.cert-github-error {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--color-error);
+    margin-top: 6px;
+    font-weight: 500;
+}
+
+/* ── Project form 2-col grid ── */
+.cert-proj-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.cert-proj-form-grid .cert-upload-field.full-width {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+    .cert-proj-form-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+
 
 @media (max-width: 768px) {
     .timetable-grid {
