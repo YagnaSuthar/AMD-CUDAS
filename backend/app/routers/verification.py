@@ -22,6 +22,7 @@ async def verify(
     profile_data: str | None = Form(None),
     project_description: str | None = Form(None),
     tech_stack: str | None = Form(None),
+    github_username: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -48,6 +49,7 @@ async def verify(
         profile_data=parsed_profile,
         project_description=project_description,
         tech_stack=tech_stack,
+        github_username=github_username,
     )
     logger.info("[VERIFICATION] /verify endpoint completed - run_id=%s, score=%.2f, status=%s", 
                 result.run_id, result.confidence_score, result.status)

@@ -188,8 +188,8 @@ async def query_career_guidance(
     try:
         agent = CareerGuidanceAgent(db)
         result = await agent.handle_query(user_id=user_id, query=body.query)
-        logger.info("Career guidance response generated (intent=%s, rag=%s)",
-                     result.get("intent"), result.get("used_rag"))
+        logger.info("Career guidance response generated (intent=%s, rag=%s, sources=%s)",
+                     result.get("intent"), result.get("used_rag"), result.get("data_sources"))
 
         # Persist career advisory query + response to DB
         try:
@@ -214,6 +214,42 @@ async def query_career_guidance(
     except Exception as e:
         logger.error("Career guidance error: %s", e)
         return {"success": False, "error": f"Career guidance failed: {str(e)}"}
+
+
+# ── Sync User Data to Vector DB ──────────────────────────────────────────────
+
+
+@router.post("/sync-user-data")
+async def sync_user_data(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Manually trigger embedding of user profile data into pgvector.
+    This indexes resume, skills, certificates, projects, interviews, and academics.
+    """
+    user_id = current_user.id if not isinstance(current_user, dict) else None
+    if user_id is None:
+        return {"success": False, "error": "Admin cannot sync user data"}
+
+    logger.info("Manual user data sync requested by user %s", user_id)
+
+    try:
+        from app.services.user_data_embedder import UserDataEmbedder
+
+        embedder = UserDataEmbedder(db)
+        summary = await embedder.ensure_user_data_indexed(
+            user_id=user_id,
+            force_reindex=True,
+        )
+
+        return {
+            "success": True,
+            "data": summary,
+        }
+    except Exception as e:
+        logger.error("User data sync failed: %s", e)
+        return {"success": False, "error": f"Sync failed: {str(e)}"}
 
 
 # ── Roadmap Generation ───────────────────────────────────────────────────────

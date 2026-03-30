@@ -16,6 +16,8 @@ class IntentType(str, enum.Enum):
     PERSONALIZED_GUIDANCE = "PERSONALIZED_GUIDANCE"
     SKILL_GAP_ANALYSIS = "SKILL_GAP_ANALYSIS"
     CAREER_SWITCH = "CAREER_SWITCH"
+    PROJECT_RECOMMENDATION = "PROJECT_RECOMMENDATION"
+    JOB_ROLE_MATCHING = "JOB_ROLE_MATCHING"
 
 
 # ── Keyword-based intent patterns ────────────────────────────────────────────
@@ -25,6 +27,8 @@ _PERSONALIZED_KEYWORDS = [
     "for me", "based on my", "recommend me", "personalize",
     "my background", "my career", "suggest for me", "my goal",
     "my education", "my certification", "help me",
+    "my strength", "my weakness", "about me",
+    "my certificate", "my academic", "my performance",
 ]
 
 _SKILL_GAP_KEYWORDS = [
@@ -32,12 +36,30 @@ _SKILL_GAP_KEYWORDS = [
     "upskill", "reskill", "skill assessment", "skill analysis",
     "what should i learn", "what to learn", "learn next",
     "improve my skills", "weak areas", "strength and weakness",
+    "skill roadmap", "skill improvement", "skills to develop",
 ]
 
 _CAREER_SWITCH_KEYWORDS = [
     "career switch", "career change", "transition", "switch career",
     "change field", "move to", "pivot", "different career",
     "new career", "switch from", "change from", "transition from",
+]
+
+_PROJECT_RECOMMENDATION_KEYWORDS = [
+    "what project", "project idea", "build project", "recommend project",
+    "suggest project", "project suggestion", "portfolio project",
+    "side project", "project to build", "next project",
+    "project for resume", "showcase project", "project recommendation",
+    "what should i build", "hands-on project",
+]
+
+_JOB_ROLE_MATCHING_KEYWORDS = [
+    "job match", "suited for", "fit for", "qualified for",
+    "job role", "what job", "which role", "which position",
+    "career match", "role match", "best job", "job suggestion",
+    "job recommendation", "apply for", "target company",
+    "job that fits", "right role", "what position",
+    "career option", "job opportunities",
 ]
 
 
@@ -69,6 +91,16 @@ def classify_intent(query: str) -> IntentType:
         if kw in q_lower:
             logger.info("Intent: SKILL_GAP_ANALYSIS (keyword: '%s')", kw)
             return IntentType.SKILL_GAP_ANALYSIS
+
+    for kw in _PROJECT_RECOMMENDATION_KEYWORDS:
+        if kw in q_lower:
+            logger.info("Intent: PROJECT_RECOMMENDATION (keyword: '%s')", kw)
+            return IntentType.PROJECT_RECOMMENDATION
+
+    for kw in _JOB_ROLE_MATCHING_KEYWORDS:
+        if kw in q_lower:
+            logger.info("Intent: JOB_ROLE_MATCHING (keyword: '%s')", kw)
+            return IntentType.JOB_ROLE_MATCHING
 
     for kw in _PERSONALIZED_KEYWORDS:
         if kw in q_lower:

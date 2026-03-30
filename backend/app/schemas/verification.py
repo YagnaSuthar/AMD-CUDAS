@@ -30,6 +30,7 @@ class VerificationResponse(BaseModel):
     trust_score: int
     recommendations: list[str] = Field(default_factory=list)
     explanation: dict[str, Any] = Field(default_factory=dict)
+    contribution_summary: Optional[dict[str, Any]] = Field(default=None, description="Deep GitHub contribution analysis")
 
     input_type: InputType
     run_id: str

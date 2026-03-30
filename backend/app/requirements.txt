@@ -30,3 +30,4 @@ sentence-transformers
 tiktoken
 langchain-text-splitters
 langchain_text_splitters
+bs4

@@ -30,6 +30,7 @@ class VerificationController:
         profile_data: dict[str, Any] | None,
         project_description: str | None = None,
         tech_stack: str | None = None,
+        github_username: str | None = None,
     ) -> VerificationResponse:
         logger.info("[VERIFICATION] Controller.verify called - user_id=%s", user_id)
         try:
@@ -40,6 +41,7 @@ class VerificationController:
                 profile_data=profile_data,
                 project_description=project_description,
                 tech_stack=tech_stack,
+                github_username=github_username,
             )
         except Exception as e:
             logger.error("[VERIFICATION] Controller.verify failed: %s", e, exc_info=True)

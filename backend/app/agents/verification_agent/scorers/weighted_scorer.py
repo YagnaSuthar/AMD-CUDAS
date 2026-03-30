@@ -13,14 +13,28 @@ def compute_final_score(scores: dict[str, Any]) -> dict[str, Any]:
     source_score = _clamp01(scores.get("source_score", 0.0))
     consistency_score = _clamp01(scores.get("consistency_score", 0.0))
     ml_score = _clamp01(scores.get("ml_score", 0.5))
+    contribution_score = scores.get("contribution_score")
 
-    confidence = (
-        format_score * 0.20
-        + metadata_score * 0.15
-        + source_score * 0.30
-        + consistency_score * 0.20
-        + ml_score * 0.15
-    )
+    if contribution_score is not None:
+        # Enhanced scoring with contribution analysis
+        contribution_score = _clamp01(contribution_score)
+        confidence = (
+            format_score * 0.10
+            + metadata_score * 0.10
+            + source_score * 0.20
+            + consistency_score * 0.15
+            + ml_score * 0.10
+            + contribution_score * 0.35
+        )
+    else:
+        # Fallback: original scoring without contribution data
+        confidence = (
+            format_score * 0.20
+            + metadata_score * 0.15
+            + source_score * 0.30
+            + consistency_score * 0.20
+            + ml_score * 0.15
+        )
 
     confidence = _clamp01(confidence)
 

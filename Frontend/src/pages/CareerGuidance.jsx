@@ -518,7 +518,7 @@ export default function CareerGuidance() {
                         <div className="chat-header-icon"><FiMessageCircle /></div>
                         <div>
                             <h3>AI Career Advisor</h3>
-                            <p>Ask anything about your career path — powered by RAG</p>
+                            <p>Ask anything about your career path — powered by your profile data + RAG</p>
                         </div>
                     </div>
 
@@ -526,7 +526,7 @@ export default function CareerGuidance() {
                         <textarea
                             value={guidanceQuery}
                             onChange={(e) => setGuidanceQuery(e.target.value)}
-                            placeholder="Ask me about your career..."
+                            placeholder="Ask me about your career... (e.g., 'What projects should I build?' or 'What jobs suit my profile?')"
                             className="guidance-textarea"
                             rows={3}
                             onKeyDown={(e) => {
@@ -546,12 +546,31 @@ export default function CareerGuidance() {
                     </div>
 
                     <div className="guidance-suggestions">
-                        {['What skills do I need?', 'How to prepare for interviews?', 'Recommend learning resources', 'Career switch advice'].map((s) => (
+                        {[
+                            'Analyze my skill gaps',
+                            'What projects should I build?',
+                            'What jobs suit my profile?',
+                            'How to prepare for interviews?',
+                            'Recommend learning resources',
+                            'Career switch advice'
+                        ].map((s) => (
                             <button key={s} className="guidance-suggestion-chip" onClick={() => setGuidanceQuery(s)}>
                                 {s}
                             </button>
                         ))}
                     </div>
+
+                    {guidanceLoading && (
+                        <div className="guidance-syncing" style={{
+                            display: 'flex', alignItems: 'center', gap: '10px',
+                            padding: '12px 16px', borderRadius: '8px',
+                            backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)',
+                            marginTop: '12px', fontSize: '14px', color: 'var(--color-text-muted)'
+                        }}>
+                            <FiLoader className="spinning" />
+                            <span>Syncing your profile data & generating personalized response...</span>
+                        </div>
+                    )}
 
                     {guidanceResponse && (
                         <div className="guidance-response">
@@ -562,6 +581,36 @@ export default function CareerGuidance() {
                                 </div>
                                 <span className="response-intent">{guidanceResponse.intent?.replace(/_/g, ' ')}</span>
                             </div>
+
+                            {/* Data Sources Badges */}
+                            {guidanceResponse.data_sources && guidanceResponse.data_sources.length > 0 && (
+                                <div style={{
+                                    display: 'flex', flexWrap: 'wrap', gap: '6px',
+                                    marginBottom: '12px', paddingBottom: '12px',
+                                    borderBottom: '1px solid var(--color-border)'
+                                }}>
+                                    <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginRight: '4px', display: 'flex', alignItems: 'center' }}>
+                                        📊 Data used:
+                                    </span>
+                                    {guidanceResponse.data_sources.map((source) => (
+                                        <span key={source} style={{
+                                            fontSize: '11px', padding: '2px 8px',
+                                            borderRadius: '12px', fontWeight: 500,
+                                            backgroundColor: 'var(--color-primary-light, rgba(99, 102, 241, 0.1))',
+                                            color: 'var(--color-primary)',
+                                            border: '1px solid var(--color-primary-light, rgba(99, 102, 241, 0.2))',
+                                        }}>
+                                            {source === 'Skills' ? '🛠️' :
+                                             source === 'Certificates' ? '📜' :
+                                             source === 'Projects' ? '💻' :
+                                             source === 'Interviews' ? '🎤' :
+                                             source === 'Academics' ? '📚' :
+                                             source === 'Resume' ? '📄' : '📋'} {source}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+
                             <div className="response-content">
                                 {guidanceResponse.response?.split('\n').map((line, idx) => (
                                     <p key={idx}>{line}</p>
@@ -571,6 +620,7 @@ export default function CareerGuidance() {
                     )}
                 </div>
             )}
+
 
             {/* Generate Roadmap Section */}
             {goal && (

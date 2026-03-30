@@ -4,6 +4,7 @@ import { FiTarget, FiFlag, FiCheck, FiZap, FiBookOpen, FiCheckCircle, FiExternal
 
 function WeekCardsRow({ branchSteps, step, onSubmitProject }) {
     const [submitLink, setSubmitLink] = useState('');
+    const [expandedTasks, setExpandedTasks] = useState(new Set()); // Track expanded tasks
     // Track which weeks are completed (by index)
     const [completedWeeks, setCompletedWeeks] = useState(() => {
         // Initialize from branchSteps data if any are already completed
@@ -26,6 +27,18 @@ function WeekCardsRow({ branchSteps, step, onSubmitProject }) {
         setCompletedWeeks((prev) => {
             const next = new Set(prev);
             next.add(weekIdx);
+            return next;
+        });
+    };
+
+    const toggleTaskExpansion = (taskId) => {
+        setExpandedTasks((prev) => {
+            const next = new Set(prev);
+            if (next.has(taskId)) {
+                next.delete(taskId);
+            } else {
+                next.add(taskId);
+            }
             return next;
         });
     };
@@ -94,9 +107,27 @@ function WeekCardsRow({ branchSteps, step, onSubmitProject }) {
                                                 <FiCheckCircle size={11} /> TASKS
                                             </div>
                                             <ul className="week-hcard-tasks">
-                                                {tasks.map((t, i) => (
-                                                    <li key={i}>{t.length > 40 ? t.slice(0, 40) + '…' : t}</li>
-                                                ))}
+                                                {tasks.map((t, i) => {
+                                                    const taskId = `${wIdx}-${i}`;
+                                                    const isExpanded = expandedTasks.has(taskId);
+                                                    const isTruncated = t.length > 40;
+                                                    
+                                                    return (
+                                                        <li 
+                                                            key={i} 
+                                                            onClick={(e) => {
+                                                                if (isTruncated) {
+                                                                    e.stopPropagation();
+                                                                    toggleTaskExpansion(taskId);
+                                                                }
+                                                            }}
+                                                            style={{ cursor: isTruncated ? 'pointer' : 'default' }}
+                                                            title={isTruncated && !isExpanded ? "Click to view full task" : ""}
+                                                        >
+                                                            {isExpanded ? t : (isTruncated ? t.slice(0, 40) + '…' : t)}
+                                                        </li>
+                                                    );
+                                                })}
                                             </ul>
                                         </div>
                                     )}

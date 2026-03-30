@@ -31,6 +31,7 @@ class VerificationService:
         profile_data: dict[str, Any] | None,
         project_description: str | None = None,
         tech_stack: str | None = None,
+        github_username: str | None = None,
     ) -> VerificationResponse:
         print(f"\n{'='*60}")
         print(f"[Verification Agent Started]")
@@ -74,6 +75,7 @@ class VerificationService:
                 profile_data=profile_data,
                 project_description=project_description,
                 tech_stack=tech_stack,
+                github_username=github_username,
             )
         else:  # profile
             print("[Verification] Running profile pipeline...")
@@ -111,6 +113,11 @@ class VerificationService:
             confidence_score=confidence,
         )
 
+        # Extract contribution summary for project verifications
+        contribution_summary = None
+        if input_type == "project":
+            contribution_summary = extracted.get("contribution_analysis")
+
         # Build result payload
         result_payload = {
             "status": status,
@@ -120,6 +127,7 @@ class VerificationService:
             "trust_score": trust_score,
             "recommendations": recommendations,
             "explanation": explanation,
+            "contribution_summary": contribution_summary,
         }
 
         # Store verification run
