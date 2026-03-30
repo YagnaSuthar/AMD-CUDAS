@@ -217,7 +217,13 @@ BEHAVIOR_RESPONSES = {
 }
 
 
-def get_feedback_for_answer(weighted_score: float, has_answer: bool, answer_type: str = "VALID") -> str:
+def get_feedback_for_answer(
+    weighted_score: float,
+    has_answer: bool,
+    answer_type: str = "VALID",
+    used_sentences: set | None = None,
+    last_feedback: str = "",
+) -> str:
     """Select a feedback sentence based on the candidate's answer quality.
 
     - SKIPPED/REFUSAL/IRRELEVANT → skipped pool
@@ -225,16 +231,42 @@ def get_feedback_for_answer(weighted_score: float, has_answer: bool, answer_type
     - weighted_score 0.4–0.7 → average pool
     - weighted_score < 0.4 → poor pool
     - no answer → no_answer pool
+
+    Avoids repeating the *last* feedback sentence.  Tracks used sentences
+    in ``used_sentences`` so the same sentence is not picked again across
+    the session.  When a pool is exhausted the tracking resets (but the
+    last sentence is still avoided).
     """
+    if used_sentences is None:
+        used_sentences = set()
+
+    # Pick the right pool
     if answer_type in ("SKIPPED", "REFUSAL", "IRRELEVANT"):
-        return random.choice(FEEDBACK_POOLS["skipped"])
-    if not has_answer:
-        return random.choice(FEEDBACK_POOLS["no_answer"])
-    if weighted_score >= 0.7:
-        return random.choice(FEEDBACK_POOLS["good"])
-    if weighted_score >= 0.4:
-        return random.choice(FEEDBACK_POOLS["average"])
-    return random.choice(FEEDBACK_POOLS["poor"])
+        pool_key = "skipped"
+    elif not has_answer:
+        pool_key = "no_answer"
+    elif weighted_score >= 0.7:
+        pool_key = "good"
+    elif weighted_score >= 0.4:
+        pool_key = "average"
+    else:
+        pool_key = "poor"
+
+    pool = FEEDBACK_POOLS[pool_key]
+
+    # Filter out used sentences AND the last feedback
+    available = [s for s in pool if s not in used_sentences and s != last_feedback]
+
+    # If all used up, reset but still exclude last_feedback
+    if not available:
+        used_sentences.difference_update(set(pool))
+        available = [s for s in pool if s != last_feedback]
+        if not available:
+            available = list(pool)  # absolute fallback
+
+    chosen = random.choice(available)
+    used_sentences.add(chosen)
+    return chosen
 
 
 # ── RAG-Enhanced Question Generation ─────────────────────────────────────

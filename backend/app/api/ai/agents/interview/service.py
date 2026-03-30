@@ -380,7 +380,30 @@ class InterviewService:
         weighted = eval_data.get("weighted_score", 0.5)
         has_answer = bool(answer_text.strip())
         answer_type = eval_data.get("answer_type", "VALID")
-        agent_response = get_feedback_for_answer(weighted, has_answer, answer_type)
+
+        # Load last feedback from memory to avoid repetition
+        mem_result = await db.execute(
+            select(InterviewMemory).where(InterviewMemory.session_id == session_id)
+        )
+        memory_obj = mem_result.scalar_one_or_none()
+        last_feedback = ""
+        used_sentences_set = set()
+        if memory_obj and memory_obj.last_behavior_state:
+            # We store last feedback in last_behavior_state field after the behavior flag
+            parts = memory_obj.last_behavior_state.split("||")
+            if len(parts) >= 2:
+                last_feedback = parts[1]
+
+        agent_response = get_feedback_for_answer(
+            weighted, has_answer, answer_type,
+            used_sentences=used_sentences_set,
+            last_feedback=last_feedback,
+        )
+
+        # Persist last feedback into memory for next question
+        if memory_obj:
+            memory_obj.last_behavior_state = f"{behavior_flag}||{agent_response}"
+            await db.flush()
 
         # Determine next difficulty using code logic (NOT trusting the LLM)
         # This ensures difficulty always adjusts based on actual performance
@@ -408,6 +431,16 @@ class InterviewService:
         session = session_result.scalar_one()
         session.current_difficulty = Difficulty(next_diff)
         await db.flush()
+
+        # Compute running average score across the session
+        avg_result = await db.execute(
+            select(func.avg(AnswerScore.overall_score))
+            .select_from(Answer)
+            .join(AnswerScore, AnswerScore.answer_id == Answer.answer_id, isouter=True)
+            .where(Answer.session_id == session_id)
+        )
+        running_avg = avg_result.scalar()
+        running_avg_score = float(running_avg) / 10.0 if running_avg is not None else 0.0
 
         # Count questions to decide next action
         q_count_result = await db.execute(
@@ -460,6 +493,7 @@ class InterviewService:
             next_action=next_action,
             next_difficulty=next_diff,
             next_question=next_question,
+            running_avg_score=running_avg_score,
         )
 
     # ── POST /interview/end ───────────────────────────────────────────────
@@ -777,3 +811,80 @@ class InterviewService:
         await db.commit()
         logger.info("Deleted %d interview sessions for student %s", count, student_id)
         return count
+
+    # ── GET /interview/report/{session_id}/recruiter ──────────────────
+
+    @staticmethod
+    async def get_recruiter_report(
+        session_id: UUID,
+        db: AsyncSession,
+    ) -> dict:
+        """Fetch the recruiter-facing report for a completed interview."""
+        import json as _json
+
+        result = await db.execute(
+            select(InterviewReport).where(InterviewReport.session_id == session_id)
+        )
+        report = result.scalar_one_or_none()
+        if report is None:
+            raise ValueError(f"No report found for session {session_id}")
+
+        # Try to parse stored recruiter_report JSON
+        recruiter_data = {}
+        if hasattr(report, "recruiter_report") and report.recruiter_report:
+            try:
+                recruiter_data = _json.loads(report.recruiter_report) if isinstance(report.recruiter_report, str) else report.recruiter_report
+            except Exception:
+                recruiter_data = {}
+
+        # Build response with fallbacks
+        return {
+            "session_id": str(session_id),
+            "final_score": report.final_score,
+            "technical_score": recruiter_data.get("technical_score", report.final_score / 10.0 if report.final_score else 0),
+            "communication_score": recruiter_data.get("communication_score", 0),
+            "behavior_score": recruiter_data.get("behavior_score", 0),
+            "recommendation": recruiter_data.get("recommendation", report.recommendation or ""),
+            "justification": recruiter_data.get("justification", ""),
+            "strengths": recruiter_data.get("strengths", list(report.strengths) if report.strengths else []),
+            "weaknesses": recruiter_data.get("weaknesses", list(report.weaknesses) if report.weaknesses else []),
+            "technical_assessment": recruiter_data.get("technical_assessment", ""),
+            "communication_assessment": recruiter_data.get("communication_assessment", ""),
+            "behavior_analysis": recruiter_data.get("behavior_analysis", ""),
+        }
+
+    # ── GET /interview/report/{session_id}/student ────────────────────
+
+    @staticmethod
+    async def get_student_report(
+        session_id: UUID,
+        db: AsyncSession,
+    ) -> dict:
+        """Fetch the student-facing report for a completed interview."""
+        import json as _json
+
+        result = await db.execute(
+            select(InterviewReport).where(InterviewReport.session_id == session_id)
+        )
+        report = result.scalar_one_or_none()
+        if report is None:
+            raise ValueError(f"No report found for session {session_id}")
+
+        # Try to parse stored student_report JSON
+        student_data = {}
+        if hasattr(report, "student_report") and report.student_report:
+            try:
+                student_data = _json.loads(report.student_report) if isinstance(report.student_report, str) else report.student_report
+            except Exception:
+                student_data = {}
+
+        return {
+            "session_id": str(session_id),
+            "final_score": report.final_score,
+            "strengths": student_data.get("strengths", list(report.strengths) if report.strengths else []),
+            "weaknesses": student_data.get("areas_to_improve", list(report.weaknesses) if report.weaknesses else []),
+            "encouragement": student_data.get("encouragement", ""),
+            "learning_resources": student_data.get("learning_resources", []),
+            "recommendation": report.recommendation or "",
+        }
+

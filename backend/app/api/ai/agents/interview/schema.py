@@ -76,6 +76,7 @@ class SubmitAnswerResponse(BaseModel):
     next_action: str  # "ask_question" | "end"
     next_difficulty: str
     next_question: Optional[QuestionOutput] = None
+    running_avg_score: float = 0.0
 
 
 class EndInterviewRequest(BaseModel):

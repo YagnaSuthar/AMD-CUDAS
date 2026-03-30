@@ -25,12 +25,14 @@ const VIOLATION_TYPES = {
   LOOKING_AWAY: 'LOOKING_AWAY',
   PHONE_DETECTED: 'PHONE_DETECTED',
   BOOK_DETECTED: 'BOOK_DETECTED',
+  TABLET_DETECTED: 'TABLET_DETECTED',
+  REMOTE_DETECTED: 'REMOTE_DETECTED',
   MULTIPLE_PEOPLE: 'MULTIPLE_PEOPLE',
 };
 
 // Thresholds
 const NO_FACE_WARNING_SEC = 8;
-const NO_FACE_AUTO_END_SEC = 20;
+const NO_FACE_AUTO_END_SEC = 15;
 const LOOKING_AWAY_SEC = 6;
 const FACE_CHECK_INTERVAL = 2000;   // every 2s
 const OBJECT_CHECK_INTERVAL = 5000; // every 5s
@@ -181,6 +183,22 @@ export default function ProctoringDetector({ videoRef, sessionId, active, onViol
           onViolation?.(VIOLATION_TYPES.PHONE_DETECTED, msg);
           reportToBackend(VIOLATION_TYPES.PHONE_DETECTED, msg, 'critical');
           onAutoEnd?.('PHONE_DETECTED');
+          return;
+        }
+
+        if ((cls === 'tablet' || cls === 'ipad') && pred.score > 0.5) {
+          const msg = '📱 Tablet/iPad detected! Interview will be terminated.';
+          onViolation?.(VIOLATION_TYPES.TABLET_DETECTED, msg);
+          reportToBackend(VIOLATION_TYPES.TABLET_DETECTED, msg, 'critical');
+          onAutoEnd?.('TABLET_DETECTED');
+          return;
+        }
+
+        if (cls === 'remote' && pred.score > 0.55) {
+          const msg = '🔌 External device detected! Interview will be terminated.';
+          onViolation?.(VIOLATION_TYPES.REMOTE_DETECTED, msg);
+          reportToBackend(VIOLATION_TYPES.REMOTE_DETECTED, msg, 'critical');
+          onAutoEnd?.('REMOTE_DETECTED');
           return;
         }
 

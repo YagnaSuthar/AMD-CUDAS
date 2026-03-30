@@ -387,3 +387,51 @@ async def report_violation(
     except Exception as exc:
         logger.exception("Failed to log proctoring violation")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ── GET /interview/report/{session_id}/recruiter ──────────────────────────
+
+@router.get(
+    "/report/{session_id}/recruiter",
+    summary="Get recruiter-facing AI interview report",
+)
+async def get_recruiter_report(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Fetch the recruiter-specific report with technical/communication/behavior scores."""
+    try:
+        return await InterviewService.get_recruiter_report(
+            session_id=session_id,
+            db=db,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to get recruiter report")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ── GET /interview/report/{session_id}/student ────────────────────────────
+
+@router.get(
+    "/report/{session_id}/student",
+    summary="Get student-facing AI interview report",
+)
+async def get_student_report(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Fetch the student-specific report with encouragement and learning resources."""
+    try:
+        return await InterviewService.get_student_report(
+            session_id=session_id,
+            db=db,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to get student report")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import ProctoringDetector from '../components/ProctoringDetector';
+import DeviceGuard from '../components/DeviceGuard';
 import '../style/interviewLive.css';
 
 /**
@@ -24,6 +25,7 @@ import '../style/interviewLive.css';
 
 const STATES = {
   LOADING: 'loading',
+  RULES: 'rules',
   GREETING: 'greeting',
   CONFIRM_START: 'confirm_start',
   QUESTION: 'question',
@@ -83,6 +85,9 @@ export default function InterviewLive() {
   const videoRef        = useRef(null);
   const streamRef       = useRef(null);
   const hasStartedRef   = useRef(false);
+  const finalTranscriptRef = useRef('');         // accumulates final results across STT segments
+  const isListeningRef     = useRef(false);      // tracks if we WANT to keep listening
+  const [rulesAccepted, setRulesAccepted] = useState(false);
 
   /* ── fullscreen is now handled by DashboardLayout.jsx ──────────────── */
 
@@ -165,8 +170,9 @@ export default function InterviewLive() {
 
   /* ── end / recording ───────────────────────────────────────────────── */
   const stopRecording = useCallback(() => {
+    isListeningRef.current = false;
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try { recognitionRef.current.abort(); } catch {}
       recognitionRef.current = null;
     }
     setIsRecording(false);
@@ -308,27 +314,66 @@ export default function InterviewLive() {
       return;
     }
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const r = new SR();
-    r.continuous = true;
-    r.interimResults = true;
-    r.lang = 'en-US';
-    r.onresult = e => {
-      let f = '', i2 = '';
-      for (let i = 0; i < e.results.length; i++) {
-        if (e.results[i].isFinal) f += e.results[i][0].transcript + ' ';
-        else i2 += e.results[i][0].transcript;
-      }
-      setTranscript(f + i2);
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = setTimeout(() => {
-        if (f.trim()) {
-          stopRecording();
-          submitAnswer(f.trim());
+    finalTranscriptRef.current = '';
+    isListeningRef.current = true;
+
+    const createRecognition = () => {
+      const r = new SR();
+      r.continuous = true;
+      r.interimResults = true;
+      r.lang = 'en-US';
+
+      r.onresult = e => {
+        let segmentFinal = '', interim = '';
+        for (let i = 0; i < e.results.length; i++) {
+          if (e.results[i].isFinal) segmentFinal += e.results[i][0].transcript + ' ';
+          else interim += e.results[i][0].transcript;
         }
-      }, config.silence_timeout * 1000);
+        // Accumulate final results across segments
+        const fullText = finalTranscriptRef.current + segmentFinal;
+        if (segmentFinal) finalTranscriptRef.current = fullText;
+        setTranscript(fullText + interim);
+
+        // Silence timeout → auto-submit
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = setTimeout(() => {
+          const accumulated = finalTranscriptRef.current.trim();
+          if (accumulated) {
+            isListeningRef.current = false;
+            stopRecording();
+            submitAnswer(accumulated);
+          }
+        }, config.silence_timeout * 1000);
+      };
+
+      r.onerror = e => {
+        if (e.error !== 'no-speech' && e.error !== 'aborted') {
+          setIsRecording(false);
+          isListeningRef.current = false;
+        }
+      };
+
+      // Auto-restart when browser stops recognition (60s limit)
+      r.onend = () => {
+        if (isListeningRef.current) {
+          // Browser stopped but we still want to listen — restart
+          try {
+            const newR = createRecognition();
+            recognitionRef.current = newR;
+            newR.start();
+          } catch {
+            setIsRecording(false);
+            isListeningRef.current = false;
+          }
+        } else {
+          setIsRecording(false);
+        }
+      };
+
+      return r;
     };
-    r.onerror = e => { if (e.error !== 'no-speech') setIsRecording(false); };
-    r.onend = () => setIsRecording(false);
+
+    const r = createRecognition();
     recognitionRef.current = r;
     r.start();
     setIsRecording(true);
@@ -337,8 +382,10 @@ export default function InterviewLive() {
 
   const toggleMic = useCallback(() => {
     if (isRecording) {
+      isListeningRef.current = false;
       stopRecording();
-      if (transcript.trim()) submitAnswer(transcript.trim());
+      const accumulated = finalTranscriptRef.current.trim() || transcript.trim();
+      if (accumulated) submitAnswer(accumulated);
     } else {
       startRecording();
     }
@@ -409,8 +456,7 @@ export default function InterviewLive() {
         });
         setSessionId(r.data.session_id);
         setAgentText(r.data.greeting);
-        setState(STATES.GREETING);
-        speak(r.data.greeting);
+        setState(STATES.RULES);        // Show rules first, then greeting
       } catch (e) { setError(e.response?.data?.detail || 'Failed to start'); setState(STATES.ERROR); }
     })();
     return () => { clearTimers(); stopRecording(); window.speechSynthesis?.cancel(); streamRef.current?.getTracks().forEach(t => t.stop()); };
@@ -441,7 +487,14 @@ export default function InterviewLive() {
   /* ═══════════════════════════════════════════════════════════════════════
      RENDER
      ═══════════════════════════════════════════════════════════════════════ */
+  /* ── accept rules handler ───────────────────────────────────────────── */
+  const handleAcceptRules = useCallback(() => {
+    setState(STATES.GREETING);
+    speak(agentText);
+  }, [agentText, speak]);
+
   return (
+    <DeviceGuard>
     <div className="meet-root">
 
       {/* ── Proctoring Warning Banner ──────────────────────────────────── */}
@@ -481,7 +534,7 @@ export default function InterviewLive() {
       </div>
 
       {/* ── VIDEO GRID ─────────────────────────────────────────────────── */}
-      <div className={`meet-grid ${(!isActive && state !== STATES.EVALUATING && state !== STATES.GREETING && state !== STATES.CONFIRM_START) ? 'solo' : ''}`}>
+      <div className={`meet-grid ${(!isActive && state !== STATES.EVALUATING && state !== STATES.GREETING && state !== STATES.CONFIRM_START && state !== STATES.RULES) ? 'solo' : ''}`}>
 
         {/* === AI TILE === */}
         <div className="meet-tile">
@@ -490,6 +543,37 @@ export default function InterviewLive() {
             <div className="meet-state-center">
               <div className="meet-spinner" />
               <p className="meet-loading-text">Connecting to AI Interviewer…</p>
+            </div>
+          )}
+
+          {/* ── RULES & REGULATIONS ──────────────────────────────────── */}
+          {state === STATES.RULES && (
+            <div className="meet-state-center" style={{ overflowY: 'auto', padding: 20 }}>
+              <div className="meet-rules-card">
+                <div className="meet-rules-icon">📋</div>
+                <h2 className="meet-rules-title">Interview Rules & Regulations</h2>
+                <p className="meet-rules-subtitle">Please read and accept before starting</p>
+                <ul className="meet-rules-list">
+                  <li className="meet-rules-item meet-rules-ok"><span className="meet-rules-emoji">📹</span> Keep your camera <strong>ON</strong> at all times</li>
+                  <li className="meet-rules-item meet-rules-ok"><span className="meet-rules-emoji">🎤</span> Use a clear microphone for voice answers</li>
+                  <li className="meet-rules-item meet-rules-ok"><span className="meet-rules-emoji">👤</span> Only <strong>one person</strong> must be visible in the frame</li>
+                  <li className="meet-rules-item meet-rules-ok"><span className="meet-rules-emoji">👀</span> Look at the camera — do not look away</li>
+                  <li className="meet-rules-item meet-rules-no"><span className="meet-rules-emoji">🚫</span> <strong>No tab switching</strong> — interview will terminate</li>
+                  <li className="meet-rules-item meet-rules-no"><span className="meet-rules-emoji">📱</span> <strong>No mobile phones</strong> visible — interview will terminate</li>
+                  <li className="meet-rules-item meet-rules-no"><span className="meet-rules-emoji">📖</span> <strong>No books or notes</strong> — they will be detected</li>
+                  <li className="meet-rules-item meet-rules-no"><span className="meet-rules-emoji">🖱️</span> <strong>No copy/paste or right-click</strong> — blocked</li>
+                  <li className="meet-rules-item meet-rules-no"><span className="meet-rules-emoji">🔌</span> <strong>No external devices</strong> (tablets, remotes) — detected & terminated</li>
+                  <li className="meet-rules-item meet-rules-warn"><span className="meet-rules-emoji">🤖</span> AI proctoring is <strong>active throughout</strong> the interview</li>
+                  <li className="meet-rules-item meet-rules-warn"><span className="meet-rules-emoji">⏱️</span> Each question has a time limit — answer within the allotted time</li>
+                </ul>
+                <label className="meet-rules-checkbox">
+                  <input type="checkbox" checked={rulesAccepted} onChange={e => setRulesAccepted(e.target.checked)} />
+                  <span>I have read and agree to all the rules above</span>
+                </label>
+                <button className="meet-btn-yes meet-rules-btn" disabled={!rulesAccepted} onClick={handleAcceptRules}>
+                  I Understand & Agree — Start Interview
+                </button>
+              </div>
             </div>
           )}
 
@@ -604,7 +688,7 @@ export default function InterviewLive() {
         </div>
 
         {/* === STUDENT TILE (Camera always on) === */}
-        {(isActive || state === STATES.GREETING || state === STATES.CONFIRM_START) && (
+        {(isActive || state === STATES.GREETING || state === STATES.CONFIRM_START || state === STATES.RULES) && (
           <div className="meet-tile">
             {cameraOn ? (
               <>
@@ -700,5 +784,6 @@ export default function InterviewLive() {
         )}
       </div>
     </div>
+    </DeviceGuard>
   );
 }

@@ -757,3 +757,205 @@
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   DEVICE BLOCK SCREEN (mobile/tablet)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.device-block-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0a0a1a 0%, #10102a 35%, #161638 70%, #0d0d20 100%);
+  background-size: 300% 300%;
+  animation: meetBgShift 20s ease infinite;
+  font-family: var(--font-body, 'Inter', sans-serif);
+}
+
+.device-block-card {
+  text-align: center;
+  max-width: 480px;
+  padding: 48px 40px;
+  background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 24px;
+  animation: fadeSlideIn 0.6s ease;
+}
+
+.device-block-icon {
+  font-size: 4rem;
+  margin-bottom: 16px;
+}
+
+.device-block-title {
+  font-family: var(--font-heading, 'Orbitron', sans-serif);
+  font-size: 1.8rem;
+  font-weight: 900;
+  background: var(--gradient-primary, linear-gradient(135deg,#00bcd4,#2c63bd));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0 0 16px 0;
+  letter-spacing: 2px;
+}
+
+.device-block-text {
+  color: #99a;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0 0 12px 0;
+}
+
+.device-block-requirements {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+  text-align: left;
+}
+
+.device-block-req-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: #bbc;
+  padding: 8px 14px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px;
+}
+
+.device-block-check {
+  color: #22c55e;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.device-block-cross {
+  color: #ef4444;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PRE-INTERVIEW RULES CARD
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.meet-rules-card {
+  max-width: 620px;
+  width: 100%;
+  padding: 36px 32px;
+  background: rgba(12,12,30,0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 20px;
+  animation: fadeSlideIn 0.5s ease;
+  text-align: center;
+}
+
+.meet-rules-icon {
+  font-size: 3rem;
+  margin-bottom: 8px;
+}
+
+.meet-rules-title {
+  font-family: var(--font-heading, 'Orbitron', sans-serif);
+  font-size: 1.3rem;
+  font-weight: 700;
+  background: var(--gradient-primary, linear-gradient(135deg,#00bcd4,#2c63bd));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0 0 6px 0;
+  letter-spacing: 2px;
+}
+
+.meet-rules-subtitle {
+  color: #778;
+  font-size: 0.85rem;
+  margin: 0 0 20px 0;
+}
+
+.meet-rules-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px 0;
+  text-align: left;
+}
+
+.meet-rules-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #ccd;
+  transition: background 0.2s;
+}
+
+.meet-rules-item:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+.meet-rules-emoji {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  width: 28px;
+  text-align: center;
+}
+
+.meet-rules-ok {
+  border-left: 3px solid #22c55e;
+}
+
+.meet-rules-no {
+  border-left: 3px solid #ef4444;
+}
+
+.meet-rules-warn {
+  border-left: 3px solid #f59e0b;
+}
+
+.meet-rules-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 20px 0 16px 0;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: #99a;
+}
+
+.meet-rules-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-secondary, #00bcd4);
+  cursor: pointer;
+}
+
+.meet-rules-btn {
+  width: 100%;
+  padding: 14px 24px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  border-radius: 14px;
+}
+
+.meet-rules-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
