@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ROLE_LABELS } from '../utils/roles';
 import api from '../utils/api';
-import { FiUser, FiMail, FiPhone, FiBriefcase, FiSave, FiShield, FiBookOpen, FiHash, FiTarget, FiEdit2, FiX } from 'react-icons/fi';
+import { FiUser, FiMail, FiPhone, FiBriefcase, FiSave, FiShield, FiBookOpen, FiHash, FiTarget, FiEdit2, FiX, FiGithub } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 
 export default function Profile() {
     const { user, fetchUser } = useAuth();
     const [phoneNumber, setPhoneNumber] = useState('');
+    const [githubUsername, setGithubUsername] = useState('');
     const [goal, setGoal] = useState('');
     const [isEditingGoal, setIsEditingGoal] = useState(false);
     const [tempGoal, setTempGoal] = useState('');
@@ -23,6 +24,7 @@ export default function Profile() {
             const res = await api.get('/auth/me');
             setProfileData(res.data);
             setPhoneNumber(res.data.phone_number || '');
+            setGithubUsername(res.data.github_username || '');
             setGoal(res.data.goal || '');
         } catch (err) {
             toast.error('Failed to load profile');
@@ -38,6 +40,20 @@ export default function Profile() {
             await loadProfile();
         } catch (err) {
             toast.error(err.response?.data?.detail || 'Failed to update profile');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSaveGithub = async () => {
+        setLoading(true);
+        try {
+            await api.put('/auth/profile', { github_username: githubUsername });
+            toast.success('GitHub username updated successfully!');
+            await fetchUser();
+            await loadProfile();
+        } catch (err) {
+            toast.error(err.response?.data?.detail || 'Failed to update GitHub username');
         } finally {
             setLoading(false);
         }
@@ -225,6 +241,33 @@ export default function Profile() {
                                 />
                                 <button
                                     onClick={handleSavePhone}
+                                    disabled={loading}
+                                    className="btn btn-primary profile-save-btn"
+                                >
+                                    <FiSave />
+                                    {loading ? 'Saving...' : 'Save'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="profile-field profile-field-editable fade-in-up fade-in-delay-3" style={{ marginTop: '20px' }}>
+                        <div className="profile-field-icon" style={{ background: 'var(--gradient-secondary)' }}><FiGithub /></div>
+                        <div className="profile-field-content">
+                            <label>GitHub Username</label>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: '8px' }}>
+                                Required for Project Verification Agent
+                            </p>
+                            <div className="profile-phone-edit">
+                                <input
+                                    type="text"
+                                    className="profile-input"
+                                    value={githubUsername}
+                                    onChange={(e) => setGithubUsername(e.target.value)}
+                                    placeholder="e.g. torvalds"
+                                />
+                                <button
+                                    onClick={handleSaveGithub}
                                     disabled={loading}
                                     className="btn btn-primary profile-save-btn"
                                 >

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import RoadmapNode from './RoadmapNode';
 import { FiTarget, FiFlag, FiCheck, FiZap, FiBookOpen, FiCheckCircle, FiExternalLink, FiSend, FiGithub, FiLock } from 'react-icons/fi';
 
-function WeekCardsRow({ branchSteps, step, onSubmitProject }) {
+function WeekCardsRow({ branchSteps, step, onSubmitProject, onMarkBranchStepComplete }) {
     const [submitLink, setSubmitLink] = useState('');
     const [expandedTasks, setExpandedTasks] = useState(new Set()); // Track expanded tasks
     // Track which weeks are completed (by index)
@@ -23,7 +23,10 @@ function WeekCardsRow({ branchSteps, step, onSubmitProject }) {
         }
     };
 
-    const markWeekComplete = (weekIdx) => {
+    const markWeekComplete = (weekIdx, wsId) => {
+        if (onMarkBranchStepComplete) {
+            onMarkBranchStepComplete(step.id, wsId);
+        }
         setCompletedWeeks((prev) => {
             const next = new Set(prev);
             next.add(weekIdx);
@@ -193,7 +196,7 @@ function WeekCardsRow({ branchSteps, step, onSubmitProject }) {
 
                                     {/* Mark Week Complete button */}
                                     {isWeekActive && !isWeekCompleted && (
-                                        <button className="week-complete-btn" onClick={() => markWeekComplete(wIdx)}>
+                                        <button className="week-complete-btn" onClick={() => markWeekComplete(wIdx, ws.id)}>
                                             <FiCheckCircle size={12} /> Mark Week Complete
                                         </button>
                                     )}
@@ -309,7 +312,7 @@ export default function RoadmapContainer({ roadmap, onStepComplete, phaseBranche
                             {/* Week cards - FULL WIDTH below the step row */}
                             {isExpanded && phaseBranch && (phaseBranch?.data?.steps || phaseBranch?.data?.data?.steps || []).length > 0 && (
                                 <div className="week-cards-fullwidth">
-                                    <WeekCardsRow branchSteps={phaseBranch?.data?.steps || phaseBranch?.data?.data?.steps || []} step={step} onSubmitProject={onSubmitProject} />
+                                    <WeekCardsRow branchSteps={phaseBranch?.data?.steps || phaseBranch?.data?.data?.steps || []} step={step} onSubmitProject={onSubmitProject} onMarkBranchStepComplete={onMarkBranchStepComplete} />
                                 </div>
                             )}
                         </div>

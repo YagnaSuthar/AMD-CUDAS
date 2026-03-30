@@ -353,6 +353,7 @@ async def get_me(current_user=Depends(get_current_user)):
         skills=current_user.skills if current_user.skills else [],
         resume_url=current_user.resume_url,
         goal=current_user.goal,
+        github_username=current_user.github_username,
     )
 
 
@@ -375,6 +376,8 @@ async def update_profile(
         current_user.skills = body.skills
     if body.goal is not None:
         current_user.goal = body.goal
+    if body.github_username is not None:
+        current_user.github_username = body.github_username
 
     await db.commit()
     return MessageResponse(message="Profile updated successfully.")

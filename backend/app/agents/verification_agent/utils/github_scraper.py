@@ -223,6 +223,7 @@ async def scrape_contributors(owner: str, repo: str) -> list[dict[str, Any]]:
     try:
         import httpx
         from bs4 import BeautifulSoup
+        import asyncio
     except ImportError as e:
         logger.error("Missing dependency for contributor scraping: %s", e)
         return contributors
@@ -235,6 +236,8 @@ async def scrape_contributors(owner: str, repo: str) -> list[dict[str, Any]]:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Accept": "application/json",
             "Accept-Language": "en-US,en;q=0.9",
+            "Referer": f"https://github.com/{owner}/{repo}/graphs/contributors",
+            "X-Requested-With": "XMLHttpRequest",
         }
 
         async with httpx.AsyncClient(
@@ -242,33 +245,41 @@ async def scrape_contributors(owner: str, repo: str) -> list[dict[str, Any]]:
             follow_redirects=True,
             headers=headers,
         ) as client:
-            r = await client.get(url)
+            max_retries = 5
+            for attempt in range(max_retries):
+                r = await client.get(url)
 
-            if r.status_code == 200:
-                try:
-                    data = r.json()
-                    for item in data:
-                        author = item.get("author", {})
-                        username = author.get("login", "")
-                        commits = item.get("total", 0)
-                        
-                        additions = 0
-                        deletions = 0
-                        for week in item.get("weeks", []):
-                            additions += week.get("a", 0)
-                            deletions += week.get("d", 0)
+                if r.status_code == 200:
+                    try:
+                        data = r.json()
+                        for item in data:
+                            author = item.get("author", {})
+                            username = author.get("login", "")
+                            commits = item.get("total", 0)
                             
-                        if username:
-                            contributors.append({
-                                "username": username,
-                                "commits": commits,
-                                "additions": additions,
-                                "deletions": deletions,
-                            })
-                except Exception as e:
-                    print(f"[GitHub Scraper] ⚠ JSON parse failed for contributors: {e}")
-            else:
-                print(f"[GitHub Scraper] ⚠ Contributors page returned {r.status_code}")
+                            additions = 0
+                            deletions = 0
+                            for week in item.get("weeks", []):
+                                additions += week.get("a", 0)
+                                deletions += week.get("d", 0)
+                                
+                            if username:
+                                contributors.append({
+                                    "username": username,
+                                    "commits": commits,
+                                    "additions": additions,
+                                    "deletions": deletions,
+                                })
+                        break  # Success
+                    except Exception as e:
+                        print(f"[GitHub Scraper] ⚠ JSON parse failed for contributors: {e}")
+                        break
+                elif r.status_code == 202:
+                    print(f"[GitHub Scraper] ⏳ Contributors data is processing (202). Retrying in 2s (Attempt {attempt+1}/{max_retries})...")
+                    await asyncio.sleep(2)
+                else:
+                    print(f"[GitHub Scraper] ⚠ Contributors page returned {r.status_code}")
+                    break
 
     except Exception as e:
         print(f"[GitHub Scraper] ⚠ Contributors scraping failed: {e}")
@@ -369,18 +380,16 @@ async def scrape_user_commits(
 
     try:
         import httpx
-        from bs4 import BeautifulSoup
     except ImportError as e:
         logger.error("Missing dependency for commit scraping: %s", e)
         return commits
 
-    print(f"\n[GitHub Scraper] Fetching commits by '{username}' in {owner}/{repo}")
+    print(f"\n[GitHub Scraper] Fetching commits by '{username}' in {owner}/{repo} via API")
 
     try:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "text/html,application/xhtml+xml",
-            "Accept-Language": "en-US,en;q=0.9",
+            "Accept": "application/vnd.github.v3+json",
         }
 
         async with httpx.AsyncClient(
@@ -388,44 +397,26 @@ async def scrape_user_commits(
             follow_redirects=True,
             headers=headers,
         ) as client:
-            for page in range(1, max_pages + 1):
-                url = f"https://github.com/{owner}/{repo}/commits?author={username}"
-                if page > 1:
-                    # GitHub uses cursor-based pagination, we'll just get first few pages
-                    break
-
-                r = await client.get(url)
-                if r.status_code != 200:
-                    print(f"[GitHub Scraper] ⚠ Commits page returned {r.status_code}")
-                    break
-
-                soup = BeautifulSoup(r.text, "html.parser")
-
-                # Parse commit entries
-                commit_items = soup.select(
-                    "li.Box-row, "
-                    "div.TimelineItem, "
-                    "ol.commit-group li, "
-                    "div[data-testid='commit-row-item']"
-                )
-
-                if not commit_items:
-                    # Fallback: try generic commit elements
-                    commit_items = soup.select("div.commit, li.commit")
-
-                for item in commit_items:
-                    commit = _parse_commit_element(item)
-                    if commit:
-                        commits.append(commit)
-
-                # Check for "No commits found" message
-                no_commits = soup.select_one(".blankslate, .no-results")
-                if no_commits:
-                    break
+            url = f"https://api.github.com/repos/{owner}/{repo}/commits?author={username}&per_page=30"
+            r = await client.get(url)
+            
+            if r.status_code == 200:
+                data = r.json()
+                for item in data:
+                    commit_data = item.get("commit", {})
+                    author = commit_data.get("author", {})
+                    
+                    commits.append({
+                        "message": commit_data.get("message", "N/A"),
+                        "date": author.get("date", "N/A"),
+                        "sha": item.get("sha", "")[:7]
+                    })
+            else:
+                print(f"[GitHub Scraper] ⚠ Commits API returned {r.status_code}")
 
     except Exception as e:
-        print(f"[GitHub Scraper] ⚠ Commit scraping failed: {e}")
-        logger.error("Commit scraping failed for %s in %s/%s: %s", username, owner, repo, e)
+        print(f"[GitHub Scraper] ⚠ Commit API scraping failed: {e}")
+        logger.error("Commit API scraping failed for %s in %s/%s: %s", username, owner, repo, e)
 
     print(f"[GitHub Scraper] ✔ Found {len(commits)} commits by '{username}'")
     for c in commits[:3]:
@@ -434,56 +425,17 @@ async def scrape_user_commits(
     return commits
 
 
-def _parse_commit_element(item: Any) -> dict[str, Any] | None:
-    """Parse a single commit HTML element into a dict."""
-    try:
-        # Try to extract commit message
-        msg_el = item.select_one(
-            "a.Link--primary, "
-            "a.message, "
-            "p.mb-1 a, "
-            "a.text-bold"
-        )
-        if not msg_el:
-            return None
-
-        message = msg_el.get_text(strip=True)
-        if not message:
-            return None
-
-        # Try to extract date
-        date = ""
-        time_el = item.select_one("relative-time, time")
-        if time_el:
-            date = time_el.get("datetime", time_el.get_text(strip=True))
-
-        # Try to extract SHA
-        sha = ""
-        sha_el = item.select_one("a.sha, clipboard-copy")
-        if sha_el:
-            sha = sha_el.get("value", sha_el.get_text(strip=True))[:7]
-
-        return {
-            "message": message,
-            "date": date,
-            "sha": sha,
-        }
-
-    except Exception:
-        return None
-
-
 # ── NEW: Repository Tree Scraper ──────────────────────────────────────────────
 
 
 async def scrape_repo_tree(
-    owner: str, repo: str, max_depth: int = 3, sub_path: str | None = None
+    owner: str, repo: str, max_depth: int = 5, sub_path: str | None = None
 ) -> dict[str, Any]:
     """
-    Traverse the repository directory structure up to max_depth levels.
+    Traverse the repository directory structure via GitHub API.
 
     Returns a dict with:
-        directories, total_files, max_depth, key_markers, key_file_contents
+        directories, total_files, max_depth, key_markers, key_file_contents, full_tree
     """
     tree: dict[str, Any] = {
         "directories": [],
@@ -491,156 +443,128 @@ async def scrape_repo_tree(
         "max_depth": 0,
         "key_markers": {},
         "key_file_contents": {},
+        "full_tree": {},
     }
 
     try:
         import httpx
-        from bs4 import BeautifulSoup
     except ImportError as e:
         logger.error("Missing dependency for tree scraping: %s", e)
         return tree
 
-    print(f"\n[GitHub Scraper] Traversing repo tree: {owner}/{repo} (depth={max_depth})")
+    print(f"\n[GitHub Scraper] Traversing repo tree via API: {owner}/{repo}")
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "text/html,application/xhtml+xml",
-        "Accept-Language": "en-US,en;q=0.9",
-    }
-
-    # Queue: (path, depth)
-    start_path = sub_path.strip("/") if sub_path else ""
-    queue: list[tuple[str, int]] = [(start_path, 0)]
-    visited: set[str] = set()
-
-    # Key files to try to read content of
-    key_file_names = {
-        "package.json", "requirements.txt", "Pipfile", "Cargo.toml",
-        "go.mod", "pom.xml", "build.gradle", "Dockerfile",
-        "docker-compose.yml", "docker-compose.yaml",
-        ".env.example", "setup.py", "pyproject.toml",
-    }
-
-    # Key directory names
-    key_dir_names = {
-        "src", "frontend", "backend", "api", "app", "lib",
-        "tests", "test", "docs", "scripts", "config",
-        "components", "pages", "services", "models", "routes",
-        "controllers", "utils", "helpers", "middleware",
+        "Accept": "application/vnd.github.v3+json",
     }
 
     try:
         async with httpx.AsyncClient(
-            timeout=12.0,
+            timeout=15.0,
             follow_redirects=True,
             headers=headers,
         ) as client:
-            while queue:
-                path, depth = queue.pop(0)
+            # Get default branch tree natively via API
+            default_branch = "main"
+            url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/main?recursive=1"
+            r = await client.get(url)
+            if r.status_code == 404:
+                url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/master?recursive=1"
+                r = await client.get(url)
+                default_branch = "master"
 
-                if depth > max_depth or path in visited:
-                    continue
-                visited.add(path)
+            if r.status_code == 200:
+                data = r.json()
+                tree_items = data.get("tree", [])
+                
+                # Nested tree builder
+                nested_tree = {}
+                
+                # Key files to read content of
+                key_file_names = {
+                    "package.json", "requirements.txt", "Pipfile", "Cargo.toml",
+                    "go.mod", "pom.xml", "build.gradle", "Dockerfile",
+                    "docker-compose.yml", "docker-compose.yaml",
+                    ".env.example", "setup.py", "pyproject.toml",
+                }
 
-                url = f"https://github.com/{owner}/{repo}/tree/main/{path}" if path else f"https://github.com/{owner}/{repo}"
-                try:
-                    r = await client.get(url)
-                    if r.status_code == 404 and not path:
-                        # Try master branch
-                        url = f"https://github.com/{owner}/{repo}/tree/master"
-                        r = await client.get(url)
-                    if r.status_code != 200:
+                for item in tree_items:
+                    path = item.get("path", "")
+                    item_type = item.get("type", "")
+                    
+                    if not path:
                         continue
-                except Exception:
-                    continue
-
-                soup = BeautifulSoup(r.text, "html.parser")
-
-                # Parse file/directory listings
-                rows = soup.select(
-                    "td.react-directory-row-name-cell-large-screen a, "
-                    "a.js-navigation-open.Link--primary, "
-                    "div.react-directory-filename-column a"
-                )
-
-                dirs_at_this_level = []
-                files_at_this_level = []
-
-                for a in rows:
-                    name = a.get("title", a.get_text(strip=True))
-                    if not name or name in ("Go to file", "View all", ".."):
+                        
+                    # Target specific subpath if provided
+                    if sub_path and not path.startswith(sub_path):
                         continue
 
-                    href = a.get("href", "")
-                    full_path = f"{path}/{name}" if path else name
-
-                    if "/tree/" in href:
-                        # It's a directory
-                        dirs_at_this_level.append(name)
-                        tree["directories"].append(full_path)
-
-                        # Check if it's a key directory
-                        if name.lower() in key_dir_names:
-                            tree["key_markers"][f"has_{name.lower()}_dir"] = True
-
-                        # Queue for deeper traversal
-                        if depth + 1 <= max_depth:
-                            queue.append((full_path, depth + 1))
-
-                    elif "/blob/" in href:
-                        # It's a file
-                        files_at_this_level.append(name)
+                    parts = path.split("/")
+                    depth = len(parts)
+                    tree["max_depth"] = max(tree["max_depth"], depth)
+                    
+                    # Build nested tree
+                    current_level = nested_tree
+                    for i, part in enumerate(parts):
+                        if i == len(parts) - 1:
+                            if item_type == "tree":
+                                current_level[part] = {}
+                            else:
+                                current_level[part] = "file"
+                        else:
+                            if part not in current_level:
+                                current_level[part] = {}
+                            current_level = current_level[part]
+                    
+                    if item_type == "tree":
+                        tree["directories"].append(path)
+                        name_lower = parts[-1].lower()
+                        if name_lower in ("src", "source"):
+                            tree["key_markers"]["has_src_dir"] = True
+                        elif name_lower == "frontend":
+                            tree["key_markers"]["has_frontend_dir"] = True
+                        elif name_lower == "backend":
+                            tree["key_markers"]["has_backend_dir"] = True
+                        elif name_lower in ("test", "tests", "__tests__"):
+                            tree["key_markers"]["has_tests"] = True
+                    else:
                         tree["total_files"] += 1
+                        filename = parts[-1].lower()
 
-                        # Check key file markers
-                        name_lower = name.lower()
-                        if name_lower == "readme.md" or name_lower == "readme":
+                        if filename == "readme.md" or filename == "readme":
                             tree["key_markers"]["has_readme"] = True
-                        elif name_lower == "package.json":
+                        elif filename == "package.json":
                             tree["key_markers"]["has_package_json"] = True
-                        elif name_lower in ("requirements.txt", "pipfile", "pyproject.toml"):
+                        elif filename in ("requirements.txt", "pipfile", "pyproject.toml"):
                             tree["key_markers"]["has_requirements"] = True
-                        elif name_lower in ("dockerfile", "docker-compose.yml", "docker-compose.yaml"):
+                        elif filename in ("dockerfile", "docker-compose.yml", "docker-compose.yaml"):
                             tree["key_markers"]["has_docker"] = True
                             tree["key_markers"]["has_config_files"] = True
-                        elif name_lower in (".env.example", ".env"):
+                        elif filename in (".env.example", ".env"):
                             tree["key_markers"]["has_config_files"] = True
-                        elif name_lower.startswith("test") or "test" in full_path.lower():
+                        elif filename.startswith("test") or "test" in path.lower():
                             tree["key_markers"]["has_tests"] = True
 
-                        # Try reading key files (only at root or first level)
-                        if depth <= 1 and name in key_file_names:
+                        # Try reading key files
+                        if depth <= 3 and parts[-1] in key_file_names:
                             try:
-                                raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/main/{full_path}"
+                                raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{default_branch}/{path}"
                                 file_r = await client.get(raw_url)
-                                if file_r.status_code == 404:
-                                    raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/master/{full_path}"
-                                    file_r = await client.get(raw_url)
                                 if file_r.status_code == 200:
-                                    tree["key_file_contents"][full_path] = file_r.text[:2000]
+                                    tree["key_file_contents"][path] = file_r.text[:2000]
                             except Exception:
                                 pass
 
-                tree["max_depth"] = max(tree["max_depth"], depth)
+                tree["full_tree"] = nested_tree
 
-                # Check for src-like directories
-                for d in dirs_at_this_level:
-                    dl = d.lower()
-                    if dl in ("src", "source"):
-                        tree["key_markers"]["has_src_dir"] = True
-                    elif dl == "frontend":
-                        tree["key_markers"]["has_frontend_dir"] = True
-                    elif dl == "backend":
-                        tree["key_markers"]["has_backend_dir"] = True
-                    elif dl in ("test", "tests", "__tests__"):
-                        tree["key_markers"]["has_tests"] = True
+            else:
+                print(f"[GitHub Scraper] ⚠ API returned {r.status_code}. Rate limit or empty repo.")
 
     except Exception as e:
-        print(f"[GitHub Scraper] ⚠ Tree traversal error: {e}")
-        logger.error("Tree traversal failed for %s/%s: %s", owner, repo, e)
+        print(f"[GitHub Scraper] ⚠ Tree API traversal error: {e}")
+        logger.error("Tree API traversal failed for %s/%s: %s", owner, repo, e)
 
     print(f"[GitHub Scraper] ✔ Repo tree: {tree['total_files']} files, "
           f"{len(tree['directories'])} dirs, depth={tree['max_depth']}")
-    print(f"[GitHub Scraper]   Key markers: {tree['key_markers']}")
-
     return tree

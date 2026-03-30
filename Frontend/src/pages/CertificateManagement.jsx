@@ -88,7 +88,8 @@ export default function CertificateManagement() {
 
     const handleProjectUpload = async (e) => {
         e.preventDefault();
-        if (!projName || !projGithub) { toast.error('Project name and GitHub link are required'); return; }
+        if (!projName || !projGithub || !projDesc) { toast.error('Project name, description, and GitHub link are required'); return; }
+        if (projDesc.length < 10) { toast.error('Please provide a more detailed technical description (min 10 characters)'); return; }
         if (!validateGithubUrl(projGithub)) { toast.error('Please enter a valid GitHub link'); return; }
         setProjUploading(true);
         try {
@@ -463,13 +464,14 @@ export default function CertificateManagement() {
 
                             {/* LEFT — Description */}
                             <div className="cert-upload-field">
-                                <label>Project Description</label>
+                                <label>Technical Project Description *</label>
                                 <textarea
                                     className="cert-textarea"
                                     value={projDesc}
                                     onChange={e => setProjDesc(e.target.value)}
-                                    placeholder="Describe what your project does..."
+                                    placeholder="Describe the technical architecture, features, and technologies used..."
                                     rows="3"
+                                    required
                                 />
                             </div>
 
@@ -492,7 +494,7 @@ export default function CertificateManagement() {
                                 <button
                                     type="submit"
                                     className="cert-upload-btn"
-                                    disabled={projUploading || !projName || !projGithub || !!githubError}
+                                    disabled={projUploading || !projName || !projGithub || !projDesc || !!githubError}
                                 >
                                     {projUploading ? (
                                         <><div className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }}></div> Verifying...</>

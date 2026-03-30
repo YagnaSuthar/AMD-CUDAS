@@ -80,6 +80,7 @@ class UserResponse(BaseModel):
     skills: Optional[list[str]] = None
     resume_url: Optional[str] = None
     goal: Optional[str] = None
+    github_username: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -95,6 +96,7 @@ class UpdateProfileRequest(BaseModel):
     phone_number: Optional[str] = None
     skills: Optional[list[str]] = None
     goal: Optional[str] = None
+    github_username: Optional[str] = None
 
 
 class CareerRoadmapResponse(BaseModel):

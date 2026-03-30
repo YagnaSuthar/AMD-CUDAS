@@ -26,7 +26,7 @@ router = APIRouter(prefix="/projects", tags=["Projects"])
 
 class ProjectCreateRequest(BaseModel):
     project_name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
+    description: str = Field(..., min_length=10, max_length=5000, description="Technical project description is required")
     github_url: str = Field(..., min_length=1, max_length=512)
     tech_stack: Optional[str] = None
 
@@ -40,6 +40,7 @@ class ProjectResponse(BaseModel):
     verification_status: str = "pending"
     verification_score: Optional[float] = None
     verification_result: Optional[dict] = None
+    project_structure: Optional[dict] = None
     created_at: Optional[str] = None
 
 
@@ -89,6 +90,7 @@ async def list_projects(
             verification_status=p.verification_status or "pending",
             verification_score=v_score,
             verification_result=v_result,
+            project_structure=p.project_structure,
             created_at=p.created_at.isoformat() if p.created_at else None,
         ))
 
@@ -107,6 +109,14 @@ async def create_project(
         raise HTTPException(status_code=403, detail="No user ID found")
 
     logger.info("[PROJECTS] Creating project: %s for user=%s", body.project_name, user_id)
+
+    # Fetch github_username from user profile
+    github_username = None
+    if hasattr(current_user, "github_username") and current_user.github_username:
+        github_username = current_user.github_username
+        logger.info("[PROJECTS] Using profile github_username: %s", github_username)
+    else:
+        logger.info("[PROJECTS] No github_username in profile, will auto-detect from URL")
 
     project = Project(
         student_id=user_id,
@@ -132,19 +142,27 @@ async def create_project(
             profile_data=None,
             project_description=body.description,
             tech_stack=body.tech_stack,
+            github_username=github_username,
         )
         # Update project with verification result
         project.verification_status = verification.status
         project.verification_run_id = uuid.UUID(verification.run_id)
         v_score = verification.confidence_score
 
-        # Fetch the full result
+        # Fetch the full result and save project structure
         vr = await db.execute(
             select(VerificationRun).where(VerificationRun.id == uuid.UUID(verification.run_id))
         )
         run = vr.scalar_one_or_none()
         if run:
             v_result = run.result
+            # Save the full project structure from extracted_data
+            extracted = run.extracted_data or {}
+            repo_tree = extracted.get("repo_tree")
+            if repo_tree:
+                project.project_structure = repo_tree
+                logger.info("[PROJECTS] Saved project structure: %d files, %d dirs",
+                           repo_tree.get("total_files", 0), len(repo_tree.get("directories", [])))
 
         logger.info(
             "[PROJECTS] Verification complete: status=%s score=%.2f",
@@ -166,6 +184,7 @@ async def create_project(
         verification_status=project.verification_status or "pending",
         verification_score=v_score,
         verification_result=v_result,
+        project_structure=project.project_structure,
         created_at=project.created_at.isoformat() if project.created_at else None,
     )
 

@@ -527,3 +527,77 @@ async def mark_step_complete(
 
     logger.info("Step %s marked as completed by user %s", step_uuid, user_id)
     return {"success": True, "data": {"step_id": str(step_uuid), "status": "completed"}}
+
+
+class MarkBranchStepCompleteRequest(BaseModel):
+    branch_step_id: str
+
+@router.post("/mark-branch-step-complete")
+async def mark_branch_step_complete(
+    req: MarkBranchStepCompleteRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Mark a branch step (week) as completed."""
+    from app.models.roadmap import BranchStep
+    from sqlalchemy import select
+    import uuid as _uuid
+
+    user_id = current_user.id if not isinstance(current_user, dict) else None
+    if user_id is None:
+        return {"success": False, "error": "Admin cannot mark branch steps complete"}
+
+    try:
+        bs_uuid = _uuid.UUID(req.branch_step_id)
+    except (ValueError, AttributeError):
+        return {"success": False, "error": f"Invalid branch_step_id: {req.branch_step_id}"}
+
+    result = await db.execute(
+        select(BranchStep).where(BranchStep.id == bs_uuid)
+    )
+    branch_step = result.scalar_one_or_none()
+    if branch_step is None:
+        return {"success": False, "error": "Branch step not found"}
+
+    branch_step.status = "completed"
+    await db.commit()
+
+    logger.info("Branch step %s marked as completed by user %s", bs_uuid, user_id)
+    return {"success": True, "data": {"branch_step_id": str(bs_uuid), "status": "completed"}}
+class SubmitProjectRequest(BaseModel):
+    branch_step_id: str
+    github_link: str
+
+@router.post("/submit-project")
+async def submit_project(
+    req: SubmitProjectRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Submit a project GitHub link for a branch step."""
+    from app.models.roadmap import BranchStep
+    from sqlalchemy import select
+    import uuid as _uuid
+
+    user_id = current_user.id if not isinstance(current_user, dict) else None
+    if user_id is None:
+        return {"success": False, "error": "Admin cannot submit projects"}
+
+    try:
+        bs_uuid = _uuid.UUID(req.branch_step_id)
+    except (ValueError, AttributeError):
+        return {"success": False, "error": f"Invalid branch_step_id: {req.branch_step_id}"}
+
+    result = await db.execute(
+        select(BranchStep).where(BranchStep.id == bs_uuid)
+    )
+    branch_step = result.scalar_one_or_none()
+    if branch_step is None:
+        return {"success": False, "error": "Branch step not found"}
+
+    branch_step.submission_link = req.github_link
+    branch_step.status = "completed"
+    await db.commit()
+
+    logger.info("Project for branch step %s submitted by user %s", bs_uuid, user_id)
+    return {"success": True, "data": {"branch_step_id": str(bs_uuid), "submission_link": req.github_link, "status": "completed"}}

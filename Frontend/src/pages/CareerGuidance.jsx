@@ -262,14 +262,27 @@ export default function CareerGuidance() {
 
     const markBranchStepComplete = async (phaseId, branchStepId) => {
         try {
-            const response = await api.post('/mark-branch-step-complete', { branch_step_id: branchStepId });
-            setPhaseBranches((prev) => ({
-                ...prev,
-                [phaseId]: {
-                    ...(prev?.[phaseId] || {}),
-                    data: response.data,
-                },
-            }));
+            await api.post('/rag/mark-branch-step-complete', { branch_step_id: branchStepId });
+            setPhaseBranches((prev) => {
+                const phaseData = prev?.[phaseId] || {};
+                const dataObj = phaseData.data || {};
+                const stepsArray = dataObj.steps || dataObj.data?.steps || [];
+                
+                const updatedSteps = stepsArray.map(s => 
+                    s.id === branchStepId ? { ...s, status: 'completed' } : s
+                );
+                
+                return {
+                    ...prev,
+                    [phaseId]: {
+                        ...phaseData,
+                        data: {
+                            ...dataObj,
+                            steps: updatedSteps
+                        },
+                    },
+                };
+            });
         } catch (err) {
             setPhaseBranches((prev) => ({
                 ...prev,
@@ -283,17 +296,30 @@ export default function CareerGuidance() {
 
     const submitProject = async (phaseId, branchStepId, githubLink) => {
         try {
-            const response = await api.post('/submit-project', {
+            await api.post('/rag/submit-project', {
                 branch_step_id: branchStepId,
                 github_link: githubLink,
             });
-            setPhaseBranches((prev) => ({
-                ...prev,
-                [phaseId]: {
-                    ...(prev?.[phaseId] || {}),
-                    data: response.data,
-                },
-            }));
+            setPhaseBranches((prev) => {
+                const phaseData = prev?.[phaseId] || {};
+                const dataObj = phaseData.data || {};
+                const stepsArray = dataObj.steps || dataObj.data?.steps || [];
+                
+                const updatedSteps = stepsArray.map(s => 
+                    s.id === branchStepId ? { ...s, status: 'completed', submission_link: githubLink } : s
+                );
+                
+                return {
+                    ...prev,
+                    [phaseId]: {
+                        ...phaseData,
+                        data: {
+                            ...dataObj,
+                            steps: updatedSteps
+                        },
+                    },
+                };
+            });
         } catch (err) {
             setPhaseBranches((prev) => ({
                 ...prev,

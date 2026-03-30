@@ -334,7 +334,7 @@ async def _run_ai_analysis(
         system_prompt = (
             "You are a strict project verification AI. Analyze the provided GitHub project data "
             "and return ONLY a compact JSON object with these keys:\n"
-            "- description_match_score: float 0.0-1.0 (how well user description matches repo)\n"
+            "- description_match_score: float 0.0-1.0 (how well user description matches actual repo structure and features)\n"
             "- tech_stack_match_score: float 0.0-1.0 (how well user tech stack matches repo languages)\n"
             "- authenticity_score: float 0.0-1.0 (is this a real, substantial project?)\n"
             "- complexity_level: string (beginner/intermediate/advanced)\n"
@@ -356,6 +356,7 @@ async def _run_ai_analysis(
             "user_description": project_description or "Not provided",
             "user_tech_stack": tech_stack or "Not provided",
             "contributor_count": scraped_data.get("contributor_count", 0),
+            "tree_directories": scraped_data.get("repo_tree", {}).get("directories", [])[:100],
         }
 
         # Include contribution analysis if available

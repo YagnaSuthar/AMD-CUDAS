@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import Column, DateTime, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -25,6 +25,7 @@ class Project(Base):
     verification_run_id = Column(
         UUID(as_uuid=True), ForeignKey("verification_runs.id", ondelete="SET NULL"), nullable=True
     )
+    project_structure = Column(JSONB, nullable=True)  # Full recursive repo tree from GitHub
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(
