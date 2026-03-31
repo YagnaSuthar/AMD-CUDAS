@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import RoadmapContainer from '../components/RoadmapContainer';
@@ -615,16 +618,16 @@ export default function CareerGuidance() {
                                     marginBottom: '12px', paddingBottom: '12px',
                                     borderBottom: '1px solid var(--color-border)'
                                 }}>
-                                    <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginRight: '4px', display: 'flex', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '12px', color: 'var(--color-text-primary)', marginRight: '4px', display: 'flex', alignItems: 'center', fontWeight: 600 }}>
                                         📊 Data used:
                                     </span>
                                     {guidanceResponse.data_sources.map((source) => (
                                         <span key={source} style={{
                                             fontSize: '11px', padding: '2px 8px',
-                                            borderRadius: '12px', fontWeight: 500,
-                                            backgroundColor: 'var(--color-primary-light, rgba(99, 102, 241, 0.1))',
-                                            color: 'var(--color-primary)',
-                                            border: '1px solid var(--color-primary-light, rgba(99, 102, 241, 0.2))',
+                                            borderRadius: '12px', fontWeight: 600,
+                                            backgroundColor: 'rgba(0, 188, 212, 0.1)',
+                                            color: 'var(--color-text-primary)',
+                                            border: '1px solid rgba(0, 188, 212, 0.25)',
                                         }}>
                                             {source === 'Skills' ? '🛠️' :
                                              source === 'Certificates' ? '📜' :
@@ -637,10 +640,8 @@ export default function CareerGuidance() {
                                 </div>
                             )}
 
-                            <div className="response-content">
-                                {guidanceResponse.response?.split('\n').map((line, idx) => (
-                                    <p key={idx}>{line}</p>
-                                ))}
+                            <div className="response-content markdown-body">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{guidanceResponse.response || ''}</ReactMarkdown>
                             </div>
                         </div>
                     )}

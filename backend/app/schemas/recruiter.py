@@ -4,6 +4,21 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+class RecruiterStudentProjectSummary(BaseModel):
+    id: str
+    project_name: str
+    description: Optional[str] = None
+    tech_stack: Optional[str] = None
+    github_url: Optional[str] = None
+    verification_status: Optional[str] = None
+
+class RecruiterStudentCertificateSummary(BaseModel):
+    id: str
+    title: str
+    file_path: Optional[str] = None
+    points: int
+    is_verified: bool
+
 
 class RecruiterCollegeResponse(BaseModel):
     id: str
@@ -60,3 +75,5 @@ class RecruiterStudentProfileResponse(BaseModel):
     resume_url: Optional[str] = None
     interviews: list[RecruiterStudentInterviewSummary]
     pipelines: list[RecruiterStudentPipelineSummary]
+    projects: list[RecruiterStudentProjectSummary] = []
+    certificates: list[RecruiterStudentCertificateSummary] = []

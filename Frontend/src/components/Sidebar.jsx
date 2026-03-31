@@ -62,7 +62,7 @@ export default function Sidebar({ isOpen, onClose }) {
                             </span>
                             {route.label}
                             {user.role === 'STUDENT' && route.path === '/dashboard/notifications' && unreadCount > 0 && (
-                                <span className="badge badge-danger" style={{ marginLeft: '8px', fontSize: '0.65rem', padding: '2px 5px' }}>
+                                <span className="sidebar-badge">
                                     {unreadCount}
                                 </span>
                             )}

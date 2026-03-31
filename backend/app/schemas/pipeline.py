@@ -20,6 +20,10 @@ class MarkHiredRequest(BaseModel):
     hired_company_name: str = Field(..., min_length=1, max_length=255)
 
 
+class RejectPipelineRequest(BaseModel):
+    pipeline_id: uuid.UUID
+
+
 class PipelineResponse(BaseModel):
     id: uuid.UUID
     job_id: uuid.UUID

@@ -82,6 +82,7 @@ class SubmitAnswerResponse(BaseModel):
 class EndInterviewRequest(BaseModel):
     """POST /interview/end"""
     session_id: uuid.UUID
+    ended_reason: str = "normal"
 
 
 class EndInterviewResponse(BaseModel):

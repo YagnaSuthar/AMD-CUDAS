@@ -17,6 +17,7 @@ from app.schemas.pipeline import (
     InviteRound2Request,
     MarkHiredRequest,
     PipelineResponse,
+    RejectPipelineRequest,
 )
 
 router = APIRouter(prefix="/pipeline", tags=["Interview Pipeline"])
@@ -295,6 +296,30 @@ async def mark_hired(
     await db.commit()
     await db.refresh(pipeline)
     return pipeline
+
+
+@router.put("/reject")
+async def reject_pipeline(
+    body: RejectPipelineRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(recruiter_only),
+):
+    if isinstance(current_user, dict):
+        raise HTTPException(status_code=403, detail="Admin cannot update pipeline")
+
+    result = await db.execute(select(InterviewPipeline).where(InterviewPipeline.id == body.pipeline_id))
+    pipeline = result.scalar_one_or_none()
+    if pipeline is None:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+
+    if pipeline.recruiter_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    await db.delete(pipeline)
+    await db.commit()
+
+    return {"detail": "Candidate deleted from interview pipeline."}
+
 
 
 async def mark_pipeline_ai_completed(db: AsyncSession, session_id: uuid.UUID) -> None:

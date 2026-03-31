@@ -180,6 +180,7 @@ async def end_interview(
         return await InterviewService.end_interview(
             student_id=student_id,
             session_id=request.session_id,
+            ended_reason=request.ended_reason,
             db=db,
         )
     except HTTPException:

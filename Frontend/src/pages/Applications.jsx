@@ -14,6 +14,7 @@ export default function Applications() {
     const [round2Schedule, setRound2Schedule] = useState({});
     const [reportModal, setReportModal] = useState({ show: false, report: null });
     const [deleteModal, setDeleteModal] = useState({ show: false, appId: null, studentName: '' });
+    const [confirmAiModal, setConfirmAiModal] = useState({ show: false, appId: null, studentId: null, jobId: null });
 
     const handleDeleteApplication = async () => {
         try {
@@ -111,6 +112,7 @@ export default function Applications() {
                 student_id: studentId,
                 job_id: jobId,
             });
+            setConfirmAiModal({ show: false, appId: null, studentId: null, jobId: null });
             // Refresh applications to show updated status
             await fetchApplications();
         } catch (e) {
@@ -277,7 +279,7 @@ export default function Applications() {
                                                     <div style={{ display: 'flex', gap: '8px' }}>
                                                         <button
                                                             className="btn btn-sm btn-primary"
-                                                            onClick={() => inviteToAiInterview(app.id, app.student_id, app.job_id)}
+                                                            onClick={() => setConfirmAiModal({ show: true, appId: app.id, studentId: app.student_id, jobId: app.job_id })}
                                                             disabled={actionLoading[app.id] === 'ai' || actionLoading[app.id] === 'delete'}
                                                             style={{
                                                                 padding: '6px 12px',
@@ -499,6 +501,51 @@ export default function Applications() {
                         >
                             Close
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* AI Interview Rules Confirmation Modal */}
+            {confirmAiModal.show && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+                    backdropFilter: 'blur(4px)'
+                }}>
+                    <div style={{
+                        backgroundColor: 'var(--color-bg-card)', borderRadius: '12px', padding: '32px', maxWidth: '600px', width: '90%',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255,255,255,0.05)',
+                        border: '1px solid var(--color-border)', animation: 'slideUp 0.3s ease-out'
+                    }}>
+                        <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 0, color: 'var(--color-text-primary)' }}>
+                            <FiBriefcase style={{ color: 'var(--color-primary)' }} /> Send AI Interview
+                        </h3>
+                        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '20px', lineHeight: '1.5' }}>
+                            You are about to assign an AI Interview to this candidate. The AI enforces strict proctoring rules automatically:
+                        </p>
+                        <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <li style={{ display: 'flex', gap: '10px', alignItems: 'center', fontSize: '0.95rem' }}>
+                                <span style={{ color: 'var(--color-error)' }}>🖥️</span> <strong>Desktop Only:</strong> Mobile & Tablets are blocked.
+                            </li>
+                            <li style={{ display: 'flex', gap: '10px', alignItems: 'center', fontSize: '0.95rem' }}>
+                                <span style={{ color: 'var(--color-error)' }}>📹</span> <strong>Strict Camera:</strong> Session ends if the face disappears.
+                            </li>
+                            <li style={{ display: 'flex', gap: '10px', alignItems: 'center', fontSize: '0.95rem' }}>
+                                <span style={{ color: 'var(--color-error)' }}>📱</span> <strong>No Devices:</strong> Phones and notes trigger termination.
+                            </li>
+                            <li style={{ display: 'flex', gap: '10px', alignItems: 'center', fontSize: '0.95rem' }}>
+                                <span style={{ color: 'var(--color-error)' }}>⚠️</span> <strong>No Tab Switch:</strong> Interview immediately terminates.
+                            </li>
+                        </ul>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                            <button className="btn btn-secondary" onClick={() => setConfirmAiModal({ show: false, appId: null, studentId: null, jobId: null })}>Cancel</button>
+                            <button 
+                                className="btn btn-primary" 
+                                onClick={() => inviteToAiInterview(confirmAiModal.appId, confirmAiModal.studentId, confirmAiModal.jobId)}
+                            >
+                                Confirm & Assign
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

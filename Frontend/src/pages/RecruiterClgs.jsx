@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { FiX } from 'react-icons/fi';
+import { FiX, FiArrowLeft, FiBriefcase, FiAward, FiLayers, FiGithub, FiStar, FiCheckCircle, FiClock, FiExternalLink } from 'react-icons/fi';
 
 export default function RecruiterClgs() {
     const { user } = useAuth();
@@ -41,6 +41,9 @@ export default function RecruiterClgs() {
     const [messageModal, setMessageModal] = useState(false);
     const [messageSubject, setMessageSubject] = useState('');
     const [messageBody, setMessageBody] = useState('');
+
+    const [showProjectsModal, setShowProjectsModal] = useState(false);
+    const [showCertificatesModal, setShowCertificatesModal] = useState(false);
 
     const fetchColleges = async () => {
         const res = await api.get('/recruiter/colleges');
@@ -267,8 +270,7 @@ export default function RecruiterClgs() {
         if (!hiredPipelineId || !hiredCompanyName || !selectedStudentId) return;
         try {
             setError('');
-            await api.post('/pipeline/mark-hired', {
-                student_id: selectedStudentId,
+            await api.put('/pipeline/mark-hired', {
                 pipeline_id: hiredPipelineId,
                 hired_company_name: hiredCompanyName,
             });
@@ -277,6 +279,17 @@ export default function RecruiterClgs() {
             await openProfile(selectedStudentId);
         } catch (e) {
             setError(e?.response?.data?.detail || 'Failed to mark as hired');
+        }
+    };
+
+    const rejectPipeline = async (pipelineId) => {
+        if (!window.confirm('Are you sure you want to reject and remove this candidate from the pipeline?')) return;
+        try {
+            setError('');
+            await api.put('/pipeline/reject', { pipeline_id: pipelineId });
+            await openProfile(selectedStudentId);
+        } catch (e) {
+            setError(e?.response?.data?.detail || 'Failed to reject candidate');
         }
     };
 
@@ -305,14 +318,15 @@ export default function RecruiterClgs() {
     return (
         <>
             <div className="dashboard-page">
-                <div className="page-header slide-in-left">
+                <div className="page-header">
                     <h2>CLGs</h2>
                     <p>Browse colleges, departments, and students</p>
                 </div>
 
-                <div className={`clgs-grid fade-in-up ${selectedStudentId && profile ? 'drawer-open' : ''}`}>
+                <div className={`clgs-grid ${selectedStudentId && profile ? 'drawer-open' : ''}`}>
                     {/* Colleges Table - Show Only When No College Selected */}
-                    <div className={`card clgs-card transition-table ${showColleges ? 'table-visible' : 'table-hidden'}`}>
+                    {showColleges && (
+                    <div className="card clgs-card">
                         <div className="card-header">
                             <h4>Colleges</h4>
                         </div>
@@ -345,9 +359,11 @@ export default function RecruiterClgs() {
                             )}
                         </div>
                     </div>
+                    )}
 
                     {/* Departments Table - Show Only After College Selection */}
-                    <div className={`card clgs-card transition-table ${showDepartments ? 'table-visible' : 'table-hidden'}`}>
+                    {showDepartments && (
+                    <div className="card clgs-card">
                         <div className="card-header">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h4>Departments</h4>
@@ -386,9 +402,11 @@ export default function RecruiterClgs() {
                             )}
                         </div>
                     </div>
+                    )}
 
                     {/* Students Table - Show Only After Department Selection */}
-                    <div className={`card clgs-card transition-table ${showStudents ? 'table-visible' : 'table-hidden'}`}>
+                    {showStudents && (
+                    <div className="card clgs-card">
                         <div className="card-header">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h4>Students</h4>
@@ -465,10 +483,11 @@ export default function RecruiterClgs() {
                             </>
                         </div>
                     </div>
+                    )}
 
                 </div>
 
-                {selectedStudentId && profile && (
+                {selectedStudentId && profile && !showProjectsModal && !showCertificatesModal && (
                     <>
                         <div
                             className="clgs-drawer-overlay"
@@ -482,7 +501,7 @@ export default function RecruiterClgs() {
                                     <h4 style={{ margin: 0 }}>Student Profile</h4>
                                     <button className="btn btn-sm btn-secondary" onClick={closeProfile}>Close</button>
                                 </div>
-                                <div className="card-body">
+                                <div className="card-body" style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 120px)' }}>
                                     {profileLoading ? (
                                         <div>Loading profile...</div>
                                     ) : (
@@ -521,6 +540,14 @@ export default function RecruiterClgs() {
                                                 <div style={{ color: 'var(--color-text-muted)' }}>
                                                     {Array.isArray(profile.skills) && profile.skills.length ? profile.skills.join(', ') : '-'}
                                                 </div>
+                                                <div style={{ marginTop: '12px', display: 'flex', gap: '16px' }}>
+                                                    <a href="#" onClick={(e) => { e.preventDefault(); setShowProjectsModal(true); }} style={{ color: 'var(--color-secondary)', display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', fontWeight: 600, padding: '8px 14px', background: 'var(--color-bg-main)', borderRadius: '8px', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
+                                                        <FiBriefcase /> Projects <span style={{ background: 'rgba(0,188,212,0.1)', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', marginLeft: '4px' }}>{profile.projects?.length || 0}</span>
+                                                    </a>
+                                                    <a href="#" onClick={(e) => { e.preventDefault(); setShowCertificatesModal(true); }} style={{ color: 'var(--color-accent)', display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', fontWeight: 600, padding: '8px 14px', background: 'var(--color-bg-main)', borderRadius: '8px', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
+                                                        <FiAward /> Certifications <span style={{ background: 'rgba(168,126,240,0.1)', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', marginLeft: '4px' }}>{profile.certificates?.length || 0}</span>
+                                                    </a>
+                                                </div>
                                             </div>
 
                                             <div>
@@ -558,17 +585,22 @@ export default function RecruiterClgs() {
                                                 {Array.isArray(profile.pipelines) && profile.pipelines.length ? (
                                                     <div style={{ display: 'grid', gap: '8px' }}>
                                                         {profile.pipelines.slice(0, 6).map((p) => (
-                                                            <div key={p.pipeline_id} style={{ padding: '10px', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
-                                                                <div style={{ fontWeight: 800 }}>{p.status}</div>
-                                                                <div style={{ color: 'var(--color-text-muted)', fontFamily: 'monospace', fontSize: '0.8rem' }}>{p.pipeline_id}</div>
-                                                                <div style={{ color: 'var(--color-text-muted)', fontFamily: 'monospace', fontSize: '0.8rem' }}>job: {p.job_id}</div>
-                                                                <div style={{ color: 'var(--color-text-muted)', fontFamily: 'monospace', fontSize: '0.8rem' }}>session: {p.ai_session_id || '-'}</div>
-                                                                {p.round2_link && (
-                                                                    <a href={p.round2_link} target="_blank" rel="noreferrer">Round 2 link</a>
-                                                                )}
-                                                                {p.hired_company_name && (
-                                                                    <div>Hired: {p.hired_company_name}</div>
-                                                                )}
+                                                            <div key={p.pipeline_id} style={{ padding: '10px', border: '1px solid var(--color-border)', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                <div>
+                                                                    <div style={{ fontWeight: 800 }}>{p.status}</div>
+                                                                    <div style={{ color: 'var(--color-text-muted)', fontFamily: 'monospace', fontSize: '0.8rem' }}>{p.pipeline_id}</div>
+                                                                    <div style={{ color: 'var(--color-text-muted)', fontFamily: 'monospace', fontSize: '0.8rem' }}>job: {p.job_id}</div>
+                                                                    <div style={{ color: 'var(--color-text-muted)', fontFamily: 'monospace', fontSize: '0.8rem' }}>session: {p.ai_session_id || '-'}</div>
+                                                                    {p.round2_link && (
+                                                                        <a href={p.round2_link} target="_blank" rel="noreferrer">Round 2 link</a>
+                                                                    )}
+                                                                    {p.hired_company_name && (
+                                                                        <div>Hired: {p.hired_company_name}</div>
+                                                                    )}
+                                                                </div>
+                                                                <div>
+                                                                    <button className="btn btn-sm" style={{backgroundColor: '#ff4d4f', color: '#fff'}} onClick={() => rejectPipeline(p.pipeline_id)}>Reject</button>
+                                                                </div>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -644,6 +676,120 @@ export default function RecruiterClgs() {
                             <button className="btn btn-primary" onClick={sendMessage} disabled={!messageSubject.trim() || !messageBody.trim()}>
                                 Send Message
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showProjectsModal && profile && (
+                <div className="modal-overlay" onClick={() => setShowProjectsModal(false)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <button className="modal-close" onClick={() => setShowProjectsModal(false)} style={{ marginRight: '8px' }}>
+                                    <FiArrowLeft />
+                                </button>
+                                <span style={{ color: 'var(--color-secondary)', display: 'flex', alignItems: 'center' }}><FiBriefcase style={{ marginRight: '8px' }}/> Projects</span>
+                            </h4>
+                        </div>
+                        <div className="modal-body" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
+                            {profile.projects && profile.projects.length > 0 ? (
+                                <div style={{display: 'flex', flexDirection: 'column', gap: '1.2rem'}}>
+                                    {profile.projects.map(pr => (
+                                        <div key={pr.id} style={{
+                                            padding: '20px', 
+                                            background: 'var(--color-bg-main)',
+                                            border: '1px solid var(--color-border)', 
+                                            borderRadius: '12px',
+                                            boxShadow: 'var(--shadow-sm)',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: '12px'
+                                        }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                <div>
+                                                    <div style={{ fontWeight: '800', fontSize: '1.15rem', color: 'var(--color-text-primary)' }}>{pr.project_name}</div>
+                                                    <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                                                        <FiLayers /> Stack: <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{pr.tech_stack || 'N/A'}</span>
+                                                    </div>
+                                                </div>
+                                                {pr.github_url && (
+                                                    <a href={pr.github_url} target="_blank" rel="noreferrer" className="btn btn-sm btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <FiGithub /> Repo
+                                                    </a>
+                                                )}
+                                            </div>
+                                            {pr.description && <div style={{ fontSize: '0.95rem', color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>{pr.description}</div>}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="clgs-empty" style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                                    <FiBriefcase style={{ fontSize: '3rem', opacity: 0.2, marginBottom: '1rem' }}/>
+                                    <div>No projects available for this candidate.</div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showCertificatesModal && profile && (
+                <div className="modal-overlay" onClick={() => setShowCertificatesModal(false)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <button className="modal-close" onClick={() => setShowCertificatesModal(false)} style={{ marginRight: '8px' }}>
+                                    <FiArrowLeft />
+                                </button>
+                                <span style={{ color: 'var(--color-accent)', display: 'flex', alignItems: 'center' }}><FiAward style={{ marginRight: '8px' }}/> Certifications</span>
+                            </h4>
+                        </div>
+                        <div className="modal-body" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
+                            {profile.certificates && profile.certificates.length > 0 ? (
+                                <div style={{display: 'flex', flexDirection: 'column', gap: '1.2rem'}}>
+                                    {profile.certificates.map(cert => (
+                                        <div key={cert.id} style={{
+                                            padding: '16px 20px', 
+                                            background: 'var(--color-bg-main)',
+                                            border: '1px solid var(--color-border)', 
+                                            borderRadius: '12px',
+                                            boxShadow: 'var(--shadow-sm)',
+                                            display: 'flex', 
+                                            justifyContent: 'space-between', 
+                                            alignItems: 'center',
+                                            gap: '16px'
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                                <div style={{ width: '50px', height: '50px', borderRadius: '12px', background: 'rgba(168,126,240,0.1)', color: 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', flexShrink: 0 }}>
+                                                    <FiAward />
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontWeight: '800', color: 'var(--color-text-primary)', fontSize: '1.1rem', marginBottom: '6px' }}>{cert.title}</div>
+                                                    <div style={{ display: 'flex', gap: '16px' }}>
+                                                        <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            <FiStar style={{ color: '#f59e0b' }} /> <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{cert.points}</span> Points
+                                                        </span>
+                                                        <span style={{ fontSize: '0.85rem', color: cert.is_verified ? 'var(--color-success)' : 'var(--color-warning)', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                                                            {cert.is_verified ? <><FiCheckCircle /> Verified</> : <><FiClock /> Pending</>}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {cert.file_path && (
+                                                <a href={`http://localhost:8000/${cert.file_path}`} target="_blank" rel="noreferrer" className="btn btn-sm btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                                                    <FiExternalLink /> View File
+                                                </a>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="clgs-empty" style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                                    <FiAward style={{ fontSize: '3rem', opacity: 0.2, marginBottom: '1rem' }}/>
+                                    <div>No certificates available for this candidate.</div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

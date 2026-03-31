@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { FiShield } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 
 export default function Interviews() {
+    const navigate = useNavigate();
     const { user } = useAuth();
     const isRecruiter = user?.role === 'RECRUITER';
     const isStudent = user?.role === 'STUDENT';
@@ -30,6 +33,9 @@ export default function Interviews() {
     const [reportModal, setReportModal] = useState(false);
     const [reportData, setReportData] = useState(null);
     const [reportLoading, setReportLoading] = useState(false);
+
+    const [showRulesModal, setShowRulesModal] = useState({ show: false, jobId: null });
+    const [rulesAccepted, setRulesAccepted] = useState(false);
 
     const fetchData = async () => {
         try {
@@ -195,7 +201,7 @@ export default function Interviews() {
                         <table className="data-table enhanced-table">
                             <thead>
                                 <tr>
-                                    <th>Student Name</th>
+                                    <th>{isRecruiter ? 'Student Name' : 'Job / Role'}</th>
                                     <th>Status</th>
                                     <th>Report</th>
                                     <th>Profile</th>
@@ -221,12 +227,12 @@ export default function Interviews() {
                                                         fontSize: '0.8rem',
                                                     }}
                                                 >
-                                                    {p.student_name?.charAt(0)?.toUpperCase() || '?'}
+                                                    {(isRecruiter ? p.student_name : (p.job_title || 'M'))?.charAt(0)?.toUpperCase() || '?'}
                                                 </div>
                                                 <div>
-                                                    <div>{p.student_name || 'Student'}</div>
+                                                    <div>{isRecruiter ? (p.student_name || 'Student') : (p.job_title || 'MNC Role')}</div>
                                                     <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                                                        {p.student_email || ''}
+                                                        {isRecruiter ? (p.student_email || '') : (p.company_name || '')}
                                                     </div>
                                                 </div>
                                             </div>
@@ -266,25 +272,36 @@ export default function Interviews() {
                                             </button>
                                         </td>
                                         <td>
-                                            <div style={{ display: 'flex', gap: '8px' }}>
-                                                <button 
-                                                    className="btn btn-sm btn-success"
-                                                    onClick={() => onHireReject(p.id, 'hire')}
-                                                    title="Hire Candidate"
-                                                >
-                                                    ✓
-                                                </button>
-                                                <button 
-                                                    className="btn btn-sm btn-error"
-                                                    onClick={() => {
-                                                        setSelectedPipeline(p);
-                                                        setFeedbackModal(true);
-                                                    }}
-                                                    title="Reject Candidate"
-                                                >
-                                                    ✗
-                                                </button>
-                                            </div>
+                                            {isRecruiter ? (
+                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                    <button 
+                                                        className="btn btn-sm btn-success"
+                                                        onClick={() => onHireReject(p.id, 'hire')}
+                                                        title="Hire Candidate"
+                                                    >
+                                                        ✓
+                                                    </button>
+                                                    <button 
+                                                        className="btn btn-sm btn-error"
+                                                        onClick={() => {
+                                                            setSelectedPipeline(p);
+                                                            setFeedbackModal(true);
+                                                        }}
+                                                        title="Reject Candidate"
+                                                    >
+                                                        ✗
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                (p.status === 'AI_ASSIGNED') ? (
+                                                    <button 
+                                                        className="btn btn-sm btn-primary"
+                                                        onClick={() => setShowRulesModal({ show: true, jobId: p.job_id })}
+                                                    >
+                                                        Start AI Interview
+                                                    </button>
+                                                ) : <span style={{ color: 'var(--color-text-muted)' }}>-</span>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
@@ -476,6 +493,66 @@ export default function Interviews() {
                                 </div>
                             </>
                         ) : null}
+                    </div>
+                </div>
+            )}
+
+            {/* Rules Modal */}
+            {showRulesModal.show && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+                    backdropFilter: 'blur(4px)'
+                }}>
+                    <div style={{
+                        backgroundColor: 'var(--color-bg-card)', borderRadius: '12px', padding: '32px', maxWidth: '600px', width: '90%',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255,255,255,0.05)',
+                        border: '1px solid var(--color-border)', animation: 'slideUp 0.3s ease-out', maxHeight: '90vh', overflowY: 'auto'
+                    }}>
+                        <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: 0, color: 'var(--color-text-primary)' }}>
+                            <FiShield style={{ color: 'var(--color-primary)' }} /> Interview Rules & Regulations
+                        </h2>
+                        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '24px' }}>
+                            Please review the strict AI proctoring policies before starting your session.
+                        </p>
+                        <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <li style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                                <span style={{ fontSize: '1.2rem' }}>📹</span>
+                                <div><strong style={{ display: 'block' }}>Camera Required</strong><span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>You must keep your webcam enabled. If your face is out of view, the interview will terminate instantly.</span></div>
+                            </li>
+                            <li style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                                <span style={{ fontSize: '1.2rem' }}>📱</span>
+                                <div><strong style={{ display: 'block', color: 'var(--color-error)' }}>No Mobile Phones or Tablets</strong><span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>If a phone, tablet, or external remote is detected in your frame, the session will be immediately flagged and terminated.</span></div>
+                            </li>
+                            <li style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                                <span style={{ fontSize: '1.2rem' }}>🖥️</span>
+                                <div><strong style={{ display: 'block', color: 'var(--color-error)' }}>No Tab Switching</strong><span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Any attempt to switch tabs, copy-paste, or minimize the browser window will terminate the test instantly.</span></div>
+                            </li>
+                            <li style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                                <span style={{ fontSize: '1.2rem' }}>👥</span>
+                                <div><strong style={{ display: 'block' }}>Solo Interview</strong><span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Only ONE person must be in the frame. The presence of multiple faces will trigger termination.</span></div>
+                            </li>
+                        </ul>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: '24px', padding: '12px', backgroundColor: 'var(--color-bg-alt)', borderRadius: '8px' }}>
+                            <input type="checkbox" checked={rulesAccepted} onChange={e => setRulesAccepted(e.target.checked)} style={{ transform: 'scale(1.2)' }} />
+                            <span style={{ fontSize: '0.9rem', color: 'var(--color-text-primary)', fontWeight: 600 }}>I understand and agree to follow all proctoring rules.</span>
+                        </label>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                            <button className="btn btn-secondary" onClick={() => { setShowRulesModal({ show: false, jobId: null }); setRulesAccepted(false); }}>Cancel</button>
+                            <button 
+                                className="btn btn-primary" 
+                                disabled={!rulesAccepted}
+                                onClick={() => {
+                                    const path = showRulesModal.jobId 
+                                        ? `/dashboard/interview/live?mode=recruiter&job_id=${showRulesModal.jobId}` 
+                                        : '/dashboard/interview/live?mode=practice';
+                                    setShowRulesModal({ show: false, jobId: null });
+                                    navigate(path);
+                                }}
+                            >
+                                Start Interview
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

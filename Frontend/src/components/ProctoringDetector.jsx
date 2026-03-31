@@ -32,10 +32,10 @@ const VIOLATION_TYPES = {
 
 // Thresholds
 const NO_FACE_WARNING_SEC = 8;
-const NO_FACE_AUTO_END_SEC = 15;
+const NO_FACE_AUTO_END_SEC = 3;
 const LOOKING_AWAY_SEC = 6;
 const FACE_CHECK_INTERVAL = 2000;   // every 2s
-const OBJECT_CHECK_INTERVAL = 5000; // every 5s
+const OBJECT_CHECK_INTERVAL = 1500; // every 1.5s
 
 export default function ProctoringDetector({ videoRef, sessionId, active, onViolation, onWarning, onAutoEnd }) {
   const [modelsLoaded, setModelsLoaded] = useState(false);

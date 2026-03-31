@@ -110,10 +110,21 @@ async def generate_report(
     # Weighted final score
     final_score = 0.5 * avg_technical + 0.3 * avg_communication + 0.2 * avg_behavior
 
+    if ended_reason != "normal":
+        final_score = 0.0
+        avg_technical = 0.0
+        avg_communication = 0.0
+        avg_behavior = 0.0
+        logger.warning(f"FeedbackAgent: Session {session_id} ended due to {ended_reason}. Zeroing scores.")
+        weak_areas.append(f"CRITICAL: Failed proctoring validation. Reason: {ended_reason}")
+
     # Build behavior summary string
     behavior_summary_str = ", ".join(
         f"{k}: {v}" for k, v in behavior_counts.items() if v > 0
     ) or "No behavior data"
+    
+    if ended_reason != "normal":
+        behavior_summary_str = f"PROCTORING VIOLATION: {ended_reason}. " + behavior_summary_str
 
     # Legacy score summary for backward compat prompt
     score_summary = (

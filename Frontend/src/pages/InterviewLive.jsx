@@ -87,7 +87,6 @@ export default function InterviewLive() {
   const hasStartedRef   = useRef(false);
   const finalTranscriptRef = useRef('');         // accumulates final results across STT segments
   const isListeningRef     = useRef(false);      // tracks if we WANT to keep listening
-  const [rulesAccepted, setRulesAccepted] = useState(false);
 
   /* ── fullscreen is now handled by DashboardLayout.jsx ──────────────── */
 
@@ -325,7 +324,7 @@ export default function InterviewLive() {
 
       r.onresult = e => {
         let segmentFinal = '', interim = '';
-        for (let i = 0; i < e.results.length; i++) {
+        for (let i = e.resultIndex; i < e.results.length; i++) {
           if (e.results[i].isFinal) segmentFinal += e.results[i][0].transcript + ' ';
           else interim += e.results[i][0].transcript;
         }
@@ -456,7 +455,8 @@ export default function InterviewLive() {
         });
         setSessionId(r.data.session_id);
         setAgentText(r.data.greeting);
-        setState(STATES.RULES);        // Show rules first, then greeting
+        setState(STATES.GREETING);
+        // We do not auto-speak here due to browser gesture requirements; the user can read the text and click 'Yes' to proceed.
       } catch (e) { setError(e.response?.data?.detail || 'Failed to start'); setState(STATES.ERROR); }
     })();
     return () => { clearTimers(); stopRecording(); window.speechSynthesis?.cancel(); streamRef.current?.getTracks().forEach(t => t.stop()); };
@@ -487,11 +487,6 @@ export default function InterviewLive() {
   /* ═══════════════════════════════════════════════════════════════════════
      RENDER
      ═══════════════════════════════════════════════════════════════════════ */
-  /* ── accept rules handler ───────────────────────────────────────────── */
-  const handleAcceptRules = useCallback(() => {
-    setState(STATES.GREETING);
-    speak(agentText);
-  }, [agentText, speak]);
 
   return (
     <DeviceGuard>
@@ -543,37 +538,6 @@ export default function InterviewLive() {
             <div className="meet-state-center">
               <div className="meet-spinner" />
               <p className="meet-loading-text">Connecting to AI Interviewer…</p>
-            </div>
-          )}
-
-          {/* ── RULES & REGULATIONS ──────────────────────────────────── */}
-          {state === STATES.RULES && (
-            <div className="meet-state-center" style={{ overflowY: 'auto', padding: 20 }}>
-              <div className="meet-rules-card">
-                <div className="meet-rules-icon">📋</div>
-                <h2 className="meet-rules-title">Interview Rules & Regulations</h2>
-                <p className="meet-rules-subtitle">Please read and accept before starting</p>
-                <ul className="meet-rules-list">
-                  <li className="meet-rules-item meet-rules-ok"><span className="meet-rules-emoji">📹</span> Keep your camera <strong>ON</strong> at all times</li>
-                  <li className="meet-rules-item meet-rules-ok"><span className="meet-rules-emoji">🎤</span> Use a clear microphone for voice answers</li>
-                  <li className="meet-rules-item meet-rules-ok"><span className="meet-rules-emoji">👤</span> Only <strong>one person</strong> must be visible in the frame</li>
-                  <li className="meet-rules-item meet-rules-ok"><span className="meet-rules-emoji">👀</span> Look at the camera — do not look away</li>
-                  <li className="meet-rules-item meet-rules-no"><span className="meet-rules-emoji">🚫</span> <strong>No tab switching</strong> — interview will terminate</li>
-                  <li className="meet-rules-item meet-rules-no"><span className="meet-rules-emoji">📱</span> <strong>No mobile phones</strong> visible — interview will terminate</li>
-                  <li className="meet-rules-item meet-rules-no"><span className="meet-rules-emoji">📖</span> <strong>No books or notes</strong> — they will be detected</li>
-                  <li className="meet-rules-item meet-rules-no"><span className="meet-rules-emoji">🖱️</span> <strong>No copy/paste or right-click</strong> — blocked</li>
-                  <li className="meet-rules-item meet-rules-no"><span className="meet-rules-emoji">🔌</span> <strong>No external devices</strong> (tablets, remotes) — detected & terminated</li>
-                  <li className="meet-rules-item meet-rules-warn"><span className="meet-rules-emoji">🤖</span> AI proctoring is <strong>active throughout</strong> the interview</li>
-                  <li className="meet-rules-item meet-rules-warn"><span className="meet-rules-emoji">⏱️</span> Each question has a time limit — answer within the allotted time</li>
-                </ul>
-                <label className="meet-rules-checkbox">
-                  <input type="checkbox" checked={rulesAccepted} onChange={e => setRulesAccepted(e.target.checked)} />
-                  <span>I have read and agree to all the rules above</span>
-                </label>
-                <button className="meet-btn-yes meet-rules-btn" disabled={!rulesAccepted} onClick={handleAcceptRules}>
-                  I Understand & Agree — Start Interview
-                </button>
-              </div>
             </div>
           )}
 
@@ -674,7 +638,11 @@ export default function InterviewLive() {
                     <div className="meet-report-score-card"><div className="meet-report-score-val">{report.communication_score !== undefined ? (report.communication_score * 100).toFixed(0) + '%' : '—'}</div><div className="meet-report-score-lbl">Communication</div></div>
                     {report.behavior_score > 0 && <div className="meet-report-score-card"><div className="meet-report-score-val">{(report.behavior_score * 100).toFixed(0)}%</div><div className="meet-report-score-lbl">Behavior</div></div>}
                   </div>
-                  {report.strengths?.length > 0 && <div className="meet-report-section"><h4>Strengths</h4><ul className="meet-report-list str">{report.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul></div>}
+                  {report.strengths?.length > 0 ? (
+                    <div className="meet-report-section"><h4>Abilities / Strengths</h4><ul className="meet-report-list str">{report.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul></div>
+                  ) : (
+                    <div className="meet-report-section"><h4>Abilities / Strengths</h4><p style={{color: '#9ca3af', fontStyle: 'italic', fontSize: '0.9rem', marginBottom: '15px'}}>No specific abilities demonstrated.</p></div>
+                  )}
                   {report.weaknesses?.length > 0 && <div className="meet-report-section"><h4>Weaknesses</h4><ul className="meet-report-list wk">{report.weaknesses.map((w, i) => <li key={i}>{w}</li>)}</ul></div>}
                   {report.behavior_summary && <div className="meet-report-section"><h4>Behavior</h4><p>{report.behavior_summary}</p></div>}
                   {report.recommendation && <div className={`meet-recommendation ${(report.recommendation || '').split(':')[0]}`}>{report.recommendation}</div>}
@@ -688,7 +656,7 @@ export default function InterviewLive() {
         </div>
 
         {/* === STUDENT TILE (Camera always on) === */}
-        {(isActive || state === STATES.GREETING || state === STATES.CONFIRM_START || state === STATES.RULES) && (
+        {(isActive || state === STATES.GREETING || state === STATES.CONFIRM_START) && (
           <div className="meet-tile">
             {cameraOn ? (
               <>

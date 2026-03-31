@@ -503,6 +503,7 @@ class InterviewService:
         student_id: UUID,
         session_id: UUID,
         db: AsyncSession,
+        ended_reason: str = "normal",
     ) -> EndInterviewResponse:
         """End the interview session and generate the final report."""
         llm = get_llm()
@@ -531,6 +532,7 @@ class InterviewService:
             session_id=session_id,
             db=db,
             llm=llm,
+            ended_reason=ended_reason,
         )
         logger.info("end_interview: report generated for session_id=%s, data=%s", session_id, report_data)
 

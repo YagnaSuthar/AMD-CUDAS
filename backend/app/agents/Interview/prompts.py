@@ -325,22 +325,23 @@ QUESTION: {question}
 ANSWER: {answer}
 DIFFICULTY LEVEL: {difficulty}
 
-IMPORTANT: Do NOT treat skipped, refusal, or irrelevant answers as confident or correct.
+IMPORTANT: Be extremely critical and strict with your evaluation.
+Do NOT treat skipped, refusal, irrelevant, generic, or bad answers as confident or correct.
 If the candidate says things like "skip", "I don't know", "pass", "next question",
-or provides no meaningful technical content, you MUST score technical_score as 0.0-0.1
+or provides an incorrect, generic, or meaningless answer, you MUST score technical_score as 0.0-0.2
 and communication/behavior scores as 0.1-0.3 at most.
 
 Score each dimension from 0.0 to 1.0:
 
 1. technical_score: How technically accurate and complete is the answer?
-   - 0.0-0.1: Skipped, refused, or no relevant content at all
-   - 0.1-0.3: Incorrect or barely relevant content
-   - 0.3-0.6: Partially correct, missing key concepts
+   - 0.0-0.2: Skipped, refused, incorrect, generic, or no relevant content
+   - 0.2-0.4: Barely relevant or mostly incorrect
+   - 0.4-0.6: Partially correct, missing key concepts
    - 0.6-0.8: Mostly correct with good understanding
    - 0.8-1.0: Excellent, thorough, and precise
 
 2. communication_score: How clearly and professionally did they communicate?
-   - 0.0-0.2: Skipped or extremely brief (one-word, no explanation)
+   - 0.0-0.2: Skipped, extremely brief, or one-word answer
    - 0.2-0.4: Incoherent or very poorly structured
    - 0.4-0.6: Understandable but poorly structured
    - 0.6-0.8: Clear and well-organized
@@ -380,13 +381,14 @@ Strong areas: {strong_areas}
 Questions asked: {total_questions}
 
 Generate a supportive report with:
-1. weak_areas: List of specific technical gaps identified
-2. missing_skills: Skills the student should learn
-3. improvements: Concrete suggestions for improvement
-4. learning_path: Recommended topics/resources to study (ordered by priority)
-5. encouragement: A friendly encouraging message
+1. weak_areas: COMPLETE list of ALL specific technical gaps and missing skills identified during the session. Include every gap.
+2. missing_skills: Core skills the student should learn or improve.
+3. improvements: Concrete, actionable suggestions.
+4. learning_path: Recommended topics/resources to study (ordered by priority).
+5. encouragement: A friendly, encouraging message.
 
 Tone: Friendly, supportive, constructive. Like a mentor giving advice.
+IF the session was terminated early due to a proctoring violation (e.g. TAB_SWITCH, PHONE_DETECTED), clearly state it as a critical failure point.
 
 Return JSON:
 {{"weak_areas": ["area1"], "missing_skills": ["skill1"], "improvements": ["suggestion1"], "learning_path": ["topic1: description"], "encouragement": "message"}}"""
@@ -414,13 +416,15 @@ Based on the final weighted score, provide a recommendation:
 - final_score < 0.4: "REJECT" — Does not meet minimum requirements
 
 Generate:
-1. technical_assessment: Professional summary of technical ability
-2. communication_assessment: Assessment of communication skills
-3. behavior_analysis: Analysis of professional behavior
-4. strengths: Key strengths observed
-5. weaknesses: Key weaknesses observed
+1. technical_assessment: Professional summary of technical ability.
+2. communication_assessment: Assessment of communication skills.
+3. behavior_analysis: Analysis of professional behavior. (MUST explicitly mention any proctoring violations if they occurred).
+4. strengths: COMPLETE, EXHAUSTIVE list of ALL core strengths demonstrated.
+5. weaknesses: COMPLETE, EXHAUSTIVE list of ALL technical gaps, flaws, and proctoring violations.
 6. recommendation: One of STRONGLY_HIRE, SHOULD_HIRE, WEAK_HIRE, REJECT
-7. justification: Brief justification for the recommendation
+7. justification: Brief justification for the recommendation.
+
+CRITICAL: Do not truncate or omit any strengths or weaknesses passed in the context. List everything.
 
 Return JSON:
 {{"technical_assessment": "text", "communication_assessment": "text", "behavior_analysis": "text", "strengths": ["s1"], "weaknesses": ["w1"], "recommendation": "SHOULD_HIRE", "justification": "text"}}"""

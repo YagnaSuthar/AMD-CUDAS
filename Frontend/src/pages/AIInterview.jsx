@@ -28,6 +28,8 @@ export default function AIInterview() {
     const navigate = useNavigate();
     const [history, setHistory] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(true);
+    const [showRulesModal, setShowRulesModal] = useState(false);
+    const [rulesAccepted, setRulesAccepted] = useState(false);
 
     // Fetch interview history
     useEffect(() => {
@@ -92,7 +94,7 @@ export default function AIInterview() {
                     </p>
                     <button
                         className="iv-hero-btn"
-                        onClick={() => navigate('/dashboard/interview/live?mode=practice')}
+                        onClick={() => setShowRulesModal(true)}
                     >
                         <span className="iv-hero-btn-pulse" />
                         <FiMic className="iv-hero-btn-icon" />
@@ -207,6 +209,62 @@ export default function AIInterview() {
                     </div>
                 )}
             </div>
+            {/* Rules Modal */}
+            {showRulesModal && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+                    backdropFilter: 'blur(4px)'
+                }}>
+                    <div style={{
+                        backgroundColor: 'var(--color-bg-card)', borderRadius: '12px', padding: '32px', maxWidth: '600px', width: '90%',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255,255,255,0.05)',
+                        border: '1px solid var(--color-border)', animation: 'slideUp 0.3s ease-out', maxHeight: '90vh', overflowY: 'auto'
+                    }}>
+                        <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: 0, color: 'var(--color-text-primary)' }}>
+                            <FiShield style={{ color: 'var(--color-primary)' }} /> Interview Rules & Regulations
+                        </h2>
+                        <p style={{ color: 'var(--color-text-secondary)', marginBottom: '24px' }}>
+                            Please review the strict AI proctoring policies before starting your session.
+                        </p>
+                        <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <li style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                                <span style={{ fontSize: '1.2rem' }}>📹</span>
+                                <div><strong style={{ display: 'block' }}>Camera Required</strong><span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>You must keep your webcam enabled. If your face is out of view, the interview will terminate instantly.</span></div>
+                            </li>
+                            <li style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                                <span style={{ fontSize: '1.2rem' }}>📱</span>
+                                <div><strong style={{ display: 'block', color: 'var(--color-error)' }}>No Mobile Phones or Tablets</strong><span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>If a phone, tablet, or external remote is detected in your frame, the session will be immediately flagged and terminated.</span></div>
+                            </li>
+                            <li style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                                <span style={{ fontSize: '1.2rem' }}>🖥️</span>
+                                <div><strong style={{ display: 'block', color: 'var(--color-error)' }}>No Tab Switching</strong><span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Any attempt to switch tabs, copy-paste, or minimize the browser window will terminate the test instantly.</span></div>
+                            </li>
+                            <li style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                                <span style={{ fontSize: '1.2rem' }}>👥</span>
+                                <div><strong style={{ display: 'block' }}>Solo Interview</strong><span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Only ONE person must be in the frame. The presence of multiple faces will trigger termination.</span></div>
+                            </li>
+                        </ul>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: '24px', padding: '12px', backgroundColor: 'var(--color-bg-alt)', borderRadius: '8px' }}>
+                            <input type="checkbox" checked={rulesAccepted} onChange={e => setRulesAccepted(e.target.checked)} style={{ transform: 'scale(1.2)' }} />
+                            <span style={{ fontSize: '0.9rem', color: 'var(--color-text-primary)', fontWeight: 600 }}>I understand and agree to follow all proctoring rules.</span>
+                        </label>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                            <button className="btn btn-secondary" onClick={() => { setShowRulesModal(false); setRulesAccepted(false); }}>Cancel</button>
+                            <button 
+                                className="btn btn-primary" 
+                                disabled={!rulesAccepted}
+                                onClick={() => {
+                                    setShowRulesModal(false);
+                                    navigate('/dashboard/interview/live?mode=practice');
+                                }}
+                            >
+                                Start Interview
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
