@@ -118,6 +118,11 @@ class VerificationService:
         if input_type == "project":
             contribution_summary = extracted.get("contribution_analysis")
 
+        # Extract blockchain verification status for certificates
+        blockchain_verified = None
+        if input_type == "certificate":
+            blockchain_verified = scores.get("blockchain_verified", False)
+
         # Build result payload
         result_payload = {
             "status": status,
@@ -128,6 +133,7 @@ class VerificationService:
             "recommendations": recommendations,
             "explanation": explanation,
             "contribution_summary": contribution_summary,
+            "blockchain_verified": blockchain_verified,
         }
 
         # Store verification run

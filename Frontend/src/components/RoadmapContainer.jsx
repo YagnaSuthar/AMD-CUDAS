@@ -113,21 +113,27 @@ function WeekCardsRow({ branchSteps, step, onSubmitProject, onMarkBranchStepComp
                                                 {tasks.map((t, i) => {
                                                     const taskId = `${wIdx}-${i}`;
                                                     const isExpanded = expandedTasks.has(taskId);
-                                                    const isTruncated = t.length > 40;
+                                                    const isTruncated = t.length > 60;
                                                     
                                                     return (
                                                         <li 
                                                             key={i} 
+                                                            style={{ cursor: isTruncated ? 'pointer' : 'default' }}
                                                             onClick={(e) => {
                                                                 if (isTruncated) {
                                                                     e.stopPropagation();
                                                                     toggleTaskExpansion(taskId);
                                                                 }
                                                             }}
-                                                            style={{ cursor: isTruncated ? 'pointer' : 'default' }}
-                                                            title={isTruncated && !isExpanded ? "Click to view full task" : ""}
                                                         >
-                                                            {isExpanded ? t : (isTruncated ? t.slice(0, 40) + '…' : t)}
+                                                            <div style={{ wordBreak: 'break-word', whiteSpace: 'normal', display: 'block' }}>
+                                                                {isExpanded ? t : (isTruncated ? t.slice(0, 60).trim() + '...' : t)}
+                                                                {isTruncated && (
+                                                                    <span style={{ color: 'var(--color-primary)', fontSize: '0.65rem', marginLeft: '5px', fontWeight: 'bold' }}>
+                                                                        {isExpanded ? ' ▲ Less' : ' ▼ More'}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </li>
                                                     );
                                                 })}

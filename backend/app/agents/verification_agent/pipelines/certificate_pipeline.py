@@ -45,6 +45,21 @@ async def run_certificate_pipeline(
     consistency_res = await validate_cross_profile_consistency(extracted=extracted, profile_data=profile_data)
     ml_res = await fraud_score_placeholder(input_type="certificate", extracted=extracted)
 
+    blockchain_verified = False
+    try:
+        from sqlalchemy import select
+        from app.models.certificate_block import CertificateBlock
+        from app.services.certificate_service import verify_chain_integrity
+
+        block_res = await db.execute(select(CertificateBlock).where(CertificateBlock.certificate_hash == file_hash))
+        block = block_res.scalar_one_or_none()
+
+        if block is not None:
+            is_chain_valid = await verify_chain_integrity(db)
+            blockchain_verified = is_chain_valid
+    except Exception as e:
+        logger.warning("Blockchain validation failed to execute: %s", e)
+
     issues.extend(format_res["issues"])
     issues.extend(metadata_res["issues"])
     issues.extend(source_res["issues"])
@@ -61,6 +76,7 @@ async def run_certificate_pipeline(
         "source_score": source_res["score"],
         "consistency_score": consistency_res["score"],
         "ml_score": ml_res["score"],
+        "blockchain_verified": blockchain_verified,
     }
 
     return extracted, scores, issues, verified_fields, recommendations

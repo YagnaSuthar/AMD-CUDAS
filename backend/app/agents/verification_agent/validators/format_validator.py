@@ -8,12 +8,13 @@ async def validate_certificate_format(extracted: dict[str, Any]) -> dict[str, An
     issues: list[str] = []
     verified_fields: list[str] = []
 
-    key_phrases = ["certificate", "certify", "issued", "completion"]
+    key_phrases = ["certificate", "certify", "issued", "completion", "achievement", "award", "program", "diploma", "degree", "verify"]
     hits = sum(1 for p in key_phrases if p in text)
 
-    score = min(1.0, hits / 3.0) if text.strip() else 0.0
+    # 4 strong hits is enough for perfect format score
+    score = min(1.0, hits / 4.0) if text.strip() else 0.0
 
-    if score < 0.4:
+    if score < 0.35:
         issues.append("Certificate text does not match common certificate phrasing")
     else:
         verified_fields.append("format")

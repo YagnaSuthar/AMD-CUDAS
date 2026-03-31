@@ -1083,7 +1083,7 @@ async def upload_certificate(
             file_bytes,
         )
 
-        await create_certificate_and_block(
+        cert, block = await create_certificate_and_block(
             db=db,
             student_id=current_user.id,
             title=title,
@@ -1092,6 +1092,40 @@ async def upload_certificate(
             file_path=file_path,
             file_hash=file_hash,
         )
+
+        # Trigger Verification Agent
+        try:
+            from app.agents.verification_agent.controller import VerificationController
+            import logging
+            logger = logging.getLogger(__name__)
+
+            # Reset file pointer since we already read it
+            await file.seek(0)
+
+            controller = VerificationController(db=db)
+            verification = await controller.verify(
+                user_id=current_user.id,
+                file=file,
+                link=None,
+                profile_data=None,
+            )
+
+            # Update certificate based on AI Verification Result
+            if verification.status == "verified":
+                cert.is_verified = True
+                cert.points = 10  # Standard 10 points for a valid certificate
+                logger.info("[CERT_UPLOAD] Certificate %s verified successfully: %s", cert.id, verification.confidence_score)
+            else:
+                cert.is_verified = False
+                cert.points = 0
+                logger.warning("[CERT_UPLOAD] Certificate %s failed verification: %s", cert.id, verification.status)
+            
+            db.add(cert)
+            await db.commit()
+
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error("[CERT_UPLOAD] Agent Verification encountered an error: %s", exc)
 
     # Process GitHub project if provided
     if github_url:

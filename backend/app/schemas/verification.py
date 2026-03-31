@@ -31,6 +31,7 @@ class VerificationResponse(BaseModel):
     recommendations: list[str] = Field(default_factory=list)
     explanation: dict[str, Any] = Field(default_factory=dict)
     contribution_summary: Optional[dict[str, Any]] = Field(default=None, description="Deep GitHub contribution analysis")
+    blockchain_verified: Optional[bool] = Field(default=None, description="Blockchain verification status for certs")
 
     input_type: InputType
     run_id: str
