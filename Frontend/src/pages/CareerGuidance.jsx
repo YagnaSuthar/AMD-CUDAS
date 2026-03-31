@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
+import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import RoadmapContainer from '../components/RoadmapContainer';
-import { FiTarget, FiBookOpen, FiAward, FiBriefcase, FiTrendingUp, FiLoader, FiEdit2, FiSave, FiX, FiCheck, FiCompass, FiZap, FiShield, FiSend, FiMessageCircle, FiLock, FiCheckCircle, FiClock } from 'react-icons/fi';
+import { FiTarget, FiBookOpen, FiAward, FiBriefcase, FiTrendingUp, FiLoader, FiEdit2, FiSave, FiX, FiCheck, FiCompass, FiZap, FiShield, FiSend, FiMessageCircle, FiLock, FiCheckCircle, FiClock, FiBarChart2 } from 'react-icons/fi';
 import '../style/roadmap.css';
 
 export default function CareerGuidance() {
@@ -18,6 +19,7 @@ export default function CareerGuidance() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [goalChangeInfo, setGoalChangeInfo] = useState(null);
+    const toastShownRef = useRef(false);
 
     // Career Guidance Chat
     const [guidanceQuery, setGuidanceQuery] = useState('');
@@ -648,6 +650,125 @@ export default function CareerGuidance() {
                 </div>
             )}
 
+
+            {/* ── Career Roadmap Progress Overview (equal-weight phases) ── */}
+            {goal && roadmap && roadmap.steps && roadmap.steps.length > 0 && (() => {
+                const totalPhases = roadmap.steps.length;
+                const phaseWeight = 1 / totalPhases; // each phase = equal slice
+
+                let progressSum = 0;        // 0.0 – 1.0
+                let totalWeeksCompleted = 0;
+                let totalWeeks = 0;
+                let phasesCompleted = 0;
+
+                // For toast: find the first non-completed phase with branch steps
+                let activePhaseTitle = null;
+                let activePhaseWeeksRemaining = 0;
+                let activePhaseWeeksTotal = 0;
+                let activePhaseIndex = -1;
+
+                roadmap.steps.forEach((step, idx) => {
+                    const branch = phaseBranches?.[step.id];
+                    const branchSteps = branch?.data?.steps || branch?.data?.data?.steps || [];
+
+                    if (step.status === 'completed') {
+                        // Fully completed phase = full weight
+                        progressSum += phaseWeight;
+                        phasesCompleted += 1;
+                        if (branchSteps.length > 0) {
+                            totalWeeks += branchSteps.length;
+                            totalWeeksCompleted += branchSteps.length;
+                        }
+                    } else if (branchSteps.length > 0) {
+                        // Phase with loaded weeks — granular sub-progress
+                        const doneWeeks = branchSteps.filter(bs => bs.status === 'completed').length;
+                        progressSum += phaseWeight * (doneWeeks / branchSteps.length);
+                        totalWeeks += branchSteps.length;
+                        totalWeeksCompleted += doneWeeks;
+                        // Track the first active phase for the toast
+                        if (activePhaseIndex === -1) {
+                            activePhaseIndex = idx;
+                            activePhaseTitle = step.title;
+                            activePhaseWeeksRemaining = branchSteps.length - doneWeeks;
+                            activePhaseWeeksTotal = branchSteps.length;
+                        }
+                    } else {
+                        // Phase without branches and not completed
+                        // contributes 0 progress
+                        if (activePhaseIndex === -1) {
+                            activePhaseIndex = idx;
+                            activePhaseTitle = step.title;
+                        }
+                    }
+                });
+
+                const pct = Math.round(progressSum * 100);
+
+                // ── Motivational toast notification (once per page visit) ──
+                if (!toastShownRef.current && roadmap) {
+                    toastShownRef.current = true;
+                    setTimeout(() => {
+                        if (pct === 100) {
+                            toast.success('🎉 Amazing! You\'ve completed your entire career roadmap!', { autoClose: 5000 });
+                        } else if (activePhaseWeeksRemaining > 0 && activePhaseTitle) {
+                            toast.info(
+                                `💪 You're just ${activePhaseWeeksRemaining} week${activePhaseWeeksRemaining > 1 ? 's' : ''} away from completing Phase ${activePhaseIndex + 1}: "${activePhaseTitle}"! Keep going!`,
+                                { autoClose: 6000 }
+                            );
+                        } else if (phasesCompleted > 0 && phasesCompleted < totalPhases) {
+                            toast.info(
+                                `🚀 ${phasesCompleted}/${totalPhases} phases done! Open your next phase to unlock weekly tasks and keep progressing!`,
+                                { autoClose: 5000 }
+                            );
+                        } else if (pct === 0) {
+                            toast.info(
+                                '🎯 Welcome back! Start completing your roadmap phases to track your career progress!',
+                                { autoClose: 5000 }
+                            );
+                        }
+                    }, 1500);
+                }
+
+                const getMessage = () => {
+                    if (pct === 0) return { text: 'Your journey begins now — take the first step! 🚀', color: 'var(--color-text-muted)' };
+                    if (pct < 25) return { text: 'Great start! Keep the momentum going! 💪', color: 'var(--color-warning)' };
+                    if (pct < 50) return { text: 'Making solid progress — you\'re on the right track! 🔥', color: 'var(--color-accent)' };
+                    if (pct < 75) return { text: 'Over halfway there! You\'re doing amazing! ⚡', color: 'var(--color-secondary)' };
+                    if (pct < 100) return { text: 'Almost at the finish line — don\'t stop now! 🏆', color: 'var(--color-success)' };
+                    return { text: 'Congratulations! You\'ve completed your roadmap! 🎉🎓', color: 'var(--color-success)' };
+                };
+                const msg = getMessage();
+                return (
+                    <div className="career-progress-overview">
+                        <div className="cpo-header">
+                            <div className="cpo-icon-wrap"><FiBarChart2 /></div>
+                            <div className="cpo-title-area">
+                                <h3>Career Roadmap Progress</h3>
+                                <p>Track your journey towards <strong>{roadmap.title}</strong></p>
+                            </div>
+                            <div className="cpo-pct-badge" style={{ borderColor: msg.color }}>
+                                <span className="cpo-pct-number" style={{ color: msg.color }}>{pct}%</span>
+                            </div>
+                        </div>
+
+                        <div className="cpo-bar-track">
+                            <div className="cpo-bar-fill" style={{ width: `${pct}%` }}>
+                                {pct > 8 && <span className="cpo-bar-label">{pct}%</span>}
+                            </div>
+                        </div>
+
+                        <div className="cpo-footer">
+                            <div className="cpo-stats-row">
+                                <span className="cpo-stat"><FiCheckCircle style={{ color: 'var(--color-success)' }} /> {phasesCompleted}/{totalPhases} phases</span>
+                                {totalWeeks > 0 && (
+                                    <span className="cpo-stat"><FiCheck style={{ color: 'var(--color-secondary)' }} /> {totalWeeksCompleted}/{totalWeeks} weeks</span>
+                                )}
+                            </div>
+                            <p className="cpo-motivation" style={{ color: msg.color }}>{msg.text}</p>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* Generate Roadmap Section */}
             {goal && (

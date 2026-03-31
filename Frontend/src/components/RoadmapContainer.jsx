@@ -229,17 +229,65 @@ export default function RoadmapContainer({ roadmap, onStepComplete, phaseBranche
         setExpandedIndex(expandedIndex === index ? null : index);
     };
 
+    // Equal-weight progress: each phase = 1/N of total
+    const totalPhases = roadmap.steps.length;
+    const phaseWeight = 1 / totalPhases;
+    let progressSum = 0;
+    let phasesCompleted = 0;
+    let totalWeeksCompleted = 0;
+    let totalWeeks = 0;
+
+    roadmap.steps.forEach((step) => {
+        const branch = phaseBranches?.[step.id];
+        const branchSteps = branch?.data?.steps || branch?.data?.data?.steps || [];
+
+        if (step.status === 'completed') {
+            progressSum += phaseWeight;
+            phasesCompleted += 1;
+            if (branchSteps.length > 0) {
+                totalWeeks += branchSteps.length;
+                totalWeeksCompleted += branchSteps.length;
+            }
+        } else if (branchSteps.length > 0) {
+            const doneWeeks = branchSteps.filter(bs => bs.status === 'completed').length;
+            progressSum += phaseWeight * (doneWeeks / branchSteps.length);
+            totalWeeks += branchSteps.length;
+            totalWeeksCompleted += doneWeeks;
+        }
+    });
+    const progressPercentage = Math.round(progressSum * 100);
+
     return (
         <div className="snake-timeline">
             {/* Header */}
             <div className="snake-header">
-                <span className="snake-start-badge">
-                    <FiTarget /> Start
-                </span>
-                <h3 className="snake-title">{roadmap.title}</h3>
-                {roadmap.summary && (
-                    <p className="snake-subtitle">{roadmap.summary}</p>
-                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                    <div>
+                        <span className="snake-start-badge">
+                            <FiTarget /> Start
+                        </span>
+                        <h3 className="snake-title">{roadmap.title}</h3>
+                        {roadmap.summary && (
+                            <p className="snake-subtitle" style={{ marginTop: '8px' }}>{roadmap.summary}</p>
+                        )}
+                    </div>
+                    {/* Progress Component */}
+                    <div className="roadmap-progress-widget">
+                        <div className="roadmap-progress-info">
+                            <span className="roadmap-progress-label">Roadmap Progress</span>
+                            <span className="roadmap-progress-value">{progressPercentage}%</span>
+                        </div>
+                        <div className="roadmap-progress-bar-bg">
+                            <div 
+                                className="roadmap-progress-bar-fill" 
+                                style={{ width: `${progressPercentage}%` }}
+                            ></div>
+                        </div>
+                        <div className="roadmap-steps-count">
+                            {phasesCompleted} of {totalPhases} phases completed{totalWeeks > 0 ? ` · ${totalWeeksCompleted}/${totalWeeks} weeks` : ''}
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Timeline rows */}
