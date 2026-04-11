@@ -71,3 +71,6 @@ from app.models.roadmap import (  # noqa: F401
     RoadmapBranch,
     BranchStep,
 )
+from app.models.exam import (  # noqa: F401
+    Exam,
+)

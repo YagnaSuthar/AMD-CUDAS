@@ -24,6 +24,12 @@ export default function UserManagement({ allUsers = false, colleges = false }) {
     const [addForm, setAddForm] = useState({ name: '', email: '', department: '' });
     const [addLoading, setAddLoading] = useState(false);
     const [departments, setDepartments] = useState([]);
+    
+    // Details modal state
+    const [showDetailsModal, setShowDetailsModal] = useState(false);
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [userDetails, setUserDetails] = useState({ subjects: [], mentors: [] });
+    const [detailsLoading, setDetailsLoading] = useState(false);
 
     // Depending on props/roles, fetch different arrays
     useEffect(() => {
@@ -39,6 +45,27 @@ export default function UserManagement({ allUsers = false, colleges = false }) {
             setDepartments(res.data);
         } catch (err) {
             console.error('Failed to fetch departments:', err);
+        }
+    };
+
+    const fetchUserDetails = async (usr) => {
+        setSelectedUser(usr);
+        setShowDetailsModal(true);
+        setDetailsLoading(true);
+        try {
+            const [subRes, mentRes] = await Promise.all([
+                api.get(`/api/subject/faculty/${usr.id}`),
+                api.get(`/college/mentor/faculty/${usr.id}`)
+            ]);
+            setUserDetails({
+                subjects: subRes.data || [],
+                mentors: mentRes.data || []
+            });
+        } catch (err) {
+            console.error('Failed to fetch faculty details', err);
+            toast.error('Failed to load faculty details');
+        } finally {
+            setDetailsLoading(false);
         }
     };
 
@@ -289,13 +316,24 @@ export default function UserManagement({ allUsers = false, colleges = false }) {
                                             </span>
                                         </td>
                                         <td>
-                                            <button
-                                                onClick={() => handleDeleteUser(usr.id)}
-                                                className="action-btn action-btn-danger"
-                                                title="Delete User"
-                                            >
-                                                <FiTrash2 />
-                                            </button>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                {(user.role === 'HOD' || user.role === 'COLLEGE_PRINCIPAL') && usr.role === 'FACULTY' && (
+                                                    <button
+                                                        onClick={() => fetchUserDetails(usr)}
+                                                        className="action-btn action-btn-primary"
+                                                        title="View Details"
+                                                    >
+                                                        Details
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => handleDeleteUser(usr.id)}
+                                                    className="action-btn action-btn-danger"
+                                                    title="Delete User"
+                                                >
+                                                    <FiTrash2 />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -381,6 +419,75 @@ export default function UserManagement({ allUsers = false, colleges = false }) {
                                 The user will receive an email with instructions to set their password.
                             </p>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Faculty Details Modal */}
+            {showDetailsModal && selectedUser && (
+                <div className="modal-overlay" onClick={() => setShowDetailsModal(false)}>
+                    <div className="modal-content fade-in-up" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3> Faculty Details</h3>
+                            <button className="modal-close" onClick={() => setShowDetailsModal(false)}><FiX /></button>
+                        </div>
+                        
+                        <div className="modal-body" style={{ padding: '20px' }}>
+                            <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+                                <div className="user-avatar" style={{ width: '64px', height: '64px', fontSize: '1.5rem', margin: '0 auto 12px' }}>
+                                    {selectedUser.name?.charAt(0)?.toUpperCase()}
+                                </div>
+                                <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: 0 }}>{selectedUser.name}</h2>
+                                <p style={{ color: 'var(--color-text-muted)' }}>{selectedUser.email}</p>
+                            </div>
+
+                            {detailsLoading ? (
+                                <div className="spinner" style={{ margin: '20px auto' }}></div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                                    {/* SUBJECTS */}
+                                    <div>
+                                        <h4 style={{ fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--color-primary)', marginBottom: '12px', borderBottom: '1px solid var(--color-border)', pb: '8px' }}>
+                                            Assigned Subjects
+                                        </h4>
+                                        {userDetails.subjects.length > 0 ? (
+                                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                {userDetails.subjects.map((sub, i) => (
+                                                    <li key={i} style={{ padding: '10px 14px', background: 'var(--color-bg-alt)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <span style={{ fontWeight: 600 }}>{sub.subject_name}</span>
+                                                        <span className="status-badge" style={{ fontSize: '0.75rem' }}>Sem {sub.semester}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', fontStyle: 'italic' }}>No subjects assigned yet.</p>
+                                        )}
+                                    </div>
+
+                                    {/* MENTOR */}
+                                    <div>
+                                        <h4 style={{ fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--color-primary)', marginBottom: '12px', borderBottom: '1px solid var(--color-border)', pb: '8px' }}>
+                                            Mentor Assignments
+                                        </h4>
+                                        {userDetails.mentors.length > 0 ? (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                                {userDetails.mentors.map((m, i) => (
+                                                    <span key={i} className="status-badge status-badge-approved">
+                                                        Semester {m.semester}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', fontStyle: 'italic' }}>No mentor assignments yet.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="modal-footer" style={{ borderTop: '1px solid var(--color-border)', padding: '16px 20px', textAlign: 'right' }}>
+                            <button className="btn btn-secondary" onClick={() => setShowDetailsModal(false)}>Close</button>
+                        </div>
                     </div>
                 </div>
             )}

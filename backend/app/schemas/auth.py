@@ -159,6 +159,8 @@ class TimetableResponse(BaseModel):
     subject_name: str
     exam_date: str
     exam_time: str
+    status: str
+    published_at: Optional[str] = None
     created_at: Optional[str] = None
 
     class Config:
@@ -276,6 +278,7 @@ class FacultyOverviewResponse(BaseModel):
     assigned_subjects: list[str]
     total_students: int
     subject_stats: list[SubjectStat]
+    active_timetable: list[TimetableResponse] = []
 
 
 class StudentMarksDetail(BaseModel):
@@ -345,3 +348,34 @@ class LeaderboardEntry(BaseModel):
     certificate_points: int
     total_score: float
     badge: Optional[str] = None
+
+
+# ── Subject Assignment Schemas ─────────────────────────────────────────────
+
+
+class SubjectAssignmentCreate(BaseModel):
+    faculty_id: str
+    semester: int
+    subject_name: str
+    subject_code: str
+
+
+class SubjectAssignmentUpdate(BaseModel):
+    faculty_id: Optional[str] = None
+    semester: Optional[int] = None
+    subject_name: Optional[str] = None
+    subject_code: Optional[str] = None
+
+
+class SubjectAssignmentResponse(BaseModel):
+    id: str
+    faculty_id: str
+    faculty_name: Optional[str] = None
+    semester: int
+    subject_name: str
+    subject_code: str
+    department: str
+    created_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True

@@ -137,3 +137,12 @@ class RoleChecker:
                 detail=f"Access denied. Required roles: {self.allowed_roles}",
             )
         return current_user
+
+
+# ── Role Aliases ──────────────────────────────────────────────────────────
+
+principal_or_above = RoleChecker(["CUDAS_ADMIN", "COLLEGE_PRINCIPAL", "HOD", "FACULTY"])
+principal_only = RoleChecker(["COLLEGE_PRINCIPAL"])
+hod_only = RoleChecker(["HOD"])
+faculty_only = RoleChecker(["FACULTY"])
+student_only = RoleChecker(["STUDENT"])

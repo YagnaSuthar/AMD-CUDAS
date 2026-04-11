@@ -31,6 +31,7 @@ import Notifications from './pages/Notifications';
 import CareerGuidance from './pages/CareerGuidance';
 import Round2Meeting from './pages/Round2Meeting';
 import InterviewLive from './pages/InterviewLive';
+import AssignSubjects from './pages/AssignSubjects';
 
 function App() {
   return (
@@ -53,6 +54,7 @@ function App() {
             <Route element={<DashboardLayout />}>
               <Route index element={<Dashboard />} />
               <Route path="users" element={<UserManagement />} />
+              <Route path="assign-subjects" element={<AssignSubjects />} />
               <Route path="all-users" element={<UserManagement allUsers />} />
               <Route path="colleges" element={<UserManagement colleges />} />
               <Route path="companies" element={<CompanyManagement />} />

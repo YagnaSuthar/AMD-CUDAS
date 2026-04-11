@@ -136,4 +136,10 @@ app.include_router(rag_router)
 app.include_router(verification_router)
 
 from app.routers.projects import router as projects_router  # noqa: E402
+from app.routers.exam import router as exam_router # noqa: E402
+from app.routers.subject import router as subject_router # noqa: E402
+from app.routers.mentor import router as mentor_router # noqa: E402
 app.include_router(projects_router)
+app.include_router(exam_router)
+app.include_router(subject_router, prefix="/api")
+app.include_router(mentor_router, prefix="/api")

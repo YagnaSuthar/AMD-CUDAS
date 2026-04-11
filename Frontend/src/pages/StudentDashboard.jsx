@@ -362,6 +362,76 @@ export default function StudentDashboard() {
                 </div>
             </div>
 
+            {/* Active Exam Timetable */}
+            {timetable.length > 0 && (
+                <div className="dashboard-card fade-in-up fade-in-delay-1" style={{ marginBottom: '24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+                        <FiClock style={{ color: 'var(--color-primary)', fontSize: '1.2rem' }} />
+                        <h3 style={{ margin: 0 }}>Upcoming Exam Schedule</h3>
+                    </div>
+
+                    {Object.entries(
+                        timetable.reduce((acc, tt) => {
+                            const sem = tt.semester;
+                            if (!acc[sem]) acc[sem] = [];
+                            acc[sem].push(tt);
+                            return acc;
+                        }, {})
+                    )
+                    .sort(([a], [b]) => a - b)
+                    .map(([sem, semEntries]) => (
+                        <div key={sem} style={{ marginBottom: '24px' }}>
+                            <div style={{ 
+                                fontSize: '0.85rem', 
+                                fontWeight: 700, 
+                                color: 'var(--color-text-muted)', 
+                                marginBottom: '10px',
+                                textTransform: 'uppercase',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                            }}>
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-primary)' }}></span>
+                                Semester {sem}
+                            </div>
+                            <div className="table-scroll-wrapper" style={{ overflowX: 'auto' }}>
+                                <table className="data-table enhanced-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Subject</th>
+                                            <th>Date</th>
+                                            <th>Time</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {semEntries.map((tt, i) => (
+                                            <tr key={i}>
+                                                <td style={{ fontWeight: 600 }}>{tt.subject_name}</td>
+                                                <td>{tt.exam_date}</td>
+                                                <td>{tt.exam_time}</td>
+                                                <td>
+                                                    <span className={`countdown-tag ${new Date(tt.exam_date) < new Date() ? 'passed' : 'upcoming'}`} style={{
+                                                        padding: '4px 10px',
+                                                        borderRadius: '20px',
+                                                        fontSize: '0.75rem',
+                                                        fontWeight: '600',
+                                                        background: new Date(tt.exam_date) < new Date() ? 'var(--color-error-soft)' : 'var(--color-success-soft)',
+                                                        color: new Date(tt.exam_date) < new Date() ? 'var(--color-error)' : 'var(--color-success)'
+                                                    }}>
+                                                        {new Date(tt.exam_date) < new Date() ? 'Completed' : 'Upcoming'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
             {/* Exam Countdown */}
             {countdown && (
                 <div className="countdown-card fade-in-up fade-in-delay-1">

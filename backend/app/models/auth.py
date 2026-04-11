@@ -181,6 +181,10 @@ class Timetable(Base):
         ForeignKey("auth_users.id", ondelete="CASCADE"),
         nullable=False,
     )
+    status: Mapped[str] = mapped_column(String(20), default="active") # active, archived
+    published_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow
     )
@@ -328,6 +332,36 @@ class MentorAssignment(Base):
         nullable=False,
     )
     semester: Mapped[int] = mapped_column(Integer, nullable=False)
+    department: Mapped[str] = mapped_column(String(255), nullable=False)
+    assigned_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow
+    )
+
+    faculty = relationship("AuthUser", foreign_keys=[faculty_id])
+    assigner = relationship("AuthUser", foreign_keys=[assigned_by])
+
+
+class SubjectAssignment(Base):
+    """HOD assigns a faculty member to a specific subject for a semester."""
+
+    __tablename__ = "subject_assignments"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    faculty_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    semester: Mapped[int] = mapped_column(Integer, nullable=False)
+    subject_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    subject_code: Mapped[str] = mapped_column(String(50), nullable=False)
     department: Mapped[str] = mapped_column(String(255), nullable=False)
     assigned_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

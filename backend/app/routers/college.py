@@ -2,11 +2,14 @@ import uuid
 import os
 import shutil
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import RoleChecker, get_current_user
+from app.core.security import (
+    RoleChecker, get_current_user,
+    principal_or_above, principal_only, hod_only, faculty_only, student_only
+)
 from app.models.auth import AuthUser, Timetable, InternalMarks, Certificate, Department, MentorAssignment
 from app.models.auth import StudentPerformanceCategory, StudentPerformanceCategoryType
 from app.schemas.auth import (
@@ -32,11 +35,7 @@ from app.services.certificate_service import (
 
 router = APIRouter(prefix="/college", tags=["College Management"])
 
-principal_or_above = RoleChecker(["CUDAS_ADMIN", "COLLEGE_PRINCIPAL", "HOD", "FACULTY"])
-principal_only = RoleChecker(["COLLEGE_PRINCIPAL"])
-hod_only = RoleChecker(["HOD"])
-faculty_only = RoleChecker(["FACULTY"])
-student_only = RoleChecker(["STUDENT"])
+
 
 CERT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "certificate")
 
@@ -444,7 +443,21 @@ async def create_timetable(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(hod_only),
 ):
-    """Create a timetable entry for the HOD's department."""
+    """Create a timetable entry for the HOD's department. Auto-archives past ones."""
+    from datetime import date
+    today = date.today().isoformat()
+    
+    # Auto-archive past exams for this department
+    await db.execute(
+        update(Timetable)
+        .where(
+            Timetable.department == (current_user.department or "Unknown"),
+            Timetable.status == "active",
+            Timetable.exam_date < today
+        )
+        .values(status="archived")
+    )
+
     tt = Timetable(
         department=current_user.department or "Unknown",
         semester=body.semester,
@@ -452,6 +465,7 @@ async def create_timetable(
         exam_date=body.exam_date,
         exam_time=body.exam_time,
         created_by=current_user.id,
+        status="active"
     )
     db.add(tt)
     await db.commit()
@@ -460,20 +474,37 @@ async def create_timetable(
 
 @router.get("/hod/timetable", response_model=list[TimetableResponse])
 async def list_timetable_hod(
+    status: str = "active",
     db: AsyncSession = Depends(get_db),
     current_user=Depends(hod_only),
 ):
-    """List timetable entries for the HOD's department."""
+    """List timetable entries for the HOD's department, filtered by status."""
+    from datetime import date
+    today = date.today().isoformat()
     dept = current_user.department or "Unknown"
+
+    # Auto-archive past exams for this department before listing
+    if status == "active":
+        await db.execute(
+            update(Timetable)
+            .where(Timetable.department == dept, Timetable.status == "active", Timetable.exam_date < today)
+            .values(status="archived")
+        )
+        await db.commit()
+
     result = await db.execute(
-        select(Timetable).where(Timetable.department == dept).order_by(Timetable.exam_date)
+        select(Timetable)
+        .where(Timetable.department == dept, Timetable.status == status)
+        .order_by(Timetable.exam_date)
     )
     entries = result.scalars().all()
     return [
         TimetableResponse(
             id=str(e.id), department=e.department, semester=e.semester,
             subject_name=e.subject_name, exam_date=e.exam_date,
-            exam_time=e.exam_time, created_at=str(e.created_at) if e.created_at else None,
+            exam_time=e.exam_time, status=e.status,
+            published_at=str(e.published_at) if e.published_at else None,
+            created_at=str(e.created_at) if e.created_at else None,
         )
         for e in entries
     ]
@@ -684,6 +715,31 @@ async def list_mentors(
     ]
 
 
+@router.get("/mentor/faculty/{faculty_id}", response_model=list[MentorAssignmentResponse])
+async def get_faculty_mentors(
+    faculty_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Get all mentor assignments for a specific faculty member."""
+    res = await db.execute(
+        select(MentorAssignment)
+        .where(MentorAssignment.faculty_id == faculty_id)
+        .order_by(MentorAssignment.semester)
+    )
+    assignments = res.scalars().all()
+    return [
+        MentorAssignmentResponse(
+            id=str(m.id),
+            faculty_id=str(m.faculty_id),
+            semester=m.semester,
+            department=m.department,
+            created_at=str(m.created_at)
+        )
+        for m in assignments
+    ]
+
+
 # ══════════════════════════════════════════════════════════════════════════
 #  FACULTY DASHBOARD ENDPOINTS
 # ══════════════════════════════════════════════════════════════════════════
@@ -729,11 +785,40 @@ async def faculty_overview(
         avg = r.scalar() or 0.0
         subject_stats.append(SubjectStat(subject_name=subj, student_count=count, average_marks=round(avg, 2)))
 
+    # Also get current active timetable for the department
+    dept = current_user.department or "Unknown"
+    from datetime import date
+    today = date.today().isoformat()
+    
+    # Auto-archive past exams for this department before listing
+    await db.execute(
+        update(Timetable)
+        .where(Timetable.department == dept, Timetable.status == "active", Timetable.exam_date < today)
+        .values(status="archived")
+    )
+    await db.commit()
+
+    tt_res = await db.execute(
+        select(Timetable).where(Timetable.department == dept, Timetable.status == "active").order_by(Timetable.exam_date)
+    )
+    tt_entries = tt_res.scalars().all()
+    active_tt = [
+        TimetableResponse(
+            id=str(e.id), department=e.department, semester=e.semester,
+            subject_name=e.subject_name, exam_date=e.exam_date,
+            exam_time=e.exam_time, status=e.status,
+            published_at=str(e.published_at) if e.published_at else None,
+            created_at=str(e.created_at) if e.created_at else None,
+        )
+        for e in tt_entries
+    ]
+
     return FacultyOverviewResponse(
         assigned_semesters=sorted(all_semesters),
         assigned_subjects=subjects,
         total_students=len(students),
         subject_stats=subject_stats,
+        active_timetable=active_tt,
     )
 
 
@@ -985,20 +1070,33 @@ async def student_timetable(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(student_only),
 ):
-    """Read-only timetable view for student's department."""
+    """Read-only timetable view for student's department. Auto-archives past exams."""
     dept = current_user.department
     if not dept:
         return []
 
+    from datetime import date
+    today = date.today().isoformat()
+    
+    # Auto-archive past exams for this department
+    await db.execute(
+        update(Timetable)
+        .where(Timetable.department == dept, Timetable.status == "active", Timetable.exam_date < today)
+        .values(status="archived")
+    )
+    await db.commit()
+
     result = await db.execute(
-        select(Timetable).where(Timetable.department == dept).order_by(Timetable.exam_date)
+        select(Timetable).where(Timetable.department == dept, Timetable.status == "active").order_by(Timetable.exam_date)
     )
     entries = result.scalars().all()
     return [
         TimetableResponse(
             id=str(e.id), department=e.department, semester=e.semester,
             subject_name=e.subject_name, exam_date=e.exam_date,
-            exam_time=e.exam_time, created_at=str(e.created_at) if e.created_at else None,
+            exam_time=e.exam_time, status=e.status,
+            published_at=str(e.published_at) if e.published_at else None,
+            created_at=str(e.created_at) if e.created_at else None,
         )
         for e in entries
     ]

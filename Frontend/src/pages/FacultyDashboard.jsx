@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { FiUsers, FiBookOpen, FiLayers, FiTrendingUp } from 'react-icons/fi';
+import { FiUsers, FiBookOpen, FiLayers, FiTrendingUp, FiCalendar } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 const COLORS = ['#00bcd4', '#a87ef0', '#ffb703', '#22c55e', '#ef4444', '#667eea'];
@@ -9,17 +9,25 @@ const COLORS = ['#00bcd4', '#a87ef0', '#ffb703', '#22c55e', '#ef4444', '#667eea'
 export default function FacultyDashboard() {
     const { user } = useAuth();
     const [data, setData] = useState(null);
+    const [mentors, setMentors] = useState([]);
+    const [subjects, setSubjects] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         (async () => {
             try {
-                const res = await api.get('/college/faculty/overview');
-                setData(res.data);
+                const [overviewRes, mentorRes, subjectRes] = await Promise.all([
+                    api.get('/college/faculty/overview'),
+                    api.get(`/api/mentor/faculty/${user.id}`),
+                    api.get(`/api/subject/faculty/${user.id}`)
+                ]);
+                setData(overviewRes.data);
+                setMentors(mentorRes.data);
+                setSubjects(subjectRes.data);
             } catch (err) { console.error(err); }
             finally { setLoading(false); }
         })();
-    }, []);
+    }, [user.id]);
 
     if (loading) return <div className="spinner" style={{ margin: '40px auto' }}></div>;
 
@@ -37,28 +45,117 @@ export default function FacultyDashboard() {
             </div>
 
             <div className="stats-grid fade-in-up">
-                <div className="stat-card">
-                    <div className="stat-card-header">
-                        <span className="stat-card-label">Assigned Semesters</span>
+                {/* Mentor Responsibilities Card */}
+                <div className="stat-card" style={{ display: 'flex', flexDirection: 'column', height: '220px' }}>
+                    <div className="stat-card-header" style={{ marginBottom: '12px' }}>
+                        <span className="stat-card-label" style={{ fontWeight: 700 }}>Mentor Responsibilities</span>
                         <div className="stat-card-icon" style={{ background: 'var(--gradient-primary)' }}><FiLayers /></div>
                     </div>
-                    <div className="stat-card-value">{(data?.assigned_semesters || []).join(', ') || '—'}</div>
+                    <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }}>
+                        {mentors.length > 0 ? (
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {mentors.map((m, i) => (
+                                    <li key={i} style={{ fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>•</span>
+                                        Semester {m.semester}
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <span style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', fontStyle: 'italic' }}>None assigned</span>
+                        )}
+                    </div>
                 </div>
-                <div className="stat-card">
-                    <div className="stat-card-header">
-                        <span className="stat-card-label">Subjects</span>
+
+                {/* Subjects Assigned Card */}
+                <div className="stat-card" style={{ display: 'flex', flexDirection: 'column', height: '220px' }}>
+                    <div className="stat-card-header" style={{ marginBottom: '12px' }}>
+                        <span className="stat-card-label" style={{ fontWeight: 700 }}>Subjects Assigned</span>
                         <div className="stat-card-icon" style={{ background: 'var(--gradient-secondary)' }}><FiBookOpen /></div>
                     </div>
-                    <div className="stat-card-value">{(data?.assigned_subjects || []).length}</div>
+                    <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }}>
+                        {subjects.length > 0 ? (
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {subjects.map((s, i) => (
+                                    <li key={i} style={{ fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span style={{ color: 'var(--color-secondary)', fontWeight: 'bold' }}>•</span>
+                                        {s.subject_name} (Sem {s.semester})
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <span style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', fontStyle: 'italic' }}>None assigned</span>
+                        )}
+                    </div>
                 </div>
-                <div className="stat-card">
+
+                {/* Total Students Card (Preserved) */}
+                <div className="stat-card" style={{ display: 'flex', flexDirection: 'column', height: '220px' }}>
                     <div className="stat-card-header">
                         <span className="stat-card-label">Total Students</span>
                         <div className="stat-card-icon" style={{ background: 'var(--color-success)' }}><FiUsers /></div>
                     </div>
-                    <div className="stat-card-value">{data?.total_students || 0}</div>
+                    <div className="stat-card-value" style={{ marginTop: 'auto' }}>{data?.total_students || 0}</div>
                 </div>
             </div>
+
+            {/* Department Exam Timetable (Active) */}
+            {data?.active_timetable?.length > 0 && (
+                <div className="dashboard-card fade-in-up fade-in-delay-1" style={{ marginBottom: '24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+                        <FiCalendar style={{ color: 'var(--color-primary)', fontSize: '1.2rem' }} />
+                        <h3 style={{ margin: 0 }}>Upcoming Department Exams</h3>
+                    </div>
+                    
+                    {Object.entries(
+                        data.active_timetable.reduce((acc, tt) => {
+                            const sem = tt.semester;
+                            if (!acc[sem]) acc[sem] = [];
+                            acc[sem].push(tt);
+                            return acc;
+                        }, {})
+                    )
+                    .sort(([a], [b]) => a - b)
+                    .map(([sem, semEntries]) => (
+                        <div key={sem} style={{ marginBottom: '24px' }}>
+                            <div style={{ 
+                                fontSize: '0.9rem', 
+                                fontWeight: 700, 
+                                color: 'var(--color-text-muted)', 
+                                marginBottom: '12px',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                            }}>
+                                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-primary)' }}></span>
+                                Semester {sem}
+                            </div>
+                            <div className="table-scroll-wrapper" style={{ overflowX: 'auto', marginBottom: '12px' }}>
+                                <table className="data-table enhanced-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Subject</th>
+                                            <th>Date</th>
+                                            <th>Time</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {semEntries.map((tt, i) => (
+                                            <tr key={i}>
+                                                <td style={{ fontWeight: 600 }}>{tt.subject_name}</td>
+                                                <td>{tt.exam_date}</td>
+                                                <td>{tt.exam_time}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Subject Performance Bar Chart */}
             <div className="dashboard-card fade-in-up fade-in-delay-1 chart-card-full">
