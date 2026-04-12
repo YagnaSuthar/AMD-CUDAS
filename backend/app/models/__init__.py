@@ -56,3 +56,7 @@ from app.models.rag import (  # noqa: F401
     Chunk,
     ChunkEmbedding,
 )
+from app.models.verification import (  # noqa: F401
+    VerificationRun,
+    VerificationFeedback,
+)

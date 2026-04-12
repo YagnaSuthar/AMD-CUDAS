@@ -17,15 +17,18 @@ from app.core.database import engine, Base
 # Import all models so they are registered with Base.metadata
 import app.models  # noqa: F401
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create all tables on startup (for new auth tables)."""
     async with engine.begin() as conn:
-        # RBAC domain: keep auth_users compatible with existing DBs
+
+        # ✅ STEP 1: CREATE TABLES FIRST
+        await conn.run_sync(Base.metadata.create_all)
+
+        # ✅ STEP 2: THEN RUN ALTERS
+
+        # auth_users
         await conn.execute(
-            text(
-                """
+            text("""
                 ALTER TABLE auth_users
                     ADD COLUMN IF NOT EXISTS department VARCHAR(255),
                     ADD COLUMN IF NOT EXISTS semester INTEGER,
@@ -34,61 +37,44 @@ async def lifespan(app: FastAPI):
                     ADD COLUMN IF NOT EXISTS company_name VARCHAR(255),
                     ADD COLUMN IF NOT EXISTS skills JSONB,
                     ADD COLUMN IF NOT EXISTS resume_url VARCHAR(512);
-                """
-            )
+            """)
         )
 
-        # Certificate domain: ensure existing DB has the required columns before
-        # we create certificate_blocks (FK -> certificates.file_hash).
-        # This is intentionally limited to certificate schema only.
+        # certificates
         await conn.execute(
-            text(
-                """
+            text("""
                 ALTER TABLE certificates
                     ADD COLUMN IF NOT EXISTS file_path VARCHAR(1024);
-                """
-            )
+            """)
         )
+
         await conn.execute(
-            text(
-                """
+            text("""
                 ALTER TABLE certificates
                     ADD COLUMN IF NOT EXISTS file_hash VARCHAR(64);
-                """
-            )
+            """)
         )
+
+        # constraint
         await conn.execute(
-            text(
-                """
+            text("""
                 DO $$
                 BEGIN
                     IF NOT EXISTS (
-                        SELECT 1
-                        FROM   pg_constraint
-                        WHERE  conname = 'uq_certificates_file_hash'
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'uq_certificates_file_hash'
                     ) THEN
-                        IF EXISTS (
-                            SELECT 1
-                            FROM   pg_indexes
-                            WHERE  schemaname = current_schema()
-                            AND    indexname = 'uq_certificates_file_hash'
-                        ) THEN
-                            EXECUTE 'DROP INDEX uq_certificates_file_hash';
-                        END IF;
-
                         EXECUTE 'ALTER TABLE certificates ADD CONSTRAINT uq_certificates_file_hash UNIQUE (file_hash)';
                     END IF;
                 END $$;
-                """
-            )
+            """)
         )
-        # Enable pgvector extension for RAG embeddings BEFORE creating tables
+
+        # extension
         try:
             await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         except Exception as e:
-            print(f"Warning: Could not create vector extension (may already exist or need admin): {e}")
-
-        await conn.run_sync(Base.metadata.create_all)
+            print(f"Warning: {e}")
 
     yield
 
@@ -133,6 +119,7 @@ from app.routers.recruiter import router as recruiter_router  # noqa: E402
 from app.routers.messages import router as messages_router  # noqa: E402
 from app.api.ai.agents.interview.router import router as ai_interview_router  # noqa: E402
 from app.routers.rag import router as rag_router  # noqa: E402
+from app.routers.verification import router as verification_router  # noqa: E402
 
 app.include_router(auth_router)
 app.include_router(admin_router)
@@ -146,3 +133,4 @@ app.include_router(recruiter_router)
 app.include_router(messages_router)
 app.include_router(ai_interview_router, prefix="/ai/interview", tags=["AI Interview"])
 app.include_router(rag_router)
+app.include_router(verification_router)
