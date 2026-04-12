@@ -344,11 +344,7 @@ export default function InterviewModal({ onClose, pipeline = null }) {
     }, [currentQuestion, sessionId, config.answer_timeout, clearTimers, stopRecording, speak, endInterview, startTimer]);
 
     // ── Terminate Interview Manually ─────────────────────────────────
-<<<<<<< HEAD
-    const handleTerminate = useCallback(() => {
-=======
     const handleTerminate = useCallback(async () => {
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         clearTimers();
         stopRecording();
         window.speechSynthesis.cancel();
@@ -356,11 +352,6 @@ export default function InterviewModal({ onClose, pipeline = null }) {
         setState(STATES.CLOSED);
         setAgentText("Interview is terminated.");
 
-<<<<<<< HEAD
-        // Optionally clean up backend session state in background 
-        if (sessionId) {
-            api.post('/ai/interview/end', { session_id: sessionId }).catch(e => console.error('Terminate cleanup error:', e));
-=======
         // Ensure backend session is properly closed
         if (sessionId) {
             try {
@@ -368,7 +359,6 @@ export default function InterviewModal({ onClose, pipeline = null }) {
             } catch (e) {
                 console.error('Terminate cleanup error:', e);
             }
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         }
     }, [sessionId, clearTimers, stopRecording]);
 

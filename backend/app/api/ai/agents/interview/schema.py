@@ -76,19 +76,13 @@ class SubmitAnswerResponse(BaseModel):
     next_action: str  # "ask_question" | "end"
     next_difficulty: str
     next_question: Optional[QuestionOutput] = None
-<<<<<<< HEAD
-=======
     running_avg_score: float = 0.0
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
 
 class EndInterviewRequest(BaseModel):
     """POST /interview/end"""
     session_id: uuid.UUID
-<<<<<<< HEAD
-=======
     ended_reason: str = "normal"
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
 
 class EndInterviewResponse(BaseModel):
@@ -153,8 +147,6 @@ class SessionDetailResponse(BaseModel):
     questions: List[SessionQuestionAnswer]
 
 
-<<<<<<< HEAD
-=======
 # ── Proctoring / Detector Agent ───────────────────────────────────────────
 
 class ProctoringViolationRequest(BaseModel):
@@ -181,7 +173,6 @@ class ProctoringSessionSummary(BaseModel):
     summary: str = ""
 
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 # ═══════════════════════════════════════════════════════════════════════════
 #  Orchestrator I/O
 # ═══════════════════════════════════════════════════════════════════════════
@@ -220,14 +211,6 @@ class QuestionOutput(BaseModel):
 
 
 class EvaluationOutput(BaseModel):
-<<<<<<< HEAD
-    clarity: int = Field(ge=0, le=10)
-    depth: int = Field(ge=0, le=10)
-    confidence: int = Field(ge=0, le=10)
-    technical_score: int = Field(ge=0, le=10, default=5)
-    behavior_flag: str = "neutral"
-    next_difficulty: str = "medium"
-=======
     model_config = {"extra": "ignore"}
 
     clarity: float = Field(ge=0, le=10)
@@ -241,7 +224,6 @@ class EvaluationOutput(BaseModel):
     communication_score: float = Field(ge=0.0, le=1.0, default=0.5)
     behavior_score: float = Field(ge=0.0, le=1.0, default=0.5)
     weighted_score: float = Field(ge=0.0, le=1.0, default=0.5)
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
 
 class MemoryOutput(BaseModel):
@@ -262,28 +244,20 @@ class TTSOutput(BaseModel):
 
 
 class FeedbackOutput(BaseModel):
-<<<<<<< HEAD
-    final_score: float = Field(ge=0.0, le=10.0)
-    communication_score: float = Field(ge=0.0, le=10.0, default=0.0)
-=======
     model_config = {"extra": "ignore"}
 
     final_score: float = Field(ge=0.0, le=10.0)
     communication_score: float = Field(ge=0.0, le=10.0, default=0.0)
     behavior_score: float = Field(ge=0.0, le=1.0, default=0.0)
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     strengths: List[str] = []
     weaknesses: List[str] = []
     behavior_summary: str = ""
     recommendation: str = ""
-<<<<<<< HEAD
-=======
     # Detailed report sections
     student_report: Optional[dict] = None
     recruiter_report: Optional[dict] = None
     # Proctoring integrity data from DetectorAgent
     proctoring_summary: Optional[dict] = None
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
 
 # ── Rebuild forward refs so nested models resolve ────────────────────────

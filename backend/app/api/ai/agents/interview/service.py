@@ -27,10 +27,7 @@ from app.agents.Interview.prompts import (
     GREETING_COMFORTABLE_YES,
     GREETING_COMFORTABLE_NO,
     GREETING_START_NO,
-<<<<<<< HEAD
-=======
     get_feedback_for_answer,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 )
 from app.agents.Interview.sub_agents.answer_evaluator.agent import evaluate_answer
 from app.agents.Interview.sub_agents.memory_agent.agent import update_memory
@@ -128,14 +125,8 @@ class InterviewService:
         )
         db.add(session)
         await db.flush()
-<<<<<<< HEAD
-
-        import logging
-        logger = logging.getLogger(__name__)
-=======
         await db.commit()
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         logger.info("start_interview: created session_id=%s for student_id=%s", session.session_id, student_id)
 
         try:
@@ -332,8 +323,6 @@ class InterviewService:
         await db.flush()
 
         # Evaluate (now includes behavior classification)
-<<<<<<< HEAD
-=======
         # Pass current session difficulty so evaluator can recommend decrease
         sess_result_pre = await db.execute(
             select(InterviewSession).where(
@@ -345,15 +334,11 @@ class InterviewService:
         if isinstance(current_diff, Difficulty):
             current_diff = current_diff.value
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         eval_data = await evaluate_answer(
             question=question.question_text,
             answer=answer_text,
             llm=llm,
-<<<<<<< HEAD
-=======
             difficulty=current_diff,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         )
 
         behavior_flag = eval_data.get("behavior_flag", "neutral")
@@ -391,19 +376,6 @@ class InterviewService:
             behavior=behavior_flag,
         )
 
-<<<<<<< HEAD
-        # Generate behavior-reactive agent response
-        is_correct = technical_score >= 5
-        has_answer = bool(answer_text.strip())
-        if not has_answer:
-            agent_response = BEHAVIOR_RESPONSES["no_answer"]
-        else:
-            key = f"{behavior_flag}_{'correct' if is_correct else 'incorrect'}"
-            agent_response = BEHAVIOR_RESPONSES.get(key, BEHAVIOR_RESPONSES["neutral_correct"])
-
-        # Update session difficulty
-        next_diff = eval_data.get("next_difficulty", "medium")
-=======
         # Generate behavior-reactive agent response using weighted scores
         weighted = eval_data.get("weighted_score", 0.5)
         has_answer = bool(answer_text.strip())
@@ -451,7 +423,6 @@ class InterviewService:
             weighted, next_diff,
         )
         
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         session_result = await db.execute(
             select(InterviewSession).where(
                 InterviewSession.session_id == session_id,
@@ -461,8 +432,6 @@ class InterviewService:
         session.current_difficulty = Difficulty(next_diff)
         await db.flush()
 
-<<<<<<< HEAD
-=======
         # Compute running average score across the session
         avg_result = await db.execute(
             select(func.avg(AnswerScore.overall_score))
@@ -473,7 +442,6 @@ class InterviewService:
         running_avg = avg_result.scalar()
         running_avg_score = float(running_avg) / 10.0 if running_avg is not None else 0.0
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         # Count questions to decide next action
         q_count_result = await db.execute(
             select(func.count()).select_from(Question).where(
@@ -525,10 +493,7 @@ class InterviewService:
             next_action=next_action,
             next_difficulty=next_diff,
             next_question=next_question,
-<<<<<<< HEAD
-=======
             running_avg_score=running_avg_score,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         )
 
     # ── POST /interview/end ───────────────────────────────────────────────
@@ -538,10 +503,7 @@ class InterviewService:
         student_id: UUID,
         session_id: UUID,
         db: AsyncSession,
-<<<<<<< HEAD
-=======
         ended_reason: str = "normal",
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     ) -> EndInterviewResponse:
         """End the interview session and generate the final report."""
         llm = get_llm()
@@ -570,20 +532,6 @@ class InterviewService:
             session_id=session_id,
             db=db,
             llm=llm,
-<<<<<<< HEAD
-        )
-        logger.info("end_interview: report generated for session_id=%s, data=%s", session_id, report_data)
-
-        await db.flush()
-        logger.info("end_interview: flushed DB for session_id=%s", session_id)
-
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info("end_interview: calling mark_pipeline_ai_completed for session_id=%s", session_id)
-
-        await mark_pipeline_ai_completed(db=db, session_id=session_id)
-        logger.info("end_interview: mark_pipeline_ai_completed returned for session_id=%s", session_id)
-=======
             ended_reason=ended_reason,
         )
         logger.info("end_interview: report generated for session_id=%s, data=%s", session_id, report_data)
@@ -613,7 +561,6 @@ class InterviewService:
         # Commit all changes — ensure COMPLETED status persists
         await db.commit()
         logger.info("end_interview: committed session_id=%s as COMPLETED", session_id)
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
         return EndInterviewResponse(
             session_id=session_id,
@@ -629,11 +576,6 @@ class InterviewService:
         db: AsyncSession,
     ) -> InterviewReportResponse:
         """Fetch the saved report for a completed interview session."""
-<<<<<<< HEAD
-        import logging
-        logger = logging.getLogger(__name__)
-=======
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         logger.info("get_report called for session_id=%s", session_id)
 
         result = await db.execute(
@@ -848,8 +790,6 @@ class InterviewService:
 
         await db.delete(session)
         await db.commit()
-<<<<<<< HEAD
-=======
 
     # ── DELETE /interview/history/all ──────────────────────────────────
 
@@ -950,4 +890,3 @@ class InterviewService:
             "recommendation": report.recommendation or "",
         }
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a

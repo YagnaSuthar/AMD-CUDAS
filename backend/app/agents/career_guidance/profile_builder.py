@@ -2,19 +2,12 @@
 Profile Builder for the Career Guidance Agent.
 
 Constructs a structured user profile from the database,
-<<<<<<< HEAD
-including academic data, skills, certifications, and resume content.
-"""
-
-import logging
-=======
 including academic data, skills, certifications, projects,
 interview history, and resume content.
 """
 
 import logging
 import os
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 import uuid
 from typing import Any, Optional
 
@@ -37,12 +30,8 @@ async def build_user_profile(
     -------
     dict with keys:
         skills, experience_level, education, goals, certifications,
-<<<<<<< HEAD
-        department, semester, average_percentage, subjects
-=======
         department, semester, average_percentage, subjects,
         projects, interview_history, resume_summary
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     """
     # 1) Fetch user record
     result = await db.execute(select(AuthUser).where(AuthUser.id == user_id))
@@ -79,18 +68,12 @@ async def build_user_profile(
             "title": c.title,
             "issuer": getattr(c, "issuer", None),
             "points": c.points,
-<<<<<<< HEAD
-=======
             "description": getattr(c, "description", None),
             "is_verified": getattr(c, "is_verified", False),
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         }
         for c in certificates
     ]
 
-<<<<<<< HEAD
-    # 4) Determine experience level from semester
-=======
     # 4) Projects
     projects_list = await _fetch_projects(user_id, db)
 
@@ -101,7 +84,6 @@ async def build_user_profile(
     resume_summary = await _fetch_resume_summary(user)
 
     # 7) Determine experience level from semester
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     semester = user.semester or 0
     if semester <= 2:
         experience_level = "beginner"
@@ -122,15 +104,6 @@ async def build_user_profile(
         "certifications": cert_list,
         "subjects": subjects,
         "resume_url": user.resume_url if hasattr(user, "resume_url") else None,
-<<<<<<< HEAD
-    }
-
-    logger.info("Built profile for user %s: %d skills, %d certs, avg=%.1f%%",
-                 user_id, len(profile["skills"]), len(cert_list), average_percentage)
-    return profile
-
-
-=======
         "projects": projects_list,
         "interview_history": interview_history,
         "resume_summary": resume_summary,
@@ -241,7 +214,6 @@ async def _fetch_resume_summary(user: AuthUser) -> str | None:
         return None
 
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 def _empty_profile() -> dict[str, Any]:
     """Return an empty profile dict for missing users."""
     return {
@@ -252,10 +224,7 @@ def _empty_profile() -> dict[str, Any]:
         "certifications": [],
         "subjects": [],
         "resume_url": None,
-<<<<<<< HEAD
-=======
         "projects": [],
         "interview_history": [],
         "resume_summary": None,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     }

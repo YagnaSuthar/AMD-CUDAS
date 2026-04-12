@@ -2,13 +2,6 @@ import uuid
 import os
 import shutil
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-<<<<<<< HEAD
-from sqlalchemy import select, func, and_, or_
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.database import get_db
-from app.core.security import RoleChecker, get_current_user
-=======
 from sqlalchemy import select, func, and_, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,18 +10,13 @@ from app.core.security import (
     RoleChecker, get_current_user,
     principal_or_above, principal_only, hod_only, faculty_only, student_only
 )
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 from app.models.auth import AuthUser, Timetable, InternalMarks, Certificate, Department, MentorAssignment
 from app.models.auth import StudentPerformanceCategory, StudentPerformanceCategoryType
 from app.schemas.auth import (
     UserResponse, MessageResponse, AddUserRequest,
     TimetableCreate, TimetableUpdate, TimetableResponse,
     MarksUpload, MarksUpdate, MarksResponse, MarksLockRequest,
-<<<<<<< HEAD
-    CertificateResponse,
-=======
     CertificateResponse, ProjectResponse,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     PrincipalOverviewResponse, DepartmentDetail,
     HodOverviewResponse, StudentBrief,
     FacultyOverviewResponse, SubjectStat,
@@ -47,15 +35,7 @@ from app.services.certificate_service import (
 
 router = APIRouter(prefix="/college", tags=["College Management"])
 
-<<<<<<< HEAD
-principal_or_above = RoleChecker(["CUDAS_ADMIN", "COLLEGE_PRINCIPAL", "HOD", "FACULTY"])
-principal_only = RoleChecker(["COLLEGE_PRINCIPAL"])
-hod_only = RoleChecker(["HOD"])
-faculty_only = RoleChecker(["FACULTY"])
-student_only = RoleChecker(["STUDENT"])
-=======
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
 CERT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "certificate")
 
@@ -463,9 +443,6 @@ async def create_timetable(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(hod_only),
 ):
-<<<<<<< HEAD
-    """Create a timetable entry for the HOD's department."""
-=======
     """Create a timetable entry for the HOD's department. Auto-archives past ones."""
     from datetime import date
     today = date.today().isoformat()
@@ -481,7 +458,6 @@ async def create_timetable(
         .values(status="archived")
     )
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     tt = Timetable(
         department=current_user.department or "Unknown",
         semester=body.semester,
@@ -489,10 +465,7 @@ async def create_timetable(
         exam_date=body.exam_date,
         exam_time=body.exam_time,
         created_by=current_user.id,
-<<<<<<< HEAD
-=======
         status="active"
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     )
     db.add(tt)
     await db.commit()
@@ -501,15 +474,6 @@ async def create_timetable(
 
 @router.get("/hod/timetable", response_model=list[TimetableResponse])
 async def list_timetable_hod(
-<<<<<<< HEAD
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(hod_only),
-):
-    """List timetable entries for the HOD's department."""
-    dept = current_user.department or "Unknown"
-    result = await db.execute(
-        select(Timetable).where(Timetable.department == dept).order_by(Timetable.exam_date)
-=======
     status: str = "active",
     db: AsyncSession = Depends(get_db),
     current_user=Depends(hod_only),
@@ -532,20 +496,15 @@ async def list_timetable_hod(
         select(Timetable)
         .where(Timetable.department == dept, Timetable.status == status)
         .order_by(Timetable.exam_date)
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     )
     entries = result.scalars().all()
     return [
         TimetableResponse(
             id=str(e.id), department=e.department, semester=e.semester,
             subject_name=e.subject_name, exam_date=e.exam_date,
-<<<<<<< HEAD
-            exam_time=e.exam_time, created_at=str(e.created_at) if e.created_at else None,
-=======
             exam_time=e.exam_time, status=e.status,
             published_at=str(e.published_at) if e.published_at else None,
             created_at=str(e.created_at) if e.created_at else None,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         )
         for e in entries
     ]
@@ -756,8 +715,6 @@ async def list_mentors(
     ]
 
 
-<<<<<<< HEAD
-=======
 @router.get("/mentor/faculty/{faculty_id}", response_model=list[MentorAssignmentResponse])
 async def get_faculty_mentors(
     faculty_id: uuid.UUID,
@@ -783,7 +740,6 @@ async def get_faculty_mentors(
     ]
 
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 # ══════════════════════════════════════════════════════════════════════════
 #  FACULTY DASHBOARD ENDPOINTS
 # ══════════════════════════════════════════════════════════════════════════
@@ -829,8 +785,6 @@ async def faculty_overview(
         avg = r.scalar() or 0.0
         subject_stats.append(SubjectStat(subject_name=subj, student_count=count, average_marks=round(avg, 2)))
 
-<<<<<<< HEAD
-=======
     # Also get current active timetable for the department
     dept = current_user.department or "Unknown"
     from datetime import date
@@ -859,16 +813,12 @@ async def faculty_overview(
         for e in tt_entries
     ]
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     return FacultyOverviewResponse(
         assigned_semesters=sorted(all_semesters),
         assigned_subjects=subjects,
         total_students=len(students),
         subject_stats=subject_stats,
-<<<<<<< HEAD
-=======
         active_timetable=active_tt,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     )
 
 
@@ -1120,19 +1070,11 @@ async def student_timetable(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(student_only),
 ):
-<<<<<<< HEAD
-    """Read-only timetable view for student's department."""
-=======
     """Read-only timetable view for student's department. Auto-archives past exams."""
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     dept = current_user.department
     if not dept:
         return []
 
-<<<<<<< HEAD
-    result = await db.execute(
-        select(Timetable).where(Timetable.department == dept).order_by(Timetable.exam_date)
-=======
     from datetime import date
     today = date.today().isoformat()
     
@@ -1146,20 +1088,15 @@ async def student_timetable(
 
     result = await db.execute(
         select(Timetable).where(Timetable.department == dept, Timetable.status == "active").order_by(Timetable.exam_date)
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     )
     entries = result.scalars().all()
     return [
         TimetableResponse(
             id=str(e.id), department=e.department, semester=e.semester,
             subject_name=e.subject_name, exam_date=e.exam_date,
-<<<<<<< HEAD
-            exam_time=e.exam_time, created_at=str(e.created_at) if e.created_at else None,
-=======
             exam_time=e.exam_time, status=e.status,
             published_at=str(e.published_at) if e.published_at else None,
             created_at=str(e.created_at) if e.created_at else None,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         )
         for e in entries
     ]
@@ -1186,40 +1123,6 @@ async def student_certificates(
     ]
 
 
-<<<<<<< HEAD
-@router.post("/student/certificates", response_model=MessageResponse)
-async def upload_certificate(
-    title: str = Form(...),
-    description: str = Form(None),
-    file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(student_only),
-):
-    """Upload a certificate file (saved to backend/certificate/)."""
-    file_bytes = await file.read()
-    if not file_bytes:
-        raise HTTPException(status_code=400, detail="Empty file.")
-
-    file_hash = sha256_hex(file_bytes)
-    file_name, file_path = await save_certificate_file(
-        CERT_DIR,
-        str(current_user.id),
-        file.filename,
-        file_bytes,
-    )
-
-    await create_certificate_and_block(
-        db=db,
-        student_id=current_user.id,
-        title=title,
-        description=description,
-        file_name=file_name,
-        file_path=file_path,
-        file_hash=file_hash,
-    )
-
-    return MessageResponse(message="Certificate uploaded successfully.")
-=======
 @router.get("/student/projects", response_model=list[ProjectResponse])
 async def student_projects(
     db: AsyncSession = Depends(get_db),
@@ -1341,7 +1244,6 @@ async def upload_certificate(
         await db.refresh(new_project)
 
     return MessageResponse(message="Successfully submitted.")
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
 
 @router.post("/certificates/backfill-points", response_model=MessageResponse)

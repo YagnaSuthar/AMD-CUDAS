@@ -11,11 +11,8 @@ import uuid
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
-<<<<<<< HEAD
-=======
 from pydantic import BaseModel
 from sqlalchemy import select
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -191,10 +188,6 @@ async def query_career_guidance(
     try:
         agent = CareerGuidanceAgent(db)
         result = await agent.handle_query(user_id=user_id, query=body.query)
-<<<<<<< HEAD
-        logger.info("Career guidance response generated (intent=%s, rag=%s)",
-                     result.get("intent"), result.get("used_rag"))
-=======
         logger.info("Career guidance response generated (intent=%s, rag=%s, sources=%s)",
                      result.get("intent"), result.get("used_rag"), result.get("data_sources"))
 
@@ -214,7 +207,6 @@ async def query_career_guidance(
         except Exception as log_err:
             logger.warning("Career advisory log save failed (non-fatal): %s", log_err)
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         return {
             "success": True,
             "data": result
@@ -224,13 +216,6 @@ async def query_career_guidance(
         return {"success": False, "error": f"Career guidance failed: {str(e)}"}
 
 
-<<<<<<< HEAD
-# ── Roadmap Generation ───────────────────────────────────────────────────────
-
-
-@router.post("/generate-roadmap")
-async def generate_roadmap(
-=======
 # ── Sync User Data to Vector DB ──────────────────────────────────────────────
 
 
@@ -370,27 +355,18 @@ async def get_my_roadmap(
 @router.post("/generate-roadmap")
 async def generate_roadmap(
     req: GenerateRoadmapRequest = GenerateRoadmapRequest(),
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     """Generate a structured JSON career roadmap for the current user."""
     from app.agents.career_roadmap.agent import CareerRoadmapAgent
-<<<<<<< HEAD
-=======
     from app.models.roadmap import RoadmapStep
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
     user_id = current_user.id if not isinstance(current_user, dict) else None
     if user_id is None:
         return {"success": False, "error": "Admin cannot generate roadmaps"}
 
     logger.info("=" * 50)
-<<<<<<< HEAD
-    logger.info("Roadmap generation requested by user: %s", user_id)
-    logger.info("=" * 50)
-
-=======
     logger.info("Roadmap generation requested by user: %s, force=%s", user_id, req.force_regenerate)
     logger.info("=" * 50)
 
@@ -430,7 +406,6 @@ async def generate_roadmap(
                     }
                 }
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     try:
         agent = CareerRoadmapAgent(db)
         roadmap = await agent.generate_roadmap(user_id=user_id)
@@ -445,8 +420,6 @@ async def generate_roadmap(
     except Exception as e:
         logger.error("Roadmap generation error: %s", e, exc_info=True)
         return {"success": False, "error": f"Roadmap generation failed: {str(e)}"}
-<<<<<<< HEAD
-=======
 
 
 class PhaseDetailedRequest(BaseModel):
@@ -628,4 +601,3 @@ async def submit_project(
 
     logger.info("Project for branch step %s submitted by user %s", bs_uuid, user_id)
     return {"success": True, "data": {"branch_step_id": str(bs_uuid), "submission_link": req.github_link, "status": "completed"}}
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a

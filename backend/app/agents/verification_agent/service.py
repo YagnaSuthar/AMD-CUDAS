@@ -1,11 +1,8 @@
-<<<<<<< HEAD
-=======
 """
 Verification Agent Service.
 Orchestrates the full verification workflow: classify → pipeline → score → explain → store → notify.
 """
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 import asyncio
 import logging
 import uuid
@@ -32,11 +29,6 @@ class VerificationService:
         file: UploadFile | None,
         link: str | None,
         profile_data: dict[str, Any] | None,
-<<<<<<< HEAD
-    ) -> VerificationResponse:
-        logger.info("[VERIFICATION] Starting verification run - user_id=%s", user_id)
-        
-=======
         project_description: str | None = None,
         tech_stack: str | None = None,
         github_username: str | None = None,
@@ -51,7 +43,6 @@ class VerificationService:
 
         logger.info("[VERIFICATION] Starting verification run - user_id=%s", user_id)
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         from app.agents.verification_agent.utils.input_classifier import classify_input
         from app.agents.verification_agent.pipelines.certificate_pipeline import run_certificate_pipeline
         from app.agents.verification_agent.pipelines.project_pipeline import run_project_pipeline
@@ -63,19 +54,12 @@ class VerificationService:
             raise HTTPException(status_code=400, detail="Provide at least one of: file, link, profile_data")
 
         input_type = await classify_input(file=file, link=link, profile_data=profile_data)
-<<<<<<< HEAD
-=======
         print(f"\n[Verification] Input Type: {input_type}")
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         logger.info("[VERIFICATION] Input classified as: %s", input_type)
 
         # Run appropriate pipeline
         if input_type == "certificate":
-<<<<<<< HEAD
-            logger.info("[VERIFICATION] Running certificate pipeline")
-=======
             print("[Verification] Running certificate pipeline...")
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
             extracted, scores, issues, verified_fields, recommendations = await run_certificate_pipeline(
                 db=self.db,
                 user_id=user_id,
@@ -83,57 +67,33 @@ class VerificationService:
                 profile_data=profile_data,
             )
         elif input_type == "project":
-<<<<<<< HEAD
-            logger.info("[VERIFICATION] Running project pipeline")
-=======
             print("[Verification] Running project pipeline...")
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
             extracted, scores, issues, verified_fields, recommendations = await run_project_pipeline(
                 db=self.db,
                 user_id=user_id,
                 link=link,
                 profile_data=profile_data,
-<<<<<<< HEAD
-            )
-        else:  # profile
-            logger.info("[VERIFICATION] Running profile pipeline")
-=======
                 project_description=project_description,
                 tech_stack=tech_stack,
                 github_username=github_username,
             )
         else:  # profile
             print("[Verification] Running profile pipeline...")
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
             extracted, scores, issues, verified_fields, recommendations = await run_profile_pipeline(
                 db=self.db,
                 user_id=user_id,
                 profile_data=profile_data,
             )
 
-<<<<<<< HEAD
-        logger.info("[VERIFICATION] Pipeline completed - extracted fields: %s", list(extracted.keys()))
-        logger.debug("[VERIFICATION] Scores: %s", scores)
-        logger.debug("[VERIFICATION] Issues: %s", issues)
-        logger.debug("[VERIFICATION] Verified fields: %s", verified_fields)
-        logger.debug("[VERIFICATION] Recommendations: %s", recommendations)
-=======
         print(f"\n[Verification] Pipeline completed")
         print(f"  Extracted fields: {list(extracted.keys())}")
         print(f"  Scores: {scores}")
         logger.info("[VERIFICATION] Pipeline completed - extracted fields: %s", list(extracted.keys()))
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
         # Compute final score and status
         scoring = compute_final_score(scores)
         confidence = float(scoring["confidence_score"])
         status = scoring["status"]
-<<<<<<< HEAD
-        logger.info("[VERIFICATION] Final scoring - score=%.2f, status=%s", confidence, status)
-
-        # Generate explanation
-        logger.info("[VERIFICATION] Generating explanation")
-=======
         trust_score = int(scoring["trust_score"])
 
         print(f"\n[Verification] ── Result ──")
@@ -144,7 +104,6 @@ class VerificationService:
 
         # Generate explanation
         print("[Verification] Generating explanation...")
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         explanation = await generate_explanation(
             input_type=input_type,
             extracted_data=extracted,
@@ -153,9 +112,6 @@ class VerificationService:
             status=status,
             confidence_score=confidence,
         )
-<<<<<<< HEAD
-        logger.info("[VERIFICATION] Explanation generated")
-=======
 
         # Extract contribution summary for project verifications
         contribution_summary = None
@@ -179,7 +135,6 @@ class VerificationService:
             "contribution_summary": contribution_summary,
             "blockchain_verified": blockchain_verified,
         }
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
         # Store verification run
         run = VerificationRun(
@@ -190,29 +145,13 @@ class VerificationService:
             input_file_hash=extracted.get("file_hash"),
             extracted_data=extracted,
             scores=scores,
-<<<<<<< HEAD
-            result={
-                "status": status,
-                "confidence_score": confidence,
-                "verified_fields": verified_fields,
-                "issues": issues,
-                "trust_score": int(scoring["trust_score"]),
-                "recommendations": recommendations,
-                "explanation": explanation,
-            },
-=======
             result=result_payload,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
             status=status,
             confidence_score=confidence,
         )
         self.db.add(run)
         await self.db.flush()
         run_id_str = str(run.id)
-<<<<<<< HEAD
-        logger.info("[VERIFICATION] Verification run stored with ID: %s", run_id_str)
-
-=======
         print(f"[Verification] Run stored: {run_id_str}")
         logger.info("[VERIFICATION] Verification run stored with ID: %s", run_id_str)
 
@@ -281,7 +220,6 @@ class VerificationService:
                 logger.warning("Notification creation failed: %s", notif_err)
 
         # --- RAG indexing (existing behavior) ---
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         try:
             from app.services.chunking_service import ChunkingService
             from app.services.embedding_service import EmbeddingService
@@ -316,12 +254,6 @@ class VerificationService:
         except Exception as e:
             logger.warning("Verification vector indexing failed (non-fatal): %s", e)
 
-<<<<<<< HEAD
-        return VerificationResponse(
-            **result_payload,
-            input_type=input_type,
-            run_id=str(run.id),
-=======
         print(f"\n{'='*60}")
         print(f"[Verification Agent Complete]")
         print(f"  Run ID: {run_id_str}")
@@ -332,7 +264,6 @@ class VerificationService:
             **result_payload,
             input_type=input_type,
             run_id=run_id_str,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         )
 
     async def store_feedback(

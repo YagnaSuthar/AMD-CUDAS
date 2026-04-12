@@ -10,28 +10,19 @@ import asyncio
 import json
 import logging
 import uuid
-<<<<<<< HEAD
-from typing import Any, Optional
-
-=======
 
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 from sqlalchemy import delete, func, select
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.llm import get_llm
 from app.agents.career_guidance.profile_builder import build_user_profile
-<<<<<<< HEAD
-from app.agents.career_roadmap.prompts import ROADMAP_SYSTEM_PROMPT
-=======
 from app.agents.career_roadmap.prompts import PHASE_DETAILED_SYSTEM_PROMPT, ROADMAP_SYSTEM_PROMPT
 from app.models.auth import AuthUser, Certificate
 from app.models.interview import InterviewReport, InterviewSession
 from app.models.roadmap import BranchStep, RoadmapBranch, RoadmapStep
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 from app.services.retrieval_service import RetrievalService
 
 logger = logging.getLogger(__name__)
@@ -81,8 +72,6 @@ def _extract_json(text: str) -> dict:
     raise ValueError(f"Could not extract valid JSON from LLM response: {text[:200]}...")
 
 
-<<<<<<< HEAD
-=======
 def _extract_json_array(text: str) -> list[dict[str, Any]]:
     """Extract a JSON array from LLM output that may contain fences or surrounding text."""
     text = (text or "").strip()
@@ -120,7 +109,6 @@ def _extract_json_array(text: str) -> list[dict[str, Any]]:
     raise ValueError(f"Could not extract valid JSON array from LLM response: {text[:200]}...")
 
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 class CareerRoadmapAgent:
     """
     Generates career roadmaps in strict JSON format using LLM + optional RAG.
@@ -133,8 +121,6 @@ class CareerRoadmapAgent:
         self._retrieval = RetrievalService(db)
         logger.info("CareerRoadmapAgent initialized")
 
-<<<<<<< HEAD
-=======
     async def _multi_source_retrieve(
         self,
         *,
@@ -261,7 +247,6 @@ class CareerRoadmapAgent:
             )
         await self.db.flush()
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     async def generate_roadmap(
         self,
         user_id: uuid.UUID,
@@ -279,50 +264,6 @@ class CareerRoadmapAgent:
         logger.info("Starting roadmap generation for user_id: %s", user_id)
         logger.info("=" * 60)
 
-<<<<<<< HEAD
-        # ── Step 1: Build profile ──────────────────────────────────────────
-        if student_data:
-            profile = student_data
-            logger.info("Using pre-built student data: goal='%s', skills=%s",
-                        profile.get("goal", "N/A"),
-                        profile.get("skills", []))
-        else:
-            logger.info("Building user profile from database...")
-            profile = await build_user_profile(user_id, self.db)
-            logger.info("Profile built: goal='%s', skills=%s, education=%s",
-                        profile.get("goals", []),
-                        profile.get("skills", []),
-                        profile.get("education", {}))
-
-        # ── Step 2: RAG Retrieval ──────────────────────────────────────────
-        goal_text = profile.get("goal") or ", ".join(profile.get("goals", ["career development"]))
-        logger.info("Querying RAG for relevant context: '%s'", goal_text)
-
-        try:
-            retrieved = await self._retrieval.search(
-                query=f"career roadmap skills education certifications for {goal_text}",
-                user_id=user_id,
-                agent_type=None,
-                top_k=8,
-            )
-            logger.info("Retrieved %d relevant chunks from vector store", len(retrieved))
-            for i, chunk in enumerate(retrieved):
-                logger.debug("  Chunk %d: score=%.4f, doc='%s'",
-                             i + 1, chunk.get("score", 0), chunk.get("document_title", ""))
-        except Exception as e:
-            logger.warning("RAG retrieval failed (proceeding without context): %s", e)
-            retrieved = []
-
-        context_str = self._format_context(retrieved)
-        profile_str = self._format_profile(profile)
-
-        # ── Step 3: Build LLM prompt ───────────────────────────────────────
-        logger.info("Building LLM prompt with profile and %d context chunks", len(retrieved))
-        system_content = ROADMAP_SYSTEM_PROMPT.format(
-            profile=profile_str,
-            context=context_str,
-        )
-=======
         # ── Step 1: Load base user + profile ──────────────────────────────
         result = await self.db.execute(select(AuthUser).where(AuthUser.id == user_id))
         user = result.scalar_one_or_none()
@@ -410,23 +351,15 @@ class CareerRoadmapAgent:
 
         print("===== FINAL PROMPT =====")
         print(system_content)
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
         from langchain_core.messages import HumanMessage, SystemMessage
 
         messages = [
             SystemMessage(content=system_content),
-<<<<<<< HEAD
-            HumanMessage(content="Generate my career roadmap based on the profile above."),
-        ]
-
-        # ── Step 4: LLM call with retry ────────────────────────────────────
-=======
             HumanMessage(content="Generate the roadmap JSON now."),
         ]
 
         # ── Step 9: LLM call with retry ───────────────────────────────────
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         llm = get_llm()
         # Override max_tokens for roadmap — needs more output space
         llm.max_tokens = 2048
@@ -440,38 +373,6 @@ class CareerRoadmapAgent:
                 logger.info("LLM response received (length=%d chars)", len(content))
                 logger.debug("Raw LLM output: %s", content[:500])
 
-<<<<<<< HEAD
-                # ── Step 5: Parse JSON ─────────────────────────────────────
-                roadmap = _extract_json(content)
-                logger.info("JSON parsed successfully")
-
-                # ── Step 6: Validate schema ────────────────────────────────
-                if "title" not in roadmap or "steps" not in roadmap:
-                    raise ValueError("Roadmap JSON missing 'title' or 'steps'")
-                if not isinstance(roadmap["steps"], list) or len(roadmap["steps"]) == 0:
-                    raise ValueError("Roadmap 'steps' must be a non-empty list")
-
-                # Normalize each step — ensure all required fields + id
-                for idx, step in enumerate(roadmap["steps"]):
-                    step["id"] = step.get("id", idx + 1)
-                    step.setdefault("title", "Untitled Step")
-                    step.setdefault("description", "")
-                    step.setdefault("skills", [])
-                    step.setdefault("resources", [])
-                    step.setdefault("timeline", "")
-
-                roadmap.setdefault("summary", "")
-
-                logger.info("=" * 60)
-                logger.info("Roadmap generated successfully!")
-                logger.info("  Title: %s", roadmap["title"])
-                logger.info("  Steps: %d", len(roadmap["steps"]))
-                for s in roadmap["steps"]:
-                    logger.info("    Step %d: %s (%s)", s["id"], s["title"], s["timeline"])
-                logger.info("=" * 60)
-
-                return roadmap
-=======
                 # ── Step 10: Parse JSON array ─────────────────────────────
                 phases = _extract_json_array(content)
 
@@ -550,7 +451,6 @@ class CareerRoadmapAgent:
                     "steps": legacy_steps,
                 }
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
             except Exception as exc:
                 last_error = exc
@@ -560,50 +460,6 @@ class CareerRoadmapAgent:
         logger.error("All 3 roadmap generation attempts failed. Last error: %s", last_error)
         raise RuntimeError(f"Failed to generate valid roadmap JSON after 3 attempts: {last_error}")
 
-<<<<<<< HEAD
-    @staticmethod
-    def _format_context(retrieved: list[dict]) -> str:
-        if not retrieved:
-            return "No additional context available."
-        parts = []
-        for i, chunk in enumerate(retrieved, 1):
-            parts.append(f"[Source {i}] {chunk['content']}")
-        return "\n\n".join(parts)
-
-    @staticmethod
-    def _format_profile(profile: dict) -> str:
-        lines = []
-        goal = profile.get("goal") or ", ".join(profile.get("goals", []))
-        lines.append(f"Career Goal: {goal or 'Not specified'}")
-
-        if "department" in profile:
-            lines.append(f"Department: {profile['department']}")
-        elif "education" in profile:
-            edu = profile["education"]
-            lines.append(f"Department: {edu.get('department', 'N/A')}")
-            lines.append(f"Semester: {edu.get('semester', 'N/A')}")
-            lines.append(f"Average: {edu.get('average_percentage', 0)}%")
-
-        skills = profile.get("skills", [])
-        lines.append(f"Skills: {', '.join(skills) if skills else 'None specified'}")
-
-        if "semester" in profile and "education" not in profile:
-            lines.append(f"Semester: {profile.get('semester', 'N/A')}")
-        if "average_percentage" in profile:
-            lines.append(f"Average: {profile['average_percentage']}%")
-
-        certs = profile.get("certifications", [])
-        if certs:
-            cert_strs = [c.get("title", str(c)) if isinstance(c, dict) else str(c) for c in certs]
-            lines.append(f"Certifications: {', '.join(cert_strs)}")
-
-        subjects = profile.get("subjects", [])
-        if subjects:
-            subj_strs = [f"{s['name']}: {s.get('percentage', 'N/A')}%" if isinstance(s, dict) else str(s) for s in subjects[:5]]
-            lines.append(f"Subjects: {', '.join(subj_strs)}")
-
-        return "\n".join(lines)
-=======
 
     async def generate_phase_detailed_roadmap(
         self,
@@ -826,4 +682,3 @@ class CareerRoadmapAgent:
         }
 
     # NOTE: legacy _format_* helpers removed; prompt now uses structured context_payload.
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a

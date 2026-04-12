@@ -20,13 +20,10 @@ class MarkHiredRequest(BaseModel):
     hired_company_name: str = Field(..., min_length=1, max_length=255)
 
 
-<<<<<<< HEAD
-=======
 class RejectPipelineRequest(BaseModel):
     pipeline_id: uuid.UUID
 
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 class PipelineResponse(BaseModel):
     id: uuid.UUID
     job_id: uuid.UUID

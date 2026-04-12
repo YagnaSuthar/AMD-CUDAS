@@ -1,11 +1,4 @@
 """
-<<<<<<< HEAD
-Feedback & Report Agent.
-Aggregates session data and generates a final interview report using the LLM.
-Includes communication score, behavior summary, and final recommendation.
-"""
-
-=======
 Feedback & Report Agent (Upgraded).
 Generates DUAL reports:
   1. Student Report — friendly, developmental, with learning path
@@ -13,7 +6,6 @@ Generates DUAL reports:
 """
 
 import json
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 import logging
 from typing import Any, Dict, List
 from uuid import UUID
@@ -21,15 +13,11 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-<<<<<<< HEAD
-from app.agents.Interview.prompts import FEEDBACK_REPORT_PROMPT
-=======
 from app.agents.Interview.prompts import (
     FEEDBACK_REPORT_PROMPT,
     STUDENT_REPORT_PROMPT,
     RECRUITER_REPORT_PROMPT,
 )
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 from app.agents.Interview.utils import parse_json_response
 from app.models.interview import (
     Answer,
@@ -47,20 +35,6 @@ async def generate_report(
     session_id: UUID,
     db: AsyncSession,
     llm: Any,
-<<<<<<< HEAD
-) -> Dict[str, Any]:
-    """
-    Aggregate all answer scores and memory, invoke LLM for a final report,
-    and persist it in the DB. Also updates session-level summary fields.
-
-    Returns
-    -------
-    dict   {"final_score": float, "communication_score": float,
-            "strengths": [...], "weaknesses": [...],
-            "behavior_summary": str, "recommendation": str}
-    """
-    logger.info("FeedbackAgent: generating report for session %s", session_id)
-=======
     ended_reason: str = "normal",
 ) -> Dict[str, Any]:
     """
@@ -69,7 +43,6 @@ async def generate_report(
     Uses weighted scoring: final = 0.5*tech + 0.3*comm + 0.2*behavior
     """
     logger.info("FeedbackAgent: generating dual reports for session %s", session_id)
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
     # ── Fetch memory ─────────────────────────────────────────────────────
     mem_result = await db.execute(
@@ -88,32 +61,6 @@ async def generate_report(
     )
     scores: List[AnswerScore] = list(scores_result.scalars().all())
 
-<<<<<<< HEAD
-    avg_overall: float = 0.0
-    behavior_counts: Dict[str, int] = {"polite": 0, "arrogant": 0, "neutral": 0}
-
-    if scores:
-        avg_clarity: float = sum(s.clarity for s in scores) / len(scores)
-        avg_depth: float = sum(s.depth for s in scores) / len(scores)
-        avg_confidence: float = sum(s.confidence for s in scores) / len(scores)
-        avg_technical: float = sum(s.technical_score for s in scores) / len(scores)
-        avg_overall = float(sum(s.overall_score for s in scores) / len(scores))
-
-        for s in scores:
-            flag = s.behavior_flag if isinstance(s.behavior_flag, str) else s.behavior_flag.value
-            behavior_counts[flag] = behavior_counts.get(flag, 0) + 1
-
-        score_summary = (
-            f"Clarity: {avg_clarity:.1f}/10, "
-            f"Depth: {avg_depth:.1f}/10, "
-            f"Confidence: {avg_confidence:.1f}/10, "
-            f"Technical: {avg_technical:.1f}/10, "
-            f"Overall: {avg_overall:.1f}/10 "
-            f"({len(scores)} answers)"
-        )
-    else:
-        score_summary = "No scored answers available."
-=======
     # Count total questions
     from sqlalchemy import func
     from app.models.interview import Question
@@ -170,42 +117,11 @@ async def generate_report(
         avg_behavior = 0.0
         logger.warning(f"FeedbackAgent: Session {session_id} ended due to {ended_reason}. Zeroing scores.")
         weak_areas.append(f"CRITICAL: Failed proctoring validation. Reason: {ended_reason}")
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
     # Build behavior summary string
     behavior_summary_str = ", ".join(
         f"{k}: {v}" for k, v in behavior_counts.items() if v > 0
     ) or "No behavior data"
-<<<<<<< HEAD
-
-    # ── Build prompt & call LLM ──────────────────────────────────────────
-    prompt = FEEDBACK_REPORT_PROMPT.format(
-        session_summary=session_summary,
-        score_summary=score_summary,
-        weak_areas=", ".join(weak_areas) if weak_areas else "None identified",
-        strong_areas=", ".join(strong_areas) if strong_areas else "None identified",
-        behavior_summary=behavior_summary_str,
-    )
-
-    try:
-        response = await llm.ainvoke(prompt)
-        content: str = getattr(response, "content", str(response))
-        result = parse_json_response(content)
-        final_score = float(result.get("final_score", avg_overall))
-        communication_score = float(result.get("communication_score", avg_overall))
-        strengths = result.get("strengths", strong_areas)
-        weaknesses = result.get("weaknesses", weak_areas)
-        behavior_summary = result.get("behavior_summary", behavior_summary_str)
-        recommendation = result.get("recommendation", "Unable to determine")
-    except Exception as exc:
-        logger.error("FeedbackAgent LLM error: %s", exc)
-        final_score = float(round(avg_overall, 2))
-        communication_score = float(round(avg_overall, 2))
-        strengths = strong_areas
-        weaknesses = weak_areas
-        behavior_summary = behavior_summary_str
-        recommendation = "Review manually — LLM evaluation unavailable."
-=======
     
     if ended_reason != "normal":
         behavior_summary_str = f"PROCTORING VIOLATION: {ended_reason}. " + behavior_summary_str
@@ -290,7 +206,6 @@ async def generate_report(
     full_recommendation = f"{recommendation}: {justification}" if justification else recommendation
     strengths = recruiter_report_data.get("strengths", strong_areas)
     weaknesses = recruiter_report_data.get("weaknesses", weak_areas)
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
     # ── Persist report to DB ─────────────────────────────────────────────
     existing = await db.execute(
@@ -299,20 +214,12 @@ async def generate_report(
     report = existing.scalar_one_or_none()
 
     if report is None:
-<<<<<<< HEAD
-        report = InterviewReport(
-=======
         # Build kwargs with only columns that exist on the model
         report_kwargs = dict(
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
             session_id=session_id,
             final_score=final_score,
             strengths=strengths,
             weaknesses=weaknesses,
-<<<<<<< HEAD
-            recommendation=recommendation,
-        )
-=======
             recommendation=full_recommendation,
         )
         # Only add optional columns if they exist on the model
@@ -324,15 +231,11 @@ async def generate_report(
         if 'behavior_analysis' in report_test:
             report_kwargs['behavior_analysis'] = behavior_summary_str
         report = InterviewReport(**report_kwargs)
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         db.add(report)
     else:
         report.final_score = final_score
         report.strengths = strengths
         report.weaknesses = weaknesses
-<<<<<<< HEAD
-        report.recommendation = recommendation
-=======
         report.recommendation = full_recommendation
         if hasattr(report, 'student_report'):
             report.student_report = json.dumps(student_report_data)
@@ -340,7 +243,6 @@ async def generate_report(
             report.recruiter_report = json.dumps(recruiter_report_data)
         if hasattr(report, 'behavior_analysis'):
             report.behavior_analysis = behavior_summary_str
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
     # ── Update session-level summary fields ──────────────────────────────
     sess_result = await db.execute(
@@ -349,21 +251,6 @@ async def generate_report(
     session = sess_result.scalar_one_or_none()
     if session:
         session.overall_score = final_score
-<<<<<<< HEAD
-        session.communication_score = communication_score
-        session.recommendation = recommendation
-
-    await db.flush()
-
-    logger.info("FeedbackAgent: report saved for session %s (score=%.1f)", session_id, final_score)
-    return {
-        "final_score": final_score,
-        "communication_score": communication_score,
-        "strengths": strengths,
-        "weaknesses": weaknesses,
-        "behavior_summary": behavior_summary,
-        "recommendation": recommendation,
-=======
         if hasattr(session, 'final_score'):
             session.final_score = final_score
         if hasattr(session, 'communication_score'):
@@ -385,5 +272,4 @@ async def generate_report(
         "recommendation": full_recommendation,
         "student_report": student_report_data,
         "recruiter_report": recruiter_report_data,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     }

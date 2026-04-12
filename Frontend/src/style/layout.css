@@ -99,8 +99,6 @@
     justify-content: center;
 }
 
-<<<<<<< HEAD
-=======
 .sidebar-badge {
     margin-left: auto;
     background: var(--color-error);
@@ -124,7 +122,6 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 .sidebar-footer {
     padding: 16px 12px;
     border-top: 1px solid var(--color-border);

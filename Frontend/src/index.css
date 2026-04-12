@@ -233,8 +233,6 @@ a:hover {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-secondary);
-<<<<<<< HEAD
-=======
 }
 
 /* ── Premium Language Selector ───────────────────────────────────────── */
@@ -377,5 +375,4 @@ a:hover {
   color: var(--color-secondary);
   font-size: 1rem;
   flex-shrink: 0;
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 }

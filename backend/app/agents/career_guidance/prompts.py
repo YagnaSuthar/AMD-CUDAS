@@ -38,11 +38,8 @@ Provide specific, actionable guidance based on the student's:
 - Academic performance
 - Career goals
 - Available certifications and learning resources
-<<<<<<< HEAD
-=======
 - Project experience and portfolio
 - Interview performance history
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 """
 
 SKILL_GAP_SYSTEM = """\
@@ -62,10 +59,7 @@ RETRIEVED CONTEXT:
 
 Be specific about which skills are strong, which need improvement,
 and which are completely missing for their target career path.
-<<<<<<< HEAD
-=======
 Reference their projects, certifications, and interview feedback when available.
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 """
 
 CAREER_SWITCH_SYSTEM = """\
@@ -86,8 +80,6 @@ RETRIEVED CONTEXT:
 Be honest about the difficulty of the transition but supportive
 about their ability to make it with proper planning.
 """
-<<<<<<< HEAD
-=======
 
 PROJECT_RECOMMENDATION_SYSTEM = """\
 You are an expert AI career advisor specializing in project recommendations.
@@ -143,4 +135,3 @@ Provide:
 Reference their interview scores, project portfolio, certifications,
 and academic performance in your analysis.
 """
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a

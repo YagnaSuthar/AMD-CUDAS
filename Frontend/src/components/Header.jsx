@@ -1,19 +1,10 @@
-<<<<<<< HEAD
-import { FiMenu, FiLogOut, FiUser } from 'react-icons/fi';
-=======
 import { useState, useRef, useEffect } from 'react';
 import { FiMenu, FiLogOut, FiUser, FiGlobe, FiChevronDown, FiCheck } from 'react-icons/fi';
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 import { useAuth } from '../context/AuthContext';
 import { ROLE_LABELS } from '../utils/roles';
 import { useNavigate } from 'react-router-dom';
 import ThemeToggle from './ThemeToggle';
 
-<<<<<<< HEAD
-export default function Header({ onMenuClick }) {
-    const { user, logout } = useAuth();
-    const navigate = useNavigate();
-=======
 const LANGUAGES = [
     { code: 'en', label: 'English', native: 'English', flag: '🇬🇧' },
     { code: 'hi', label: 'Hindi', native: 'हिन्दी', flag: '🇮🇳' },
@@ -75,15 +66,12 @@ export default function Header({ onMenuClick }) {
     const [langOpen, setLangOpen] = useState(false);
     const [selectedLang, setSelectedLang] = useState(() => getGoogleTranslateLang());
     const dropdownRef = useRef(null);
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
     const handleLogout = () => {
         logout();
         navigate('/login');
     };
 
-<<<<<<< HEAD
-=======
     // Close dropdown on outside click
     useEffect(() => {
         const handler = (e) => {
@@ -102,7 +90,6 @@ export default function Header({ onMenuClick }) {
     };
 
     const currentLang = LANGUAGES.find(l => l.code === selectedLang) || LANGUAGES[0];
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     const roleLabel = user ? (ROLE_LABELS[user.role] || user.role) : '';
 
     return (
@@ -115,8 +102,6 @@ export default function Header({ onMenuClick }) {
             </div>
 
             <div className="header-right">
-<<<<<<< HEAD
-=======
                 {/* Premium Language Selector */}
                 <div className="lang-selector" ref={dropdownRef}>
                     <button
@@ -157,7 +142,6 @@ export default function Header({ onMenuClick }) {
                     )}
                 </div>
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
                 {user && (
                     <div className="header-user-info">
                         <span className="header-role-badge">{roleLabel}</span>

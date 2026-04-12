@@ -2,14 +2,10 @@
 Career Guidance Agent.
 
 Hybrid agent that uses direct LLM for general queries and
-<<<<<<< HEAD
-RAG-enhanced responses for personalized/skill-gap/career-switch queries.
-=======
 RAG-enhanced responses for personalized/skill-gap/career-switch/
 project-recommendation/job-matching queries.
 
 Automatically ensures user data is indexed in pgvector before retrieval.
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 """
 
 import asyncio
@@ -33,11 +29,7 @@ class CareerGuidanceAgent:
     Hybrid Career Guidance Agent.
 
     - GENERAL_QUERY → direct LLM call (no retrieval)
-<<<<<<< HEAD
-    - PERSONALIZED_GUIDANCE / SKILL_GAP / CAREER_SWITCH → RAG pipeline
-=======
     - All other intents → RAG pipeline with user data auto-indexing
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     """
 
     AGENT_TYPE = "career_guidance"
@@ -63,11 +55,7 @@ class CareerGuidanceAgent:
 
         Returns
         -------
-<<<<<<< HEAD
-        dict with keys 'response', 'intent', 'used_rag'.
-=======
         dict with keys 'response', 'intent', 'used_rag', 'data_sources'.
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         """
         # 1) Classify intent
         intent = classify_intent(query)
@@ -80,16 +68,6 @@ class CareerGuidanceAgent:
         # 3) Route by intent
         if intent == IntentType.GENERAL_QUERY:
             response = await self._handle_general(query)
-<<<<<<< HEAD
-            return {"response": response, "intent": intent.value, "used_rag": False}
-
-        # For all personalized intents, use RAG
-        response = await self._handle_with_rag(query, profile, intent, user_id)
-        return {"response": response, "intent": intent.value, "used_rag": True}
-
-    # ── Private methods ─────────────────────────────────────────────────────
-
-=======
             return {
                 "response": response,
                 "intent": intent.value,
@@ -145,7 +123,6 @@ class CareerGuidanceAgent:
             )
             return []
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     async def _handle_general(self, query: str) -> str:
         """Handle a general career query with direct LLM call."""
         from langchain_core.messages import HumanMessage, SystemMessage
@@ -168,21 +145,12 @@ class CareerGuidanceAgent:
         """Handle queries that benefit from RAG-enhanced context."""
         from langchain_core.messages import HumanMessage, SystemMessage
 
-<<<<<<< HEAD
-        # 1) Retrieve relevant context (search ALL user documents)
-        retrieved = await self._retrieval.search(
-            query=query,
-            user_id=user_id,
-            agent_type=None,
-            top_k=5,
-=======
         # 1) Retrieve relevant context (search ALL user documents, more chunks)
         retrieved = await self._retrieval.search(
             query=query,
             user_id=user_id,
             agent_type=None,  # Search ALL agent types for comprehensive context
             top_k=8,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         )
 
         # 2) Format context and profile
@@ -211,11 +179,8 @@ class CareerGuidanceAgent:
             IntentType.PERSONALIZED_GUIDANCE: prompts.PERSONALIZED_GUIDANCE_SYSTEM,
             IntentType.SKILL_GAP_ANALYSIS: prompts.SKILL_GAP_SYSTEM,
             IntentType.CAREER_SWITCH: prompts.CAREER_SWITCH_SYSTEM,
-<<<<<<< HEAD
-=======
             IntentType.PROJECT_RECOMMENDATION: prompts.PROJECT_RECOMMENDATION_SYSTEM,
             IntentType.JOB_ROLE_MATCHING: prompts.JOB_ROLE_MATCHING_SYSTEM,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         }
         return mapping.get(intent, prompts.PERSONALIZED_GUIDANCE_SYSTEM)
 
@@ -233,36 +198,18 @@ class CareerGuidanceAgent:
     def _format_profile(profile: dict[str, Any]) -> str:
         """Format a user profile dict into a readable string."""
         lines = []
-<<<<<<< HEAD
-=======
 
         # Skills
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         skills = profile.get("skills", [])
         lines.append(f"Skills: {', '.join(skills) if skills else 'None specified'}")
         lines.append(f"Experience Level: {profile.get('experience_level', 'unknown')}")
 
-<<<<<<< HEAD
-=======
         # Education
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         edu = profile.get("education", {})
         lines.append(f"Department: {edu.get('department', 'N/A')}")
         lines.append(f"Semester: {edu.get('semester', 'N/A')}")
         lines.append(f"Average Percentage: {edu.get('average_percentage', 0)}%")
 
-<<<<<<< HEAD
-        goals = profile.get("goals", [])
-        lines.append(f"Career Goals: {', '.join(goals) if goals else 'Not set'}")
-
-        certs = profile.get("certifications", [])
-        if certs:
-            cert_titles = [c.get("title", "Unknown") for c in certs]
-            lines.append(f"Certifications: {', '.join(cert_titles)}")
-        else:
-            lines.append("Certifications: None")
-
-=======
         # Goals
         goals = profile.get("goals", [])
         lines.append(f"Career Goals: {', '.join(goals) if goals else 'Not set'}")
@@ -310,5 +257,4 @@ class CareerGuidanceAgent:
         if resume_summary:
             lines.append(f"Resume Summary: {resume_summary[:300]}...")
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         return "\n".join(lines)

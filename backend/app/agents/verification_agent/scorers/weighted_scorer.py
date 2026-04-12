@@ -13,22 +13,6 @@ def compute_final_score(scores: dict[str, Any]) -> dict[str, Any]:
     source_score = _clamp01(scores.get("source_score", 0.0))
     consistency_score = _clamp01(scores.get("consistency_score", 0.0))
     ml_score = _clamp01(scores.get("ml_score", 0.5))
-<<<<<<< HEAD
-
-    confidence = (
-        format_score * 0.20
-        + metadata_score * 0.15
-        + source_score * 0.30
-        + consistency_score * 0.20
-        + ml_score * 0.15
-    )
-
-    confidence = _clamp01(confidence)
-
-    if confidence >= 0.75:
-        status = "verified"
-    elif confidence >= 0.45:
-=======
     contribution_score = scores.get("contribution_score")
     description_match_score = scores.get("description_match_score")
 
@@ -75,7 +59,6 @@ def compute_final_score(scores: dict[str, Any]) -> dict[str, Any]:
     if confidence >= 0.55:
         status = "verified"
     elif confidence >= 0.35:
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         status = "suspicious"
     else:
         status = "failed"

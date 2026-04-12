@@ -19,11 +19,8 @@ from app.api.ai.agents.interview.schema import (
     InterviewHistoryResponse,
     InterviewReportResponse,
     NextQuestionResponse,
-<<<<<<< HEAD
-=======
     ProctoringViolationRequest,
     ProctoringViolationResponse,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     SessionDetailResponse,
     StartInterviewRequest,
     StartInterviewResponse,
@@ -183,10 +180,7 @@ async def end_interview(
         return await InterviewService.end_interview(
             student_id=student_id,
             session_id=request.session_id,
-<<<<<<< HEAD
-=======
             ended_reason=request.ended_reason,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
             db=db,
         )
     except HTTPException:
@@ -340,8 +334,6 @@ async def delete_session(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Failed to delete session")
-<<<<<<< HEAD
-=======
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
@@ -443,5 +435,4 @@ async def get_student_report(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Failed to get student report")
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         raise HTTPException(status_code=500, detail=str(exc)) from exc

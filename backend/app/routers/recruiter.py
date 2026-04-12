@@ -17,10 +17,7 @@ from app.models.auth import (
 from app.models.interview import InterviewReport, InterviewSession
 from app.models.pipeline import InterviewPipeline
 from app.models.job import Job
-<<<<<<< HEAD
-=======
 from app.models.project import Project
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 from app.schemas.recruiter import (
     RecruiterCollegeResponse,
     RecruiterDepartmentResponse,
@@ -28,11 +25,8 @@ from app.schemas.recruiter import (
     RecruiterStudentInterviewSummary,
     RecruiterStudentPipelineSummary,
     RecruiterStudentProfileResponse,
-<<<<<<< HEAD
-=======
     RecruiterStudentProjectSummary,
     RecruiterStudentCertificateSummary,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 )
 
 router = APIRouter(prefix="/recruiter", tags=["Recruiter"])
@@ -370,8 +364,6 @@ async def get_student_profile(
             )
         )
 
-<<<<<<< HEAD
-=======
     # Certificates for this student
     c_res = await db.execute(
         select(Certificate)
@@ -409,7 +401,6 @@ async def get_student_profile(
         for pr in projects
     ]
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     return RecruiterStudentProfileResponse(
         id=str(student.id),
         name=student.name,
@@ -420,9 +411,6 @@ async def get_student_profile(
         resume_url=student.resume_url,
         interviews=summaries,
         pipelines=p_out,
-<<<<<<< HEAD
-=======
         projects=pr_out,
         certificates=c_out,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     )

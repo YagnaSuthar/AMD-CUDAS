@@ -7,11 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.verification_agent.controller import VerificationController
 from app.core.security import get_current_user
-<<<<<<< HEAD
-from app.core.database import get_db
-=======
 from app.db.base import get_db
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 from app.schemas.verification import VerificationResponse, VerificationFeedbackRequest
 
 logger = logging.getLogger(__name__)
@@ -24,12 +20,9 @@ async def verify(
     file: UploadFile | None = File(None),
     link: str | None = Form(None),
     profile_data: str | None = Form(None),
-<<<<<<< HEAD
-=======
     project_description: str | None = Form(None),
     tech_stack: str | None = Form(None),
     github_username: str | None = Form(None),
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -54,12 +47,9 @@ async def verify(
         file=file,
         link=link,
         profile_data=parsed_profile,
-<<<<<<< HEAD
-=======
         project_description=project_description,
         tech_stack=tech_stack,
         github_username=github_username,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     )
     logger.info("[VERIFICATION] /verify endpoint completed - run_id=%s, score=%.2f, status=%s", 
                 result.run_id, result.confidence_score, result.status)

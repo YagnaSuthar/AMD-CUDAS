@@ -30,11 +30,8 @@ class VerificationResponse(BaseModel):
     trust_score: int
     recommendations: list[str] = Field(default_factory=list)
     explanation: dict[str, Any] = Field(default_factory=dict)
-<<<<<<< HEAD
-=======
     contribution_summary: Optional[dict[str, Any]] = Field(default=None, description="Deep GitHub contribution analysis")
     blockchain_verified: Optional[bool] = Field(default=None, description="Blockchain verification status for certs")
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
     input_type: InputType
     run_id: str

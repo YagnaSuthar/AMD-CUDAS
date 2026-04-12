@@ -8,9 +8,6 @@ from fastapi import UploadFile
 
 async def extract_certificate_structured(*, file: UploadFile, file_bytes: bytes) -> dict[str, Any]:
     from app.agents.verification_agent.utils.text_extraction import extract_text_from_certificate
-<<<<<<< HEAD
-
-=======
     from app.core.llm import get_llm
     from langchain_core.messages import HumanMessage, SystemMessage
     import json
@@ -18,19 +15,10 @@ async def extract_certificate_structured(*, file: UploadFile, file_bytes: bytes)
     import logging
 
     logger = logging.getLogger(__name__)
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     text = await extract_text_from_certificate(file=file, file_bytes=file_bytes)
 
     data: dict[str, Any] = {
         "raw_text": text,
-<<<<<<< HEAD
-        "name": _extract_name(text),
-        "course": _extract_course(text),
-        "issuer": _extract_issuer(text),
-        "date": _extract_date(text),
-        "certificate_id": _extract_certificate_id(text),
-    }
-=======
         "name": None,
         "course": None,
         "issuer": None,
@@ -75,7 +63,6 @@ Text:
     data["date"] = _extract_date(text)
     data["certificate_id"] = _extract_certificate_id(text)
     
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     return data
 
 

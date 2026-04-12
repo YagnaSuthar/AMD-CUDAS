@@ -1312,8 +1312,6 @@
 
 /* ── Premium Certificate Upload Card ─────────────────────────────────── */
 
-<<<<<<< HEAD
-=======
 .cert-upload-duo-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1327,16 +1325,11 @@
     }
 }
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 .cert-upload-card {
     background: var(--color-bg-card);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     overflow: hidden;
-<<<<<<< HEAD
-    margin-bottom: 24px;
-=======
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 }
 
 .cert-upload-card-header {
@@ -1374,12 +1367,9 @@
 
 .cert-upload-form-inner {
     padding: 24px;
-<<<<<<< HEAD
-=======
     display: flex;
     flex-direction: column;
     gap: 16px;
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 }
 
 .cert-upload-grid {
@@ -1588,42 +1578,26 @@
     padding: 13px 28px;
     border: none;
     border-radius: var(--radius-sm);
-<<<<<<< HEAD
-    background: linear-gradient(135deg, #a87ef0, #7c3aed);
-=======
     background: var(--gradient-primary);
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     color: #fff;
     font-family: var(--font-body);
     font-weight: 600;
     font-size: 0.9rem;
     cursor: pointer;
-<<<<<<< HEAD
-    transition: all 0.25s ease;
-    width: 100%;
-=======
     transition: all 0.3s ease;
     width: 100%;
     box-shadow: 0 4px 15px rgba(0, 188, 212, 0.25);
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 }
 
 .cert-upload-btn:hover:not(:disabled) {
     transform: translateY(-2px);
-<<<<<<< HEAD
-    box-shadow: 0 6px 20px rgba(168, 126, 240, 0.35);
-=======
     box-shadow: 0 6px 24px rgba(0, 188, 212, 0.45);
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 }
 
 .cert-upload-btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
-<<<<<<< HEAD
-=======
     box-shadow: none;
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 }
 
 .cert-upload-hint {
@@ -1635,9 +1609,6 @@
     margin: 0;
 }
 
-<<<<<<< HEAD
-/* ── Responsive for new components ───────────────────────────────────── */
-=======
 /* ── Textarea in cert forms ── */
 .cert-textarea {
     width: 100%;
@@ -1692,7 +1663,6 @@
 }
 
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
 @media (max-width: 768px) {
     .timetable-grid {
@@ -2656,8 +2626,6 @@
     .jobs-grid {
         grid-template-columns: 1fr;
     }
-<<<<<<< HEAD
-=======
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -2779,5 +2747,4 @@
 
 .report-list li {
     margin-bottom: 6px;
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 }

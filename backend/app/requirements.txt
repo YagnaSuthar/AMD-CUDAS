@@ -29,9 +29,5 @@ langchain-huggingface
 sentence-transformers
 tiktoken
 langchain-text-splitters
-<<<<<<< HEAD
-langchain_text_splitters
-=======
 langchain_text_splitters
 bs4
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a

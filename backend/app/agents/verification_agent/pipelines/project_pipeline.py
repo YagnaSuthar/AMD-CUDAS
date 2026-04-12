@@ -1,11 +1,8 @@
-<<<<<<< HEAD
-=======
 """
 Project verification pipeline — Enhanced.
 Orchestrates GitHub scraping, deep contributor analysis, validation, and AI-powered analysis.
 """
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 from __future__ import annotations
 
 import uuid
@@ -20,12 +17,9 @@ async def run_project_pipeline(
     user_id: uuid.UUID | None,
     link: str | None,
     profile_data: dict[str, Any] | None,
-<<<<<<< HEAD
-=======
     project_description: str | None = None,
     tech_stack: str | None = None,
     github_username: str | None = None,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 ) -> tuple[dict[str, Any], dict[str, Any], list[str], list[str], list[str]]:
     from app.agents.verification_agent.validators.project_validator import verify_github_project
     from app.agents.verification_agent.validators.consistency_validator import validate_cross_profile_consistency
@@ -35,18 +29,6 @@ async def run_project_pipeline(
     verified_fields: list[str] = []
     recommendations: list[str] = []
 
-<<<<<<< HEAD
-    extracted: dict[str, Any] = {"link": link}
-
-    project_res = await verify_github_project(link=link)
-    issues.extend(project_res["issues"])
-
-    consistency_res = await validate_cross_profile_consistency(extracted=extracted, profile_data=profile_data)
-    issues.extend(consistency_res["issues"])
-
-    ml_res = await fraud_score_placeholder(input_type="project", extracted=extracted)
-
-=======
     print(f"\n[Verification Agent] ═══ PROJECT PIPELINE START ═══")
     print(f"[Verification Agent] User: {user_id}")
     print(f"[Verification Agent] Link: {link}")
@@ -113,29 +95,22 @@ async def run_project_pipeline(
     # Build scores dict — now includes contribution_score
     contribution_score = contribution_data.get("contribution_authenticity_score", 0.5)
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     scores = {
         "format_score": project_res["format_score"],
         "metadata_score": project_res["metadata_score"],
         "source_score": project_res["source_score"],
         "consistency_score": consistency_res["score"],
         "ml_score": ml_res["score"],
-<<<<<<< HEAD
-=======
         "contribution_score": round(contribution_score, 4),
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     }
 
     verified_fields.extend(project_res.get("verified_fields", []))
     recommendations.extend(project_res.get("recommendations", []))
 
-<<<<<<< HEAD
-=======
     print(f"\n[Verification Agent] ═══ PROJECT PIPELINE COMPLETE ═══")
     print(f"[Verification Agent] Scores: {scores}")
     print(f"[Verification Agent] Issues: {len(issues)}")
     print(f"[Verification Agent] Verified: {verified_fields}")
     print(f"[Verification Agent] Contribution Score: {contribution_score:.2f}")
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     return extracted, scores, issues, verified_fields, recommendations

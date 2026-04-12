@@ -171,12 +171,9 @@ class InterviewSession(Base):
     report: Mapped[Optional["InterviewReport"]] = relationship(
         back_populates="session", uselist=False, cascade="all, delete-orphan"
     )
-<<<<<<< HEAD
-=======
     violations: Mapped[List["ProctoringViolation"]] = relationship(
         back_populates="session", cascade="all, delete-orphan"
     )
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
 
 class Question(Base):
@@ -306,8 +303,6 @@ class InterviewReport(Base):
 
     # Relationships
     session: Mapped["InterviewSession"] = relationship(back_populates="report")
-<<<<<<< HEAD
-=======
 
 
 class ProctoringViolation(Base):
@@ -337,4 +332,3 @@ class ProctoringViolation(Base):
 
     # Relationships
     session: Mapped["InterviewSession"] = relationship(back_populates="violations")
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a

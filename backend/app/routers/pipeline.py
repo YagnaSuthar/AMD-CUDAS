@@ -17,10 +17,7 @@ from app.schemas.pipeline import (
     InviteRound2Request,
     MarkHiredRequest,
     PipelineResponse,
-<<<<<<< HEAD
-=======
     RejectPipelineRequest,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 )
 
 router = APIRouter(prefix="/pipeline", tags=["Interview Pipeline"])
@@ -301,8 +298,6 @@ async def mark_hired(
     return pipeline
 
 
-<<<<<<< HEAD
-=======
 @router.put("/reject")
 async def reject_pipeline(
     body: RejectPipelineRequest,
@@ -327,7 +322,6 @@ async def reject_pipeline(
 
 
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 async def mark_pipeline_ai_completed(db: AsyncSession, session_id: uuid.UUID) -> None:
     """Called when an AI interview session completes."""
     import logging

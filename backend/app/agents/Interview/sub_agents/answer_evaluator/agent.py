@@ -1,15 +1,4 @@
 """
-<<<<<<< HEAD
-Answer Evaluation Agent.
-Evaluates a candidate's answer on clarity, depth, confidence, technical accuracy,
-and classifies behavioral tone (polite/arrogant/neutral).
-"""
-
-import logging
-from typing import Any, Dict
-
-from app.agents.Interview.prompts import ANSWER_EVALUATION_PROMPT
-=======
 Answer Evaluation Agent (Upgraded).
 Evaluates answers with weighted scoring on 0-1 scale:
   - technical_score (0-1)
@@ -28,13 +17,10 @@ import re
 from typing import Any, Dict
 
 from app.agents.Interview.prompts import WEIGHTED_EVALUATION_PROMPT
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 from app.agents.Interview.utils import parse_json_response
 
 logger = logging.getLogger(__name__)
 
-<<<<<<< HEAD
-=======
 # ── Skip / Refusal Detection ─────────────────────────────────────────────
 
 SKIP_PATTERNS = [
@@ -127,29 +113,11 @@ _OVERRIDE_SCORES: Dict[str, Dict[str, Any]] = {
     },
 }
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
 async def evaluate_answer(
     question: str,
     answer: str,
     llm: Any,
-<<<<<<< HEAD
-) -> Dict[str, Any]:
-    """
-    Evaluate the candidate's answer for clarity, depth, confidence,
-    technical accuracy, and behavioral tone.
-
-    Returns
-    -------
-    dict   {"clarity": int, "depth": int, "confidence": int,
-            "technical_score": int, "behavior_flag": str, "next_difficulty": str}
-    """
-    logger.info("AnswerEvaluatorAgent: evaluating answer")
-
-    prompt = ANSWER_EVALUATION_PROMPT.format(
-        question=question,
-        answer=answer,
-=======
     difficulty: str = "medium",
 ) -> Dict[str, Any]:
     """
@@ -195,7 +163,6 @@ async def evaluate_answer(
         question=question,
         answer=answer,
         difficulty=difficulty,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     )
 
     try:
@@ -203,15 +170,6 @@ async def evaluate_answer(
         content: str = getattr(response, "content", str(response))
         result = parse_json_response(content)
 
-<<<<<<< HEAD
-        clarity = int(result.get("clarity", 5))
-        depth = int(result.get("depth", 5))
-        confidence = int(result.get("confidence", 5))
-        technical_score = int(result.get("technical_score", 5))
-        behavior_flag = result.get("behavior_flag", "neutral")
-        next_difficulty = result.get("next_difficulty", "medium")
-
-=======
         # Extract 0-1 scores
         tech = float(result.get("technical_score", 0.5))
         comm = float(result.get("communication_score", 0.5))
@@ -227,23 +185,10 @@ async def evaluate_answer(
         # Compute weighted score
         weighted = 0.5 * tech + 0.3 * comm + 0.2 * behav
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         # Validate behavior_flag
         if behavior_flag not in ("polite", "arrogant", "neutral"):
             behavior_flag = "neutral"
 
-<<<<<<< HEAD
-        logger.info(
-            "AnswerEvaluatorAgent: c=%s d=%s conf=%s tech=%s behavior=%s",
-            clarity, depth, confidence, technical_score, behavior_flag,
-        )
-
-        return {
-            "clarity": clarity,
-            "depth": depth,
-            "confidence": confidence,
-            "technical_score": technical_score,
-=======
         # Convert to integer scores for backward compatibility (0-10 scale)
         clarity_int = int(round(comm * 10))
         depth_int = int(round(tech * 10))
@@ -267,7 +212,6 @@ async def evaluate_answer(
             "depth": depth_int,
             "confidence": confidence_int,
             "technical_score_int": technical_int,
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
             "behavior_flag": behavior_flag,
             "next_difficulty": next_difficulty,
         }

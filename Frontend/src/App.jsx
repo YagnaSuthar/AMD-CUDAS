@@ -6,32 +6,6 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 import Landing from './pages/Landing';
-<<<<<<< HEAD
-import Login from './pages/Login';
-import Register from './pages/Register';
-import VerifyEmail from './pages/VerifyEmail';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import Dashboard from './pages/Dashboard';
-import UploadCSV from './pages/UploadCSV';
-import UserManagement from './pages/UserManagement';
-import CompanyManagement from './pages/CompanyManagement';
-import Profile from './pages/Profile';
-import TimetableManagement from './pages/TimetableManagement';
-import MarksManagement from './pages/MarksManagement';
-import CertificateManagement from './pages/CertificateManagement';
-import Leaderboard from './pages/Leaderboard';
-import Skills from './pages/Skills';
-import AIInterview from './pages/AIInterview';
-import Jobs from './pages/Jobs';
-import Interviews from './pages/Interviews';
-import RecruiterClgs from './pages/RecruiterClgs';
-import Messages from './pages/Messages';
-import Applications from './pages/Applications';
-import Notifications from './pages/Notifications';
-import CareerGuidance from './pages/CareerGuidance';
-import Round2Meeting from './pages/Round2Meeting';
-=======
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import VerifyEmail from './pages/auth/VerifyEmail';
@@ -58,7 +32,6 @@ import CareerGuidance from './pages/dashboard/college/features/CareerGuidance';
 import Round2Meeting from './pages/dashboard/college/features/Round2Meeting';
 import InterviewLive from './pages/dashboard/college/features/InterviewLive';
 import AssignSubjects from './pages/dashboard/college/features/AssignSubjects';
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
 function App() {
   return (
@@ -75,11 +48,6 @@ function App() {
 
           {/* Protected Dashboard Routes */}
           <Route path="/dashboard" element={<ProtectedRoute />}>
-<<<<<<< HEAD
-            <Route element={<DashboardLayout />}>
-              <Route index element={<Dashboard />} />
-              <Route path="users" element={<UserManagement />} />
-=======
             {/* InterviewLive renders fullscreen — no sidebar/header */}
             <Route path="interview/live" element={<InterviewLive />} />
 
@@ -87,7 +55,6 @@ function App() {
               <Route index element={<Dashboard />} />
               <Route path="users" element={<UserManagement />} />
               <Route path="assign-subjects" element={<AssignSubjects />} />
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
               <Route path="all-users" element={<UserManagement allUsers />} />
               <Route path="colleges" element={<UserManagement colleges />} />
               <Route path="companies" element={<CompanyManagement />} />

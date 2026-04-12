@@ -4,8 +4,6 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-<<<<<<< HEAD
-=======
 class RecruiterStudentProjectSummary(BaseModel):
     id: str
     project_name: str
@@ -21,7 +19,6 @@ class RecruiterStudentCertificateSummary(BaseModel):
     points: int
     is_verified: bool
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
 class RecruiterCollegeResponse(BaseModel):
     id: str
@@ -78,8 +75,5 @@ class RecruiterStudentProfileResponse(BaseModel):
     resume_url: Optional[str] = None
     interviews: list[RecruiterStudentInterviewSummary]
     pipelines: list[RecruiterStudentPipelineSummary]
-<<<<<<< HEAD
-=======
     projects: list[RecruiterStudentProjectSummary] = []
     certificates: list[RecruiterStudentCertificateSummary] = []
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a

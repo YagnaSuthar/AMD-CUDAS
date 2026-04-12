@@ -161,41 +161,6 @@ GREETING_COMFORTABLE_NO = (
 GREETING_START_NO = "Alright, we will schedule it later."
 
 
-<<<<<<< HEAD
-# ── Behavior-Reactive Response Templates (No LLM call) ───────────────────
-
-BEHAVIOR_RESPONSES = {
-    "arrogant_correct": (
-        "Thank you for your answer. That's technically correct. "
-        "Let me challenge you with something more nuanced."
-    ),
-    "arrogant_incorrect": (
-        "I appreciate your confidence, but let me clarify — the correct approach "
-        "involves a different perspective. Let's move to the next question."
-    ),
-    "polite_correct": (
-        "Excellent answer! You've demonstrated a strong understanding of this topic. "
-        "Well done. Let's continue."
-    ),
-    "polite_incorrect": (
-        "Good attempt! The concept you're thinking of is close, but there's a "
-        "subtle difference. Don't worry, let's move on to the next question."
-    ),
-    "neutral_correct": (
-        "That's correct. Good job. Let's proceed to the next question."
-    ),
-    "neutral_incorrect": (
-        "Not quite the answer I was looking for, but that's okay. "
-        "Let's move on to the next one."
-    ),
-    "no_answer": (
-        "Are you able to hear me? Would you like me to repeat the question?"
-    ),
-    "timeout_reminder": (
-        "Take your time. Whenever you're ready, you can share your answer."
-    ),
-}
-=======
 # ── Feedback Sentence Pools (No LLM call — selected by answer quality) ────
 
 import random
@@ -473,4 +438,3 @@ EARLY_EXIT_MESSAGE = (
     "You will receive a detailed report with feedback and suggestions for improvement."
 )
 
->>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
