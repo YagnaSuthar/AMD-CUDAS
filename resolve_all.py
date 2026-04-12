@@ -11,12 +11,15 @@ def resolve_file(filepath):
             line = lines[i]
             if line.strip().startswith("<<<<<<< HEAD"):
                 i += 1
-                # Keep HEAD (current) lines until =======
+                # Skip HEAD lines until =======
                 while i < len(lines) and not lines[i].strip().startswith("======="):
-                    resolved_lines.append(lines[i])
                     i += 1
-                # Skip everything between ======= and >>>>>>>
+                # Skip the ======= 
+                if i < len(lines):
+                    i += 1
+                # Keep incoming lines until >>>>>>>
                 while i < len(lines) and not lines[i].strip().startswith(">>>>>>>"):
+                    resolved_lines.append(lines[i])
                     i += 1
                 # Skip the >>>>>>> marker itself
                 if i < len(lines):
@@ -33,7 +36,7 @@ def resolve_file(filepath):
         return False
 
 # Scan entire project
-project_dir = r"d:\AMD-CUDAS\AMD-CUDAS"
+project_dir = r"c:\Users\rlintern67\Desktop\CUDAS\AMD-CUDAS"
 count = 0
 for root, dirs, files in os.walk(project_dir):
     # Skip irrelevant directories
