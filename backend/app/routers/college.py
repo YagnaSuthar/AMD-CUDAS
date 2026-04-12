@@ -26,7 +26,7 @@ from app.schemas.auth import (
     LeaderboardEntry, CareerRoadmapResponse,
 )
 from app.services.user_service import get_children, can_create_role, get_user_by_email
-from app.services.email_service import send_credentials_email, send_reset_password_email
+from app.services.email_service import send_credentials_email
 from app.services.certificate_service import (
     create_certificate_and_block,
     save_certificate_file,
@@ -184,6 +184,24 @@ async def add_user_manually(
     if not final_dept and current_user.department:
         final_dept = current_user.department
 
+    student_semester = None
+    if target_role == "STUDENT":
+        if not body.enrollment_number:
+            raise HTTPException(status_code=400, detail="Enrollment number is required for students.")
+            
+        # Check uniqueness of enrollment_number
+        exist_enroll = await db.execute(select(AuthUser).where(AuthUser.enrollment_number == body.enrollment_number))
+        if exist_enroll.scalar_one_or_none():
+            raise HTTPException(status_code=409, detail="This enrollment number is already registered.")
+            
+        # Fetch mentor assignment
+        mentor_query = await db.execute(select(MentorAssignment).where(MentorAssignment.faculty_id == current_user.id))
+        assignment = mentor_query.scalars().first()
+        if not assignment:
+            raise HTTPException(status_code=403, detail="You must be assigned as a Mentor for a semester by the HOD before you can add students.")
+        
+        student_semester = assignment.semester
+
     # Generate reset token for new user
     import uuid as uuid_pkg
     reset_token = str(uuid_pkg.uuid4())
@@ -198,6 +216,8 @@ async def add_user_manually(
         parent_id=current_user.id,
         is_verified=True,
         department=final_dept,
+        semester=student_semester,
+        enrollment_number=body.enrollment_number if target_role == "STUDENT" else None,
         must_reset_password=True,
         reset_token=reset_token,
         reset_token_expiry=expiry,

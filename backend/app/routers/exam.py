@@ -1,19 +1,28 @@
+"""
+Exam router — exam timetable CSV template, upload, and bulk creation.
+"""
+
 import csv
 import io
 import datetime
+import logging
 from typing import List
+
 from fastapi import APIRouter, File, UploadFile, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import insert
-
-from app.core.database import get_db
-from app.core.security import hod_only, get_current_user
-from app.models.auth import Timetable
 from sqlalchemy import insert, update
 
+from app.core.database import get_db
+from app.core.security import hod_only
+from app.models.auth import Timetable
+from app.services.csv_service import decode_csv_content
+
+_logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/exam", tags=["Exam"])
+
 
 class ExamEntry(BaseModel):
     semester: str
@@ -21,77 +30,85 @@ class ExamEntry(BaseModel):
     date: str
     time: str
 
+
 class ExamBulkCreate(BaseModel):
     exams: List[ExamEntry]
 
+
 @router.get("/template")
 async def download_template():
+    """Download an example exam timetable CSV template."""
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=["semester", "subject", "date", "time"])
     writer.writeheader()
-    # Add an example row
     writer.writerow({
         "semester": "1",
         "subject": "Mathematics I",
         "date": "2024-05-20",
         "time": "10:30"
     })
-    
+
     output.seek(0)
     return StreamingResponse(
-        io.BytesIO(output.getvalue().encode()),
+        io.BytesIO(output.getvalue().encode("utf-8")),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=exam_timetable_template.csv"},
     )
 
-@router.post("/upload-exam-csv")
-async def upload_exam_csv(file: UploadFile = File(...)):
-    if not file.filename or not file.filename.endswith(".csv"):
-        return {"status": "error", "message": "Please upload a .csv file"}
 
-    content = await file.read()
-    
-    try:
-        file_content = content.decode("utf-8")
-    except UnicodeDecodeError:
-        try:
-            file_content = content.decode("iso-8859-1")
-        except:
-            return {"status": "error", "message": "Could not decode file content."}
-    
+@router.post("/upload-exam-csv")
+async def upload_exam_csv(
+    file: UploadFile = File(...),
+    current_user=Depends(hod_only),
+):
+    """
+    Upload an exam timetable CSV for validation.
+    Returns parsed rows with per-row validation status.
+    Requires HOD authentication.
+    """
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Please upload a .csv file")
+
+    raw_bytes = await file.read()
+    if not raw_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+
+    # Use shared decoder for multi-encoding support
+    file_content = decode_csv_content(raw_bytes)
+
     reader = csv.DictReader(io.StringIO(file_content))
-    
+
     # Check if headers exist
     expected_fields = {"semester", "subject", "date", "time"}
     if not reader.fieldnames:
-        return {"status": "error", "message": "CSV file is empty or missing headers."}
-        
-    actual_fields = {f.strip() for f in reader.fieldnames if f}
-    if not expected_fields.issubset(actual_fields):
-        missing = expected_fields - actual_fields
-        return {
-            "status": "error", 
-            "message": f"CSV is missing required headers: {', '.join(missing)}"
-        }
+        raise HTTPException(status_code=400, detail="CSV file is empty or missing headers.")
+
+    actual_fields = {f.strip().lower() for f in reader.fieldnames if f}
+    missing = expected_fields - actual_fields
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"CSV is missing required headers: {', '.join(missing)}"
+        )
 
     results = []
-    
+
     for row in reader:
-        # Get values safely, stripping whitespace if present
+        # Get values safely, stripping whitespace
         row_data = {
             "semester": str(row.get("semester", "")).strip(),
             "subject": str(row.get("subject", "")).strip(),
             "date": str(row.get("date", "")).strip(),
             "time": str(row.get("time", "")).strip()
         }
-        
+
         valid = True
         error_msg = None
-        
-        # Check if row is completely empty (can happen at end of file)
+
+        # Skip completely empty rows
         if not any(row_data.values()):
             continue
-        
+
         # Check required fields
         if not all(row_data.values()):
             valid = False
@@ -100,7 +117,7 @@ async def upload_exam_csv(file: UploadFile = File(...)):
             # Flexible Date Parsing (try multiple formats)
             date_formats = ["%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%m/%d/%Y"]
             parsed_date = None
-            
+
             for fmt in date_formats:
                 try:
                     parsed_date = datetime.datetime.strptime(row_data["date"], fmt)
@@ -109,11 +126,11 @@ async def upload_exam_csv(file: UploadFile = File(...)):
                     break
                 except ValueError:
                     continue
-            
+
             if not parsed_date:
                 valid = False
-                error_msg = f"Invalid date. Use YYYY-MM-DD or DD-MM-YYYY."
-                
+                error_msg = "Invalid date. Use YYYY-MM-DD or DD-MM-YYYY."
+
             # Validate Time (HH:MM)
             if valid:
                 try:
@@ -127,12 +144,19 @@ async def upload_exam_csv(file: UploadFile = File(...)):
             "valid": valid,
             "error": error_msg
         })
-        
+
+    _logger.info(
+        "Exam CSV uploaded by %s: %d rows parsed",
+        getattr(current_user, "email", "unknown"),
+        len(results),
+    )
+
     return {
         "filename": file.filename,
         "status": "success",
         "data": results
     }
+
 
 @router.post("/bulk-create-exams")
 async def bulk_create_exams(
@@ -140,6 +164,7 @@ async def bulk_create_exams(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(hod_only)
 ):
+    """Bulk-create exam timetable entries from validated data."""
     try:
         dept = current_user.department or "Unknown"
         from datetime import date
@@ -154,9 +179,7 @@ async def bulk_create_exams(
 
         exam_objects = []
         for entry in data.exams:
-            # We store dates as strings in Timetable model but can validate format here
             try:
-                # Validation only
                 datetime.datetime.strptime(entry.date, "%Y-%m-%d")
                 datetime.datetime.strptime(entry.time, "%H:%M")
             except ValueError as e:
@@ -183,6 +206,9 @@ async def bulk_create_exams(
             "message": f"Successfully inserted {len(exam_objects)} exam records.",
             "inserted_count": len(exam_objects)
         }
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
+        _logger.error("Bulk exam creation failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e))

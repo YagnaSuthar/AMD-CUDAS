@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
 import { ROLE_LABELS } from '../../../../utils/roles';
 import api from '../../../../utils/api';
@@ -163,12 +163,12 @@ export default function Profile() {
                         </div>
                     )}
 
-                    {data.roll_number && (
+                    {data.enrollment_number && (
                         <div className="profile-field">
                             <div className="profile-field-icon"><FiHash /></div>
                             <div className="profile-field-content">
-                                <label>Roll Number</label>
-                                <span>{data.roll_number}</span>
+                                <label>Enrollment Number</label>
+                                <span>{data.enrollment_number}</span>
                             </div>
                         </div>
                     )}

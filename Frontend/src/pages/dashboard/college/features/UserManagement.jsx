@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
 import { ROLE_LABELS, CHILD_ROLE_MAP } from '../../../../utils/roles';
 import api from '../../../../utils/api';
@@ -21,7 +21,7 @@ export default function UserManagement({ allUsers = false, colleges = false }) {
 
     // Add user modal state
     const [showAddModal, setShowAddModal] = useState(false);
-    const [addForm, setAddForm] = useState({ name: '', email: '', department: '' });
+    const [addForm, setAddForm] = useState({ name: '', email: '', department: '', enrollment_number: '' });
     const [addLoading, setAddLoading] = useState(false);
     const [departments, setDepartments] = useState([]);
     
@@ -121,7 +121,7 @@ export default function UserManagement({ allUsers = false, colleges = false }) {
             const res = await api.post('/college/add-user', addForm);
             toast.success(res.data.message);
             setShowAddModal(false);
-            setAddForm({ name: '', email: '', department: '' });
+            setAddForm({ name: '', email: '', department: '', enrollment_number: '' });
             fetchData();
         } catch (err) {
             toast.error(err.response?.data?.detail || 'Failed to add user');
@@ -286,8 +286,8 @@ export default function UserManagement({ allUsers = false, colleges = false }) {
                                                 </div>
                                                 <div className="user-info">
                                                     <span className="user-name">{usr.name}</span>
-                                                    {usr.roll_number && (
-                                                        <span className="user-meta">Roll: {usr.roll_number}</span>
+                                                    {usr.enrollment_number && (
+                                                        <span className="user-meta">Enrollment No: {usr.enrollment_number}</span>
                                                     )}
                                                 </div>
                                             </div>
@@ -396,6 +396,20 @@ export default function UserManagement({ allUsers = false, colleges = false }) {
                                             <option key={d.id} value={d.name}>{d.name}</option>
                                         ))}
                                     </select>
+                                </div>
+                            )}
+                            {targetRole === 'STUDENT' && (
+                                <div className="form-group">
+                                    <label htmlFor="add-enrollment-number">Enrollment Number *</label>
+                                    <input
+                                        id="add-enrollment-number"
+                                        type="text"
+                                        className="form-input"
+                                        value={addForm.enrollment_number}
+                                        onChange={(e) => setAddForm({ ...addForm, enrollment_number: e.target.value })}
+                                        placeholder="Enter unique enrollment number"
+                                        required
+                                    />
                                 </div>
                             )}
                             <div className="modal-actions">

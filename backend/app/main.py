@@ -14,6 +14,25 @@ from sqlalchemy import text
 from app.api.router import api_router
 from app.core.database import engine, Base
 
+# ── Router Imports ────────────────────────────────────────────────────────
+from app.routers.auth import router as auth_router
+from app.routers.admin import router as admin_router
+from app.routers.college import router as college_router
+from app.routers.company import router as company_router
+from app.routers.csv_upload import router as csv_router
+from app.routers.certificate import router as certificate_router
+from app.routers.jobs import router as jobs_router
+from app.routers.pipeline import router as pipeline_router
+from app.routers.recruiter import router as recruiter_router
+from app.routers.messages import router as messages_router
+from app.routers.rag import router as rag_router
+from app.routers.verification import router as verification_router
+from app.routers.projects import router as projects_router
+from app.routers.exam import router as exam_router
+from app.routers.subject import router as subject_router
+from app.routers.mentor import router as mentor_router
+from app.api.ai.agents.interview.router import router as ai_interview_router
+
 # Import all models so they are registered with Base.metadata
 import app.models  # noqa: F401
 
@@ -32,7 +51,7 @@ async def lifespan(app: FastAPI):
                 ALTER TABLE auth_users
                     ADD COLUMN IF NOT EXISTS department VARCHAR(255),
                     ADD COLUMN IF NOT EXISTS semester INTEGER,
-                    ADD COLUMN IF NOT EXISTS roll_number VARCHAR(100),
+                    ADD COLUMN IF NOT EXISTS enrollment_number VARCHAR(100),
                     ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20),
                     ADD COLUMN IF NOT EXISTS company_name VARCHAR(255),
                     ADD COLUMN IF NOT EXISTS skills JSONB,
@@ -70,6 +89,21 @@ async def lifespan(app: FastAPI):
             """)
         )
 
+        # enrollment_number unique constraint
+        await conn.execute(
+            text("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'uq_users_enrollment_number'
+                    ) THEN
+                        EXECUTE 'ALTER TABLE auth_users ADD CONSTRAINT uq_users_enrollment_number UNIQUE (enrollment_number)';
+                    END IF;
+                END $$;
+            """)
+        )
+
         # extension
         try:
             await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
@@ -101,26 +135,9 @@ CERT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 os.makedirs(CERT_DIR, exist_ok=True)
 app.mount("/certificates", StaticFiles(directory=CERT_DIR), name="certificates")
 
-# ── Existing AI Routes (untouched) ───────────────────────────────────────
+# ── Register All Routers ─────────────────────────────────────────────────
 
 app.include_router(api_router)
-
-# ── New Auth / RBAC Routes ────────────────────────────────────────────────
-
-from app.routers.auth import router as auth_router  # noqa: E402
-from app.routers.admin import router as admin_router  # noqa: E402
-from app.routers.college import router as college_router  # noqa: E402
-from app.routers.company import router as company_router  # noqa: E402
-from app.routers.csv_upload import router as csv_router  # noqa: E402
-from app.routers.certificate import router as certificate_router  # noqa: E402
-from app.routers.jobs import router as jobs_router  # noqa: E402
-from app.routers.pipeline import router as pipeline_router  # noqa: E402
-from app.routers.recruiter import router as recruiter_router  # noqa: E402
-from app.routers.messages import router as messages_router  # noqa: E402
-from app.api.ai.agents.interview.router import router as ai_interview_router  # noqa: E402
-from app.routers.rag import router as rag_router  # noqa: E402
-from app.routers.verification import router as verification_router  # noqa: E402
-
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(college_router)
@@ -134,11 +151,6 @@ app.include_router(messages_router)
 app.include_router(ai_interview_router, prefix="/ai/interview", tags=["AI Interview"])
 app.include_router(rag_router)
 app.include_router(verification_router)
-
-from app.routers.projects import router as projects_router  # noqa: E402
-from app.routers.exam import router as exam_router # noqa: E402
-from app.routers.subject import router as subject_router # noqa: E402
-from app.routers.mentor import router as mentor_router # noqa: E402
 app.include_router(projects_router)
 app.include_router(exam_router)
 app.include_router(subject_router, prefix="/api")

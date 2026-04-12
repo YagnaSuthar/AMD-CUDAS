@@ -88,7 +88,7 @@ class AuthUser(Base):
     # Optional profile fields (populated via CSV or manual creation)
     department: Mapped[str | None] = mapped_column(String(255), nullable=True)
     semester: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    roll_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    enrollment_number: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True)
     phone_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
     company_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     skills: Mapped[list | None] = mapped_column(JSONB, nullable=True)

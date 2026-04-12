@@ -74,7 +74,7 @@ class UserResponse(BaseModel):
     is_verified: bool = True
     department: Optional[str] = None
     semester: Optional[int] = None
-    roll_number: Optional[str] = None
+    enrollment_number: Optional[str] = None
     phone_number: Optional[str] = None
     parent_id: Optional[str] = None
     skills: Optional[list[str]] = None
@@ -90,6 +90,7 @@ class AddUserRequest(BaseModel):
     name: str
     email: EmailStr
     department: Optional[str] = None
+    enrollment_number: Optional[str] = None
 
 
 class UpdateProfileRequest(BaseModel):
