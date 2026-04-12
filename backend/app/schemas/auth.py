@@ -80,6 +80,10 @@ class UserResponse(BaseModel):
     skills: Optional[list[str]] = None
     resume_url: Optional[str] = None
     goal: Optional[str] = None
+<<<<<<< HEAD
+=======
+    github_username: Optional[str] = None
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
     class Config:
         from_attributes = True
@@ -95,6 +99,10 @@ class UpdateProfileRequest(BaseModel):
     phone_number: Optional[str] = None
     skills: Optional[list[str]] = None
     goal: Optional[str] = None
+<<<<<<< HEAD
+=======
+    github_username: Optional[str] = None
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
 
 class CareerRoadmapResponse(BaseModel):
@@ -157,6 +165,11 @@ class TimetableResponse(BaseModel):
     subject_name: str
     exam_date: str
     exam_time: str
+<<<<<<< HEAD
+=======
+    status: str
+    published_at: Optional[str] = None
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     created_at: Optional[str] = None
 
     class Config:
@@ -214,6 +227,23 @@ class CertificateResponse(BaseModel):
         from_attributes = True
 
 
+<<<<<<< HEAD
+=======
+class ProjectResponse(BaseModel):
+    id: str
+    project_name: str
+    description: Optional[str] = None
+    github_url: str
+    tech_stack: Optional[str] = None
+    verification_status: str
+    verification_run_id: Optional[str] = None
+    created_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 # ── Dashboard Overview Schemas ────────────────────────────────────────────
 
 
@@ -260,6 +290,10 @@ class FacultyOverviewResponse(BaseModel):
     assigned_subjects: list[str]
     total_students: int
     subject_stats: list[SubjectStat]
+<<<<<<< HEAD
+=======
+    active_timetable: list[TimetableResponse] = []
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
 
 class StudentMarksDetail(BaseModel):
@@ -329,3 +363,37 @@ class LeaderboardEntry(BaseModel):
     certificate_points: int
     total_score: float
     badge: Optional[str] = None
+<<<<<<< HEAD
+=======
+
+
+# ── Subject Assignment Schemas ─────────────────────────────────────────────
+
+
+class SubjectAssignmentCreate(BaseModel):
+    faculty_id: str
+    semester: int
+    subject_name: str
+    subject_code: str
+
+
+class SubjectAssignmentUpdate(BaseModel):
+    faculty_id: Optional[str] = None
+    semester: Optional[int] = None
+    subject_name: Optional[str] = None
+    subject_code: Optional[str] = None
+
+
+class SubjectAssignmentResponse(BaseModel):
+    id: str
+    faculty_id: str
+    faculty_name: Optional[str] = None
+    semester: int
+    subject_name: str
+    subject_code: str
+    department: str
+    created_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a

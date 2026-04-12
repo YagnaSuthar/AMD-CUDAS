@@ -8,17 +8,74 @@ from fastapi import UploadFile
 
 async def extract_certificate_structured(*, file: UploadFile, file_bytes: bytes) -> dict[str, Any]:
     from app.agents.verification_agent.utils.text_extraction import extract_text_from_certificate
+<<<<<<< HEAD
 
+=======
+    from app.core.llm import get_llm
+    from langchain_core.messages import HumanMessage, SystemMessage
+    import json
+    import asyncio
+    import logging
+
+    logger = logging.getLogger(__name__)
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     text = await extract_text_from_certificate(file=file, file_bytes=file_bytes)
 
     data: dict[str, Any] = {
         "raw_text": text,
+<<<<<<< HEAD
         "name": _extract_name(text),
         "course": _extract_course(text),
         "issuer": _extract_issuer(text),
         "date": _extract_date(text),
         "certificate_id": _extract_certificate_id(text),
     }
+=======
+        "name": None,
+        "course": None,
+        "issuer": None,
+        "date": None,
+        "certificate_id": None,
+    }
+
+    if text.strip():
+        try:
+            llm = get_llm()
+            prompt = f"""
+Extract the following information from the given certificate OCR text.
+Return ONLY valid JSON with these keys: name, course, issuer, date, certificate_id.
+If a field is not found, set its value to null.
+
+Text:
+\"\"\"
+{text}
+\"\"\"
+"""
+            response = await asyncio.to_thread(llm.invoke, [HumanMessage(content=prompt)])
+            content = response.content if hasattr(response, "content") else str(response)
+            
+            # Extract JSON block if surrounded by markdown
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            if start != -1 and end > start:
+                parsed = json.loads(content[start:end])
+                data["name"] = parsed.get("name") or _extract_name(text)
+                data["course"] = parsed.get("course") or _extract_course(text)
+                data["issuer"] = parsed.get("issuer") or _extract_issuer(text)
+                data["date"] = parsed.get("date") or _extract_date(text)
+                data["certificate_id"] = parsed.get("certificate_id") or _extract_certificate_id(text)
+                return data
+        except Exception as e:
+            logger.warning("LLM certificate extraction failed, falling back to regex: %s", e)
+
+    # Fallback to regex
+    data["name"] = _extract_name(text)
+    data["course"] = _extract_course(text)
+    data["issuer"] = _extract_issuer(text)
+    data["date"] = _extract_date(text)
+    data["certificate_id"] = _extract_certificate_id(text)
+    
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     return data
 
 

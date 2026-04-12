@@ -99,6 +99,32 @@
     justify-content: center;
 }
 
+<<<<<<< HEAD
+=======
+.sidebar-badge {
+    margin-left: auto;
+    background: var(--color-error);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    min-width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-full, 9999px);
+    padding: 0 6px;
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.35);
+    transition: all 0.2s ease;
+}
+
+.sidebar-link-active .sidebar-badge {
+    background: #fff;
+    color: var(--color-secondary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 .sidebar-footer {
     padding: 16px 12px;
     border-top: 1px solid var(--color-border);

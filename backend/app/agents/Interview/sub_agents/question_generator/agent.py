@@ -1,7 +1,16 @@
 """
+<<<<<<< HEAD
 Dynamic Question Generator Agent.
 Generates context-aware, resume-aware interview questions based on student
 skills, previous answer, behavior, and memory — token efficient.
+=======
+Dynamic Question Generator Agent (RAG-Enhanced).
+Generates context-aware, resume-aware interview questions using:
+- RAG context from pgvector (relevant CV chunks)
+- Follow-up intelligence (related concepts from answer)
+- Adaptive difficulty
+- Behavior-reactive logic
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 """
 
 import logging
@@ -11,6 +20,11 @@ from app.agents.Interview.prompts import (
     QUESTION_GENERATION_PROMPT,
     RESUME_PROJECT_QUESTION_PROMPT,
     RESUME_NO_PROJECT_QUESTION_PROMPT,
+<<<<<<< HEAD
+=======
+    RAG_QUESTION_GENERATION_PROMPT,
+    RAG_FOLLOWUP_PROMPT,
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 )
 from app.agents.Interview.utils import parse_json_response
 
@@ -30,6 +44,7 @@ async def generate_question(
     resume_project_summary: str = "",
     is_first_question: bool = False,
     job_description: str = "",
+<<<<<<< HEAD
 ) -> Dict[str, str]:
     """
     Generate a single interview question based on dynamic context.
@@ -77,6 +92,41 @@ async def generate_question(
 
     # ── Choose the right prompt ──────────────────────────────────────────
     if is_first_question:
+=======
+    rag_context: str = "",
+    followup_context: str = "",
+    last_answer: str = "",
+) -> Dict[str, str]:
+    """
+    Generate a single interview question.
+
+    Priority for context:
+    1. If followup_context available → RAG follow-up prompt (related concepts)
+    2. If rag_context available → RAG-enhanced prompt (CV chunks)
+    3. If first question → resume-aware prompt
+    4. Fallback → standard context-aware prompt
+
+    Parameters
+    ----------
+    rag_context : str
+        Retrieved CV chunks from pgvector for context.
+    followup_context : str
+        Related concepts retrieved after candidate's answer.
+    last_answer : str
+        Raw last answer text (for follow-up intelligence).
+    """
+    logger.info(
+        "QuestionGeneratorAgent: generating %s question (first=%s, rag=%s, followup=%s)",
+        difficulty, is_first_question, bool(rag_context), bool(followup_context),
+    )
+
+    effective_skills = skill_summary or context
+
+    # ── Choose the right prompt ──────────────────────────────────────────
+
+    if is_first_question:
+        # First question — use resume-aware prompts
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         if resume_has_projects and resume_project_summary:
             prompt = RESUME_PROJECT_QUESTION_PROMPT.format(
                 job_description=job_description or "Not specified",
@@ -90,8 +140,32 @@ async def generate_question(
                 skill_summary=effective_skills,
                 difficulty=difficulty,
             )
+<<<<<<< HEAD
     else:
         # Follow-up question: context-aware
+=======
+    elif followup_context and last_answer:
+        # Follow-up intelligence: use answer + related CV concepts
+        prompt = RAG_FOLLOWUP_PROMPT.format(
+            last_question=last_question or "None",
+            last_answer=last_answer,
+            difficulty=difficulty,
+            followup_context=followup_context,
+        )
+    elif rag_context:
+        # RAG-enhanced: use relevant CV chunks
+        prompt = RAG_QUESTION_GENERATION_PROMPT.format(
+            job_description=job_description or "Not specified",
+            skill_summary=effective_skills,
+            last_question=last_question or "None (first question)",
+            last_answer_summary=last_answer_summary or "None (first question)",
+            behavior=behavior,
+            difficulty=difficulty,
+            rag_context=rag_context,
+        )
+    else:
+        # Standard context-aware prompt (fallback)
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         resume_context = ""
         if resume_has_projects and resume_project_summary:
             resume_context = f"Student has projects: {resume_project_summary}"

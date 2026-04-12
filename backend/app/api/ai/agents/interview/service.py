@@ -27,6 +27,10 @@ from app.agents.Interview.prompts import (
     GREETING_COMFORTABLE_YES,
     GREETING_COMFORTABLE_NO,
     GREETING_START_NO,
+<<<<<<< HEAD
+=======
+    get_feedback_for_answer,
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 )
 from app.agents.Interview.sub_agents.answer_evaluator.agent import evaluate_answer
 from app.agents.Interview.sub_agents.memory_agent.agent import update_memory
@@ -124,9 +128,14 @@ class InterviewService:
         )
         db.add(session)
         await db.flush()
+<<<<<<< HEAD
 
         import logging
         logger = logging.getLogger(__name__)
+=======
+        await db.commit()
+
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         logger.info("start_interview: created session_id=%s for student_id=%s", session.session_id, student_id)
 
         try:
@@ -323,10 +332,28 @@ class InterviewService:
         await db.flush()
 
         # Evaluate (now includes behavior classification)
+<<<<<<< HEAD
+=======
+        # Pass current session difficulty so evaluator can recommend decrease
+        sess_result_pre = await db.execute(
+            select(InterviewSession).where(
+                InterviewSession.session_id == session_id,
+            )
+        )
+        session_pre = sess_result_pre.scalar_one()
+        current_diff = session_pre.current_difficulty
+        if isinstance(current_diff, Difficulty):
+            current_diff = current_diff.value
+
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         eval_data = await evaluate_answer(
             question=question.question_text,
             answer=answer_text,
             llm=llm,
+<<<<<<< HEAD
+=======
+            difficulty=current_diff,
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         )
 
         behavior_flag = eval_data.get("behavior_flag", "neutral")
@@ -364,6 +391,7 @@ class InterviewService:
             behavior=behavior_flag,
         )
 
+<<<<<<< HEAD
         # Generate behavior-reactive agent response
         is_correct = technical_score >= 5
         has_answer = bool(answer_text.strip())
@@ -375,6 +403,55 @@ class InterviewService:
 
         # Update session difficulty
         next_diff = eval_data.get("next_difficulty", "medium")
+=======
+        # Generate behavior-reactive agent response using weighted scores
+        weighted = eval_data.get("weighted_score", 0.5)
+        has_answer = bool(answer_text.strip())
+        answer_type = eval_data.get("answer_type", "VALID")
+
+        # Load last feedback from memory to avoid repetition
+        mem_result = await db.execute(
+            select(InterviewMemory).where(InterviewMemory.session_id == session_id)
+        )
+        memory_obj = mem_result.scalar_one_or_none()
+        last_feedback = ""
+        used_sentences_set = set()
+        if memory_obj and memory_obj.last_behavior_state:
+            # We store last feedback in last_behavior_state field after the behavior flag
+            parts = memory_obj.last_behavior_state.split("||")
+            if len(parts) >= 2:
+                last_feedback = parts[1]
+
+        agent_response = get_feedback_for_answer(
+            weighted, has_answer, answer_type,
+            used_sentences=used_sentences_set,
+            last_feedback=last_feedback,
+        )
+
+        # Persist last feedback into memory for next question
+        if memory_obj:
+            memory_obj.last_behavior_state = f"{behavior_flag}||{agent_response}"
+            await db.flush()
+
+        # Determine next difficulty using code logic (NOT trusting the LLM)
+        # This ensures difficulty always adjusts based on actual performance
+        weighted = eval_data.get("weighted_score", 0.5)
+        if weighted < 0.4:
+            next_diff = "easy"
+        elif weighted > 0.7:
+            next_diff = "hard"
+        else:
+            next_diff = "medium"
+        
+        # Override in eval_data too so frontend gets consistent info
+        eval_data["next_difficulty"] = next_diff
+        
+        logger.info(
+            "submit_answer: weighted_score=%.2f → next_difficulty=%s",
+            weighted, next_diff,
+        )
+        
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         session_result = await db.execute(
             select(InterviewSession).where(
                 InterviewSession.session_id == session_id,
@@ -384,6 +461,19 @@ class InterviewService:
         session.current_difficulty = Difficulty(next_diff)
         await db.flush()
 
+<<<<<<< HEAD
+=======
+        # Compute running average score across the session
+        avg_result = await db.execute(
+            select(func.avg(AnswerScore.overall_score))
+            .select_from(Answer)
+            .join(AnswerScore, AnswerScore.answer_id == Answer.answer_id, isouter=True)
+            .where(Answer.session_id == session_id)
+        )
+        running_avg = avg_result.scalar()
+        running_avg_score = float(running_avg) / 10.0 if running_avg is not None else 0.0
+
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         # Count questions to decide next action
         q_count_result = await db.execute(
             select(func.count()).select_from(Question).where(
@@ -435,6 +525,10 @@ class InterviewService:
             next_action=next_action,
             next_difficulty=next_diff,
             next_question=next_question,
+<<<<<<< HEAD
+=======
+            running_avg_score=running_avg_score,
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         )
 
     # ── POST /interview/end ───────────────────────────────────────────────
@@ -444,6 +538,10 @@ class InterviewService:
         student_id: UUID,
         session_id: UUID,
         db: AsyncSession,
+<<<<<<< HEAD
+=======
+        ended_reason: str = "normal",
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     ) -> EndInterviewResponse:
         """End the interview session and generate the final report."""
         llm = get_llm()
@@ -472,6 +570,7 @@ class InterviewService:
             session_id=session_id,
             db=db,
             llm=llm,
+<<<<<<< HEAD
         )
         logger.info("end_interview: report generated for session_id=%s, data=%s", session_id, report_data)
 
@@ -484,6 +583,37 @@ class InterviewService:
 
         await mark_pipeline_ai_completed(db=db, session_id=session_id)
         logger.info("end_interview: mark_pipeline_ai_completed returned for session_id=%s", session_id)
+=======
+            ended_reason=ended_reason,
+        )
+        logger.info("end_interview: report generated for session_id=%s, data=%s", session_id, report_data)
+
+        # Get proctoring summary from DetectorAgent
+        try:
+            from app.agents.Interview.sub_agents.detector_agent.agent import DetectorAgent
+            detector = DetectorAgent(db)
+            proctor_summary = await detector.get_proctoring_summary(session_id)
+            report_data["proctoring_summary"] = proctor_summary
+            logger.info("end_interview: proctoring summary for session_id=%s — integrity=%.2f, violations=%d",
+                       session_id, proctor_summary.get("integrity_score", 1.0), proctor_summary.get("total_violations", 0))
+        except Exception as exc:
+            logger.warning("Proctoring summary failed (non-fatal): %s", exc)
+
+        await db.flush()
+        logger.info("end_interview: flushed DB for session_id=%s", session_id)
+
+        logger.info("end_interview: calling mark_pipeline_ai_completed for session_id=%s", session_id)
+
+        try:
+            await mark_pipeline_ai_completed(db=db, session_id=session_id)
+            logger.info("end_interview: mark_pipeline_ai_completed returned for session_id=%s", session_id)
+        except Exception as exc:
+            logger.warning("mark_pipeline_ai_completed failed (non-fatal): %s", exc)
+
+        # Commit all changes — ensure COMPLETED status persists
+        await db.commit()
+        logger.info("end_interview: committed session_id=%s as COMPLETED", session_id)
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
         return EndInterviewResponse(
             session_id=session_id,
@@ -499,8 +629,11 @@ class InterviewService:
         db: AsyncSession,
     ) -> InterviewReportResponse:
         """Fetch the saved report for a completed interview session."""
+<<<<<<< HEAD
         import logging
         logger = logging.getLogger(__name__)
+=======
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         logger.info("get_report called for session_id=%s", session_id)
 
         result = await db.execute(
@@ -715,3 +848,106 @@ class InterviewService:
 
         await db.delete(session)
         await db.commit()
+<<<<<<< HEAD
+=======
+
+    # ── DELETE /interview/history/all ──────────────────────────────────
+
+    @staticmethod
+    async def delete_all_sessions(
+        student_id: UUID,
+        db: AsyncSession,
+    ) -> int:
+        """Delete ALL interview sessions for this student. Returns count deleted."""
+        result = await db.execute(
+            select(InterviewSession).where(
+                InterviewSession.student_id == student_id,
+            )
+        )
+        sessions = list(result.scalars().all())
+        count = len(sessions)
+
+        for session in sessions:
+            await db.delete(session)
+
+        await db.commit()
+        logger.info("Deleted %d interview sessions for student %s", count, student_id)
+        return count
+
+    # ── GET /interview/report/{session_id}/recruiter ──────────────────
+
+    @staticmethod
+    async def get_recruiter_report(
+        session_id: UUID,
+        db: AsyncSession,
+    ) -> dict:
+        """Fetch the recruiter-facing report for a completed interview."""
+        import json as _json
+
+        result = await db.execute(
+            select(InterviewReport).where(InterviewReport.session_id == session_id)
+        )
+        report = result.scalar_one_or_none()
+        if report is None:
+            raise ValueError(f"No report found for session {session_id}")
+
+        # Try to parse stored recruiter_report JSON
+        recruiter_data = {}
+        if hasattr(report, "recruiter_report") and report.recruiter_report:
+            try:
+                recruiter_data = _json.loads(report.recruiter_report) if isinstance(report.recruiter_report, str) else report.recruiter_report
+            except Exception:
+                recruiter_data = {}
+
+        # Build response with fallbacks
+        return {
+            "session_id": str(session_id),
+            "final_score": report.final_score,
+            "technical_score": recruiter_data.get("technical_score", report.final_score / 10.0 if report.final_score else 0),
+            "communication_score": recruiter_data.get("communication_score", 0),
+            "behavior_score": recruiter_data.get("behavior_score", 0),
+            "recommendation": recruiter_data.get("recommendation", report.recommendation or ""),
+            "justification": recruiter_data.get("justification", ""),
+            "strengths": recruiter_data.get("strengths", list(report.strengths) if report.strengths else []),
+            "weaknesses": recruiter_data.get("weaknesses", list(report.weaknesses) if report.weaknesses else []),
+            "technical_assessment": recruiter_data.get("technical_assessment", ""),
+            "communication_assessment": recruiter_data.get("communication_assessment", ""),
+            "behavior_analysis": recruiter_data.get("behavior_analysis", ""),
+        }
+
+    # ── GET /interview/report/{session_id}/student ────────────────────
+
+    @staticmethod
+    async def get_student_report(
+        session_id: UUID,
+        db: AsyncSession,
+    ) -> dict:
+        """Fetch the student-facing report for a completed interview."""
+        import json as _json
+
+        result = await db.execute(
+            select(InterviewReport).where(InterviewReport.session_id == session_id)
+        )
+        report = result.scalar_one_or_none()
+        if report is None:
+            raise ValueError(f"No report found for session {session_id}")
+
+        # Try to parse stored student_report JSON
+        student_data = {}
+        if hasattr(report, "student_report") and report.student_report:
+            try:
+                student_data = _json.loads(report.student_report) if isinstance(report.student_report, str) else report.student_report
+            except Exception:
+                student_data = {}
+
+        return {
+            "session_id": str(session_id),
+            "final_score": report.final_score,
+            "strengths": student_data.get("strengths", list(report.strengths) if report.strengths else []),
+            "weaknesses": student_data.get("areas_to_improve", list(report.weaknesses) if report.weaknesses else []),
+            "encouragement": student_data.get("encouragement", ""),
+            "learning_resources": student_data.get("learning_resources", []),
+            "recommendation": report.recommendation or "",
+        }
+
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a

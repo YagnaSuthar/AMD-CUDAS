@@ -94,6 +94,10 @@ class AuthUser(Base):
     skills: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     resume_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     goal: Mapped[str | None] = mapped_column(Text, nullable=True)
+<<<<<<< HEAD
+=======
+    github_username: Mapped[str | None] = mapped_column(String(100), nullable=True)
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow
@@ -180,6 +184,13 @@ class Timetable(Base):
         ForeignKey("auth_users.id", ondelete="CASCADE"),
         nullable=False,
     )
+<<<<<<< HEAD
+=======
+    status: Mapped[str] = mapped_column(String(20), default="active") # active, archived
+    published_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow
+    )
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow
     )
@@ -339,3 +350,36 @@ class MentorAssignment(Base):
 
     faculty = relationship("AuthUser", foreign_keys=[faculty_id])
     assigner = relationship("AuthUser", foreign_keys=[assigned_by])
+<<<<<<< HEAD
+=======
+
+
+class SubjectAssignment(Base):
+    """HOD assigns a faculty member to a specific subject for a semester."""
+
+    __tablename__ = "subject_assignments"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    faculty_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    semester: Mapped[int] = mapped_column(Integer, nullable=False)
+    subject_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    subject_code: Mapped[str] = mapped_column(String(50), nullable=False)
+    department: Mapped[str] = mapped_column(String(255), nullable=False)
+    assigned_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow
+    )
+
+    faculty = relationship("AuthUser", foreign_keys=[faculty_id])
+    assigner = relationship("AuthUser", foreign_keys=[assigned_by])
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a

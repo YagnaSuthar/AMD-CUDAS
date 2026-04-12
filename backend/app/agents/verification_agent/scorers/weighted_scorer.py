@@ -13,6 +13,7 @@ def compute_final_score(scores: dict[str, Any]) -> dict[str, Any]:
     source_score = _clamp01(scores.get("source_score", 0.0))
     consistency_score = _clamp01(scores.get("consistency_score", 0.0))
     ml_score = _clamp01(scores.get("ml_score", 0.5))
+<<<<<<< HEAD
 
     confidence = (
         format_score * 0.20
@@ -27,6 +28,54 @@ def compute_final_score(scores: dict[str, Any]) -> dict[str, Any]:
     if confidence >= 0.75:
         status = "verified"
     elif confidence >= 0.45:
+=======
+    contribution_score = scores.get("contribution_score")
+    description_match_score = scores.get("description_match_score")
+
+    if contribution_score is not None:
+        # Enhanced scoring with contribution analysis
+        contribution_score = _clamp01(contribution_score)
+        
+        # Include description match if available
+        desc_weight = 0.15 if description_match_score is not None else 0.0
+        contrib_weight = 0.30 if description_match_score is not None else 0.35
+        source_weight = 0.15 if description_match_score is not None else 0.20
+        ml_w = 0.05 if description_match_score is not None else 0.10
+        
+        desc_score = _clamp01(description_match_score) if description_match_score is not None else 0.0
+        
+        confidence = (
+            format_score * 0.10
+            + metadata_score * 0.10
+            + source_score * source_weight
+            + consistency_score * 0.15
+            + ml_score * ml_w
+            + contribution_score * contrib_weight
+            + desc_score * desc_weight
+        )
+    else:
+        # Fallback: original scoring without contribution data
+        desc_weight = 0.15 if description_match_score is not None else 0.0
+        source_weight = 0.25 if description_match_score is not None else 0.30
+        ml_w = 0.05 if description_match_score is not None else 0.15
+        
+        desc_score = _clamp01(description_match_score) if description_match_score is not None else 0.0
+        
+        confidence = (
+            format_score * 0.20
+            + metadata_score * 0.15
+            + source_score * source_weight
+            + consistency_score * 0.20
+            + ml_score * ml_w
+            + desc_score * desc_weight
+        )
+
+    confidence = _clamp01(confidence)
+
+    if confidence >= 0.55:
+        status = "verified"
+    elif confidence >= 0.35:
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         status = "suspicious"
     else:
         status = "failed"

@@ -53,6 +53,10 @@ export const SIDEBAR_ROUTES = {
     HOD: [
         { path: '/dashboard', label: 'Dashboard', icon: FiHome },
         { path: '/dashboard/users', label: 'Manage Faculty', icon: FiUsers },
+<<<<<<< HEAD
+=======
+        { path: '/dashboard/assign-subjects', label: 'Assign Subjects', icon: FiCheckSquare },
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         { path: '/dashboard/timetable', label: 'Exam Timetable', icon: FiCalendar },
         { path: '/dashboard/marks', label: 'Marks Monitoring', icon: FiFileText },
         { path: '/dashboard/upload-csv', label: 'Upload CSV', icon: FiUpload },

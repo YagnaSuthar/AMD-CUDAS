@@ -171,6 +171,12 @@ class InterviewSession(Base):
     report: Mapped[Optional["InterviewReport"]] = relationship(
         back_populates="session", uselist=False, cascade="all, delete-orphan"
     )
+<<<<<<< HEAD
+=======
+    violations: Mapped[List["ProctoringViolation"]] = relationship(
+        back_populates="session", cascade="all, delete-orphan"
+    )
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
 
 class Question(Base):
@@ -300,3 +306,35 @@ class InterviewReport(Base):
 
     # Relationships
     session: Mapped["InterviewSession"] = relationship(back_populates="report")
+<<<<<<< HEAD
+=======
+
+
+class ProctoringViolation(Base):
+    """A proctoring violation detected during an interview session."""
+
+    __tablename__ = "proctoring_violations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("interview_sessions.session_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    violation_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    severity: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="warning"
+    )  # warning, critical
+    metadata_json: Mapped[Optional[dict]] = mapped_column(
+        Text, nullable=True
+    )  # stored as JSON text
+    detected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow
+    )
+
+    # Relationships
+    session: Mapped["InterviewSession"] = relationship(back_populates="violations")
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a

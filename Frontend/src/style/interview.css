@@ -1104,6 +1104,36 @@
   margin-bottom: 28px;
 }
 
+<<<<<<< HEAD
+=======
+.iv-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.iv-delete-all-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-danger, #ef4444);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.iv-delete-all-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 .iv-history-empty {
   font-size: 0.88rem;
   color: var(--color-text-muted);

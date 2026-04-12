@@ -17,6 +17,10 @@ from app.models.auth import (
 from app.models.interview import InterviewReport, InterviewSession
 from app.models.pipeline import InterviewPipeline
 from app.models.job import Job
+<<<<<<< HEAD
+=======
+from app.models.project import Project
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 from app.schemas.recruiter import (
     RecruiterCollegeResponse,
     RecruiterDepartmentResponse,
@@ -24,6 +28,11 @@ from app.schemas.recruiter import (
     RecruiterStudentInterviewSummary,
     RecruiterStudentPipelineSummary,
     RecruiterStudentProfileResponse,
+<<<<<<< HEAD
+=======
+    RecruiterStudentProjectSummary,
+    RecruiterStudentCertificateSummary,
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 )
 
 router = APIRouter(prefix="/recruiter", tags=["Recruiter"])
@@ -361,6 +370,46 @@ async def get_student_profile(
             )
         )
 
+<<<<<<< HEAD
+=======
+    # Certificates for this student
+    c_res = await db.execute(
+        select(Certificate)
+        .where(Certificate.student_id == student.id)
+        .order_by(Certificate.uploaded_at.desc())
+    )
+    certificates = list(c_res.scalars().all())
+    c_out = [
+        RecruiterStudentCertificateSummary(
+            id=str(c.id),
+            title=c.title,
+            file_path=c.file_path,
+            points=c.points,
+            is_verified=c.is_verified,
+        )
+        for c in certificates
+    ]
+
+    # Projects for this student
+    pr_res = await db.execute(
+        select(Project)
+        .where(Project.student_id == student.id)
+        .order_by(Project.created_at.desc())
+    )
+    projects = list(pr_res.scalars().all())
+    pr_out = [
+        RecruiterStudentProjectSummary(
+            id=str(pr.id),
+            project_name=pr.project_name,
+            description=pr.description,
+            tech_stack=pr.tech_stack,
+            github_url=pr.github_url,
+            verification_status=pr.verification_status,
+        )
+        for pr in projects
+    ]
+
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     return RecruiterStudentProfileResponse(
         id=str(student.id),
         name=student.name,
@@ -371,4 +420,9 @@ async def get_student_profile(
         resume_url=student.resume_url,
         interviews=summaries,
         pipelines=p_out,
+<<<<<<< HEAD
+=======
+        projects=pr_out,
+        certificates=c_out,
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     )

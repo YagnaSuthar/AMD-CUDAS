@@ -11,6 +11,11 @@ import uuid
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+<<<<<<< HEAD
+=======
+from pydantic import BaseModel
+from sqlalchemy import select
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -186,8 +191,30 @@ async def query_career_guidance(
     try:
         agent = CareerGuidanceAgent(db)
         result = await agent.handle_query(user_id=user_id, query=body.query)
+<<<<<<< HEAD
         logger.info("Career guidance response generated (intent=%s, rag=%s)",
                      result.get("intent"), result.get("used_rag"))
+=======
+        logger.info("Career guidance response generated (intent=%s, rag=%s, sources=%s)",
+                     result.get("intent"), result.get("used_rag"), result.get("data_sources"))
+
+        # Persist career advisory query + response to DB
+        try:
+            from app.models.career_advisory import CareerAdvisoryLog
+            log_entry = CareerAdvisoryLog(
+                user_id=user_id,
+                query=body.query,
+                response=result.get("response", ""),
+                intent=result.get("intent"),
+                used_rag=result.get("used_rag", False),
+            )
+            db.add(log_entry)
+            await db.flush()
+            logger.info("Career advisory log saved: id=%s", log_entry.id)
+        except Exception as log_err:
+            logger.warning("Career advisory log save failed (non-fatal): %s", log_err)
+
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         return {
             "success": True,
             "data": result
@@ -197,25 +224,213 @@ async def query_career_guidance(
         return {"success": False, "error": f"Career guidance failed: {str(e)}"}
 
 
+<<<<<<< HEAD
 # ── Roadmap Generation ───────────────────────────────────────────────────────
 
 
 @router.post("/generate-roadmap")
 async def generate_roadmap(
+=======
+# ── Sync User Data to Vector DB ──────────────────────────────────────────────
+
+
+@router.post("/sync-user-data")
+async def sync_user_data(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Manually trigger embedding of user profile data into pgvector.
+    This indexes resume, skills, certificates, projects, interviews, and academics.
+    """
+    user_id = current_user.id if not isinstance(current_user, dict) else None
+    if user_id is None:
+        return {"success": False, "error": "Admin cannot sync user data"}
+
+    logger.info("Manual user data sync requested by user %s", user_id)
+
+    try:
+        from app.services.user_data_embedder import UserDataEmbedder
+
+        embedder = UserDataEmbedder(db)
+        summary = await embedder.ensure_user_data_indexed(
+            user_id=user_id,
+            force_reindex=True,
+        )
+
+        return {
+            "success": True,
+            "data": summary,
+        }
+    except Exception as e:
+        logger.error("User data sync failed: %s", e)
+        return {"success": False, "error": f"Sync failed: {str(e)}"}
+
+
+# ── Roadmap Generation ───────────────────────────────────────────────────────
+
+
+class GenerateRoadmapRequest(BaseModel):
+    force_regenerate: bool = False
+
+
+@router.get("/my-roadmap")
+async def get_my_roadmap(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Load existing saved roadmap from DB (steps + weekly branch plans)."""
+    from app.models.roadmap import RoadmapStep, RoadmapBranch, BranchStep
+
+    user_id = current_user.id if not isinstance(current_user, dict) else None
+    if user_id is None:
+        return {"success": False, "error": "Admin cannot view roadmaps"}
+
+    user = current_user
+    goal_text = user.goal if hasattr(user, 'goal') and user.goal else None
+    if not goal_text:
+        return {"success": True, "data": None}
+
+    # Load saved steps
+    saved_res = await db.execute(
+        select(RoadmapStep)
+        .where(
+            RoadmapStep.user_id == user_id,
+            RoadmapStep.goal_title == goal_text,
+        )
+        .order_by(RoadmapStep.created_at.asc())
+    )
+    saved_steps = list(saved_res.scalars().all())
+
+    if not saved_steps:
+        return {"success": True, "data": None}
+
+    # Build steps response with branch data
+    steps_list = []
+    phase_branches = {}
+
+    for idx, s in enumerate(saved_steps, 1):
+        step_data = {
+            "id": str(s.id),
+            "title": s.phase,
+            "description": s.description or "",
+            "skills": s.skills or [],
+            "resources": [],
+            "timeline": s.duration or "",
+            "status": s.status or "pending",
+        }
+        steps_list.append(step_data)
+
+        # Load branch (weekly plan) for this step
+        branch_res = await db.execute(
+            select(RoadmapBranch)
+            .where(RoadmapBranch.parent_phase_id == s.id)
+            .order_by(RoadmapBranch.created_at.desc())
+            .limit(1)
+        )
+        branch = branch_res.scalar_one_or_none()
+
+        if branch:
+            # Load branch steps (weeks)
+            bs_res = await db.execute(
+                select(BranchStep)
+                .where(BranchStep.branch_id == branch.id)
+                .order_by(BranchStep.week.asc())
+            )
+            branch_steps = list(bs_res.scalars().all())
+
+            if branch_steps:
+                weeks = []
+                for bs in branch_steps:
+                    weeks.append({
+                        "id": str(bs.id),
+                        "week": bs.week,
+                        "topics": bs.topics or [],
+                        "tasks": bs.tasks or [],
+                        "resources": bs.resources or [],
+                        "deliverable": bs.deliverable or "",
+                        "submission_required": bs.submission_required,
+                        "submission_type": bs.submission_type or "none",
+                        "status": bs.status or "pending",
+                    })
+                phase_branches[str(s.id)] = {
+                    "steps": weeks,
+                }
+
+    return {
+        "success": True,
+        "data": {
+            "goal": goal_text,
+            "steps": steps_list,
+            "phase_branches": phase_branches,
+        }
+    }
+
+
+@router.post("/generate-roadmap")
+async def generate_roadmap(
+    req: GenerateRoadmapRequest = GenerateRoadmapRequest(),
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     """Generate a structured JSON career roadmap for the current user."""
     from app.agents.career_roadmap.agent import CareerRoadmapAgent
+<<<<<<< HEAD
+=======
+    from app.models.roadmap import RoadmapStep
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
     user_id = current_user.id if not isinstance(current_user, dict) else None
     if user_id is None:
         return {"success": False, "error": "Admin cannot generate roadmaps"}
 
     logger.info("=" * 50)
+<<<<<<< HEAD
     logger.info("Roadmap generation requested by user: %s", user_id)
     logger.info("=" * 50)
 
+=======
+    logger.info("Roadmap generation requested by user: %s, force=%s", user_id, req.force_regenerate)
+    logger.info("=" * 50)
+
+    # If not forcing regeneration, check for existing data first
+    if not req.force_regenerate:
+        user = current_user
+        goal_text = user.goal if hasattr(user, 'goal') and user.goal else None
+        if goal_text:
+            saved_res = await db.execute(
+                select(RoadmapStep)
+                .where(
+                    RoadmapStep.user_id == user_id,
+                    RoadmapStep.goal_title == goal_text,
+                )
+                .order_by(RoadmapStep.created_at.asc())
+            )
+            saved_steps = list(saved_res.scalars().all())
+
+            if saved_steps:
+                logger.info("Returning existing roadmap (%d steps) from DB", len(saved_steps))
+                legacy_steps = []
+                for s in saved_steps:
+                    legacy_steps.append({
+                        "id": str(s.id),
+                        "title": s.phase,
+                        "description": s.description or "",
+                        "skills": s.skills or [],
+                        "resources": [],
+                        "timeline": s.duration or "",
+                        "status": s.status or "pending",
+                    })
+                return {
+                    "success": True,
+                    "data": {
+                        "goal": goal_text,
+                        "steps": legacy_steps,
+                    }
+                }
+
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     try:
         agent = CareerRoadmapAgent(db)
         roadmap = await agent.generate_roadmap(user_id=user_id)
@@ -230,3 +445,187 @@ async def generate_roadmap(
     except Exception as e:
         logger.error("Roadmap generation error: %s", e, exc_info=True)
         return {"success": False, "error": f"Roadmap generation failed: {str(e)}"}
+<<<<<<< HEAD
+=======
+
+
+class PhaseDetailedRequest(BaseModel):
+    phase_id: str
+    force_regenerate: bool = False
+
+
+@router.post("/generate-phase-detailed-roadmap")
+async def generate_phase_detailed_roadmap(
+    req: PhaseDetailedRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Generate a weekly detailed breakdown for a specific roadmap phase."""
+    from app.agents.career_roadmap.agent import CareerRoadmapAgent
+    import uuid as _uuid
+
+    user_id = current_user.id if not isinstance(current_user, dict) else None
+    if user_id is None:
+        return {"success": False, "error": "Admin cannot generate phase roadmaps"}
+
+    try:
+        phase_uuid = _uuid.UUID(req.phase_id)
+    except (ValueError, AttributeError):
+        return {"success": False, "error": f"Invalid phase_id: {req.phase_id}"}
+
+    logger.info("Phase detailed roadmap requested: user=%s, phase=%s, force=%s",
+                user_id, phase_uuid, req.force_regenerate)
+
+    try:
+        agent = CareerRoadmapAgent(db)
+        result = await agent.generate_phase_detailed_roadmap(
+            user_id=user_id,
+            phase_id=phase_uuid,
+            force_regenerate=req.force_regenerate,
+        )
+
+        # Map weekly_plan to the format the frontend expects (steps array)
+        weekly_plan = result.get("weekly_plan", [])
+        steps = []
+        for w in weekly_plan:
+            steps.append({
+                "id": w.get("id", ""),
+                "week": w.get("week", 0),
+                "topics": w.get("topics", []),
+                "tasks": w.get("tasks", []),
+                "resources": w.get("resources", []),
+                "deliverable": w.get("deliverable", ""),
+                "submission_required": w.get("submission_required", False),
+                "submission_type": w.get("submission_type", "none"),
+                "submission_link": w.get("submission_link", ""),
+                "status": w.get("status", "pending"),
+            })
+
+        return {
+            "success": True,
+            "data": {
+                "branch_id": result.get("branch_id"),
+                "parent_phase_id": result.get("parent_phase_id"),
+                "phase": result.get("phase"),
+                "steps": steps,
+            }
+        }
+    except Exception as e:
+        logger.error("Phase detailed roadmap error: %s", e, exc_info=True)
+        return {"success": False, "error": f"Phase roadmap generation failed: {str(e)}"}
+
+
+class MarkStepCompleteRequest(BaseModel):
+    step_id: str
+
+
+@router.post("/mark-step-complete")
+async def mark_step_complete(
+    req: MarkStepCompleteRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Mark a roadmap step as completed."""
+    from app.models.roadmap import RoadmapStep
+    from sqlalchemy import select
+    import uuid as _uuid
+
+    user_id = current_user.id if not isinstance(current_user, dict) else None
+    if user_id is None:
+        return {"success": False, "error": "Admin cannot mark steps complete"}
+
+    try:
+        step_uuid = _uuid.UUID(req.step_id)
+    except (ValueError, AttributeError):
+        return {"success": False, "error": f"Invalid step_id: {req.step_id}"}
+
+    result = await db.execute(
+        select(RoadmapStep).where(
+            RoadmapStep.id == step_uuid,
+            RoadmapStep.user_id == user_id,
+        )
+    )
+    step = result.scalar_one_or_none()
+    if step is None:
+        return {"success": False, "error": "Step not found"}
+
+    step.status = "completed"
+    await db.commit()
+
+    logger.info("Step %s marked as completed by user %s", step_uuid, user_id)
+    return {"success": True, "data": {"step_id": str(step_uuid), "status": "completed"}}
+
+
+class MarkBranchStepCompleteRequest(BaseModel):
+    branch_step_id: str
+
+@router.post("/mark-branch-step-complete")
+async def mark_branch_step_complete(
+    req: MarkBranchStepCompleteRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Mark a branch step (week) as completed."""
+    from app.models.roadmap import BranchStep
+    from sqlalchemy import select
+    import uuid as _uuid
+
+    user_id = current_user.id if not isinstance(current_user, dict) else None
+    if user_id is None:
+        return {"success": False, "error": "Admin cannot mark branch steps complete"}
+
+    try:
+        bs_uuid = _uuid.UUID(req.branch_step_id)
+    except (ValueError, AttributeError):
+        return {"success": False, "error": f"Invalid branch_step_id: {req.branch_step_id}"}
+
+    result = await db.execute(
+        select(BranchStep).where(BranchStep.id == bs_uuid)
+    )
+    branch_step = result.scalar_one_or_none()
+    if branch_step is None:
+        return {"success": False, "error": "Branch step not found"}
+
+    branch_step.status = "completed"
+    await db.commit()
+
+    logger.info("Branch step %s marked as completed by user %s", bs_uuid, user_id)
+    return {"success": True, "data": {"branch_step_id": str(bs_uuid), "status": "completed"}}
+class SubmitProjectRequest(BaseModel):
+    branch_step_id: str
+    github_link: str
+
+@router.post("/submit-project")
+async def submit_project(
+    req: SubmitProjectRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Submit a project GitHub link for a branch step."""
+    from app.models.roadmap import BranchStep
+    from sqlalchemy import select
+    import uuid as _uuid
+
+    user_id = current_user.id if not isinstance(current_user, dict) else None
+    if user_id is None:
+        return {"success": False, "error": "Admin cannot submit projects"}
+
+    try:
+        bs_uuid = _uuid.UUID(req.branch_step_id)
+    except (ValueError, AttributeError):
+        return {"success": False, "error": f"Invalid branch_step_id: {req.branch_step_id}"}
+
+    result = await db.execute(
+        select(BranchStep).where(BranchStep.id == bs_uuid)
+    )
+    branch_step = result.scalar_one_or_none()
+    if branch_step is None:
+        return {"success": False, "error": "Branch step not found"}
+
+    branch_step.submission_link = req.github_link
+    branch_step.status = "completed"
+    await db.commit()
+
+    logger.info("Project for branch step %s submitted by user %s", bs_uuid, user_id)
+    return {"success": True, "data": {"branch_step_id": str(bs_uuid), "submission_link": req.github_link, "status": "completed"}}
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a

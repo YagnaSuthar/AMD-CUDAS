@@ -1,3 +1,11 @@
+<<<<<<< HEAD
+=======
+"""
+Verification Agent Controller.
+Entry point for verification operations, delegates to VerificationService.
+"""
+
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 import logging
 import uuid
 from typing import Any
@@ -5,6 +13,10 @@ from typing import Any
 from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
+<<<<<<< HEAD
+=======
+from app.agents.verification_agent.service import VerificationService
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 from app.schemas.verification import VerificationResponse
 
 logger = logging.getLogger(__name__)
@@ -22,6 +34,12 @@ class VerificationController:
         file: UploadFile | None,
         link: str | None,
         profile_data: dict[str, Any] | None,
+<<<<<<< HEAD
+=======
+        project_description: str | None = None,
+        tech_stack: str | None = None,
+        github_username: str | None = None,
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     ) -> VerificationResponse:
         logger.info("[VERIFICATION] Controller.verify called - user_id=%s", user_id)
         try:
@@ -30,6 +48,12 @@ class VerificationController:
                 file=file,
                 link=link,
                 profile_data=profile_data,
+<<<<<<< HEAD
+=======
+                project_description=project_description,
+                tech_stack=tech_stack,
+                github_username=github_username,
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
             )
         except Exception as e:
             logger.error("[VERIFICATION] Controller.verify failed: %s", e, exc_info=True)

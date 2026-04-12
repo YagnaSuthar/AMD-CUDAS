@@ -2,18 +2,33 @@ import uuid
 import os
 import shutil
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+<<<<<<< HEAD
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import RoleChecker, get_current_user
+=======
+from sqlalchemy import select, func, and_, or_, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.core.security import (
+    RoleChecker, get_current_user,
+    principal_or_above, principal_only, hod_only, faculty_only, student_only
+)
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 from app.models.auth import AuthUser, Timetable, InternalMarks, Certificate, Department, MentorAssignment
 from app.models.auth import StudentPerformanceCategory, StudentPerformanceCategoryType
 from app.schemas.auth import (
     UserResponse, MessageResponse, AddUserRequest,
     TimetableCreate, TimetableUpdate, TimetableResponse,
     MarksUpload, MarksUpdate, MarksResponse, MarksLockRequest,
+<<<<<<< HEAD
     CertificateResponse,
+=======
+    CertificateResponse, ProjectResponse,
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     PrincipalOverviewResponse, DepartmentDetail,
     HodOverviewResponse, StudentBrief,
     FacultyOverviewResponse, SubjectStat,
@@ -32,11 +47,15 @@ from app.services.certificate_service import (
 
 router = APIRouter(prefix="/college", tags=["College Management"])
 
+<<<<<<< HEAD
 principal_or_above = RoleChecker(["CUDAS_ADMIN", "COLLEGE_PRINCIPAL", "HOD", "FACULTY"])
 principal_only = RoleChecker(["COLLEGE_PRINCIPAL"])
 hod_only = RoleChecker(["HOD"])
 faculty_only = RoleChecker(["FACULTY"])
 student_only = RoleChecker(["STUDENT"])
+=======
+
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
 CERT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "certificate")
 
@@ -444,7 +463,25 @@ async def create_timetable(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(hod_only),
 ):
+<<<<<<< HEAD
     """Create a timetable entry for the HOD's department."""
+=======
+    """Create a timetable entry for the HOD's department. Auto-archives past ones."""
+    from datetime import date
+    today = date.today().isoformat()
+    
+    # Auto-archive past exams for this department
+    await db.execute(
+        update(Timetable)
+        .where(
+            Timetable.department == (current_user.department or "Unknown"),
+            Timetable.status == "active",
+            Timetable.exam_date < today
+        )
+        .values(status="archived")
+    )
+
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     tt = Timetable(
         department=current_user.department or "Unknown",
         semester=body.semester,
@@ -452,6 +489,10 @@ async def create_timetable(
         exam_date=body.exam_date,
         exam_time=body.exam_time,
         created_by=current_user.id,
+<<<<<<< HEAD
+=======
+        status="active"
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     )
     db.add(tt)
     await db.commit()
@@ -460,6 +501,7 @@ async def create_timetable(
 
 @router.get("/hod/timetable", response_model=list[TimetableResponse])
 async def list_timetable_hod(
+<<<<<<< HEAD
     db: AsyncSession = Depends(get_db),
     current_user=Depends(hod_only),
 ):
@@ -467,13 +509,43 @@ async def list_timetable_hod(
     dept = current_user.department or "Unknown"
     result = await db.execute(
         select(Timetable).where(Timetable.department == dept).order_by(Timetable.exam_date)
+=======
+    status: str = "active",
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(hod_only),
+):
+    """List timetable entries for the HOD's department, filtered by status."""
+    from datetime import date
+    today = date.today().isoformat()
+    dept = current_user.department or "Unknown"
+
+    # Auto-archive past exams for this department before listing
+    if status == "active":
+        await db.execute(
+            update(Timetable)
+            .where(Timetable.department == dept, Timetable.status == "active", Timetable.exam_date < today)
+            .values(status="archived")
+        )
+        await db.commit()
+
+    result = await db.execute(
+        select(Timetable)
+        .where(Timetable.department == dept, Timetable.status == status)
+        .order_by(Timetable.exam_date)
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     )
     entries = result.scalars().all()
     return [
         TimetableResponse(
             id=str(e.id), department=e.department, semester=e.semester,
             subject_name=e.subject_name, exam_date=e.exam_date,
+<<<<<<< HEAD
             exam_time=e.exam_time, created_at=str(e.created_at) if e.created_at else None,
+=======
+            exam_time=e.exam_time, status=e.status,
+            published_at=str(e.published_at) if e.published_at else None,
+            created_at=str(e.created_at) if e.created_at else None,
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         )
         for e in entries
     ]
@@ -684,6 +756,34 @@ async def list_mentors(
     ]
 
 
+<<<<<<< HEAD
+=======
+@router.get("/mentor/faculty/{faculty_id}", response_model=list[MentorAssignmentResponse])
+async def get_faculty_mentors(
+    faculty_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Get all mentor assignments for a specific faculty member."""
+    res = await db.execute(
+        select(MentorAssignment)
+        .where(MentorAssignment.faculty_id == faculty_id)
+        .order_by(MentorAssignment.semester)
+    )
+    assignments = res.scalars().all()
+    return [
+        MentorAssignmentResponse(
+            id=str(m.id),
+            faculty_id=str(m.faculty_id),
+            semester=m.semester,
+            department=m.department,
+            created_at=str(m.created_at)
+        )
+        for m in assignments
+    ]
+
+
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 # ══════════════════════════════════════════════════════════════════════════
 #  FACULTY DASHBOARD ENDPOINTS
 # ══════════════════════════════════════════════════════════════════════════
@@ -729,11 +829,46 @@ async def faculty_overview(
         avg = r.scalar() or 0.0
         subject_stats.append(SubjectStat(subject_name=subj, student_count=count, average_marks=round(avg, 2)))
 
+<<<<<<< HEAD
+=======
+    # Also get current active timetable for the department
+    dept = current_user.department or "Unknown"
+    from datetime import date
+    today = date.today().isoformat()
+    
+    # Auto-archive past exams for this department before listing
+    await db.execute(
+        update(Timetable)
+        .where(Timetable.department == dept, Timetable.status == "active", Timetable.exam_date < today)
+        .values(status="archived")
+    )
+    await db.commit()
+
+    tt_res = await db.execute(
+        select(Timetable).where(Timetable.department == dept, Timetable.status == "active").order_by(Timetable.exam_date)
+    )
+    tt_entries = tt_res.scalars().all()
+    active_tt = [
+        TimetableResponse(
+            id=str(e.id), department=e.department, semester=e.semester,
+            subject_name=e.subject_name, exam_date=e.exam_date,
+            exam_time=e.exam_time, status=e.status,
+            published_at=str(e.published_at) if e.published_at else None,
+            created_at=str(e.created_at) if e.created_at else None,
+        )
+        for e in tt_entries
+    ]
+
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     return FacultyOverviewResponse(
         assigned_semesters=sorted(all_semesters),
         assigned_subjects=subjects,
         total_students=len(students),
         subject_stats=subject_stats,
+<<<<<<< HEAD
+=======
+        active_timetable=active_tt,
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     )
 
 
@@ -985,20 +1120,46 @@ async def student_timetable(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(student_only),
 ):
+<<<<<<< HEAD
     """Read-only timetable view for student's department."""
+=======
+    """Read-only timetable view for student's department. Auto-archives past exams."""
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     dept = current_user.department
     if not dept:
         return []
 
+<<<<<<< HEAD
     result = await db.execute(
         select(Timetable).where(Timetable.department == dept).order_by(Timetable.exam_date)
+=======
+    from datetime import date
+    today = date.today().isoformat()
+    
+    # Auto-archive past exams for this department
+    await db.execute(
+        update(Timetable)
+        .where(Timetable.department == dept, Timetable.status == "active", Timetable.exam_date < today)
+        .values(status="archived")
+    )
+    await db.commit()
+
+    result = await db.execute(
+        select(Timetable).where(Timetable.department == dept, Timetable.status == "active").order_by(Timetable.exam_date)
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     )
     entries = result.scalars().all()
     return [
         TimetableResponse(
             id=str(e.id), department=e.department, semester=e.semester,
             subject_name=e.subject_name, exam_date=e.exam_date,
+<<<<<<< HEAD
             exam_time=e.exam_time, created_at=str(e.created_at) if e.created_at else None,
+=======
+            exam_time=e.exam_time, status=e.status,
+            published_at=str(e.published_at) if e.published_at else None,
+            created_at=str(e.created_at) if e.created_at else None,
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         )
         for e in entries
     ]
@@ -1025,6 +1186,7 @@ async def student_certificates(
     ]
 
 
+<<<<<<< HEAD
 @router.post("/student/certificates", response_model=MessageResponse)
 async def upload_certificate(
     title: str = Form(...),
@@ -1057,6 +1219,129 @@ async def upload_certificate(
     )
 
     return MessageResponse(message="Certificate uploaded successfully.")
+=======
+@router.get("/student/projects", response_model=list[ProjectResponse])
+async def student_projects(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(student_only),
+):
+    """List projects for the current student."""
+    from app.models.project import Project
+    result = await db.execute(
+        select(Project).where(Project.student_id == current_user.id)
+        .order_by(Project.created_at.desc())
+    )
+    projects = result.scalars().all()
+    return [
+        ProjectResponse(
+            id=str(p.id),
+            project_name=p.project_name,
+            description=p.description,
+            github_url=p.github_url,
+            tech_stack=p.tech_stack,
+            verification_status=p.verification_status,
+            verification_run_id=str(p.verification_run_id) if p.verification_run_id else None,
+            created_at=str(p.created_at) if p.created_at else None,
+        )
+        for p in projects
+    ]
+
+
+@router.post("/student/certificates", response_model=MessageResponse)
+async def upload_certificate(
+    title: str = Form(""),
+    description: str = Form(None),
+    file: UploadFile | None = File(None),
+    github_url: str | None = Form(None),
+    tech_stack: str | None = Form(None),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(student_only),
+):
+    """Upload a certificate file and/or a GitHub project URL."""
+    if not file and not github_url:
+        raise HTTPException(status_code=400, detail="Must provide either a file or a GitHub URL.")
+
+    # Process certificate file if provided
+    if file:
+        if not title:
+            raise HTTPException(status_code=400, detail="Title is required when uploading a certificate file.")
+            
+        file_bytes = await file.read()
+        if not file_bytes:
+            raise HTTPException(status_code=400, detail="Empty file.")
+
+        file_hash = sha256_hex(file_bytes)
+        file_name, file_path = await save_certificate_file(
+            CERT_DIR,
+            str(current_user.id),
+            file.filename,
+            file_bytes,
+        )
+
+        cert, block = await create_certificate_and_block(
+            db=db,
+            student_id=current_user.id,
+            title=title,
+            description=description,
+            file_name=file_name,
+            file_path=file_path,
+            file_hash=file_hash,
+        )
+
+        # Trigger Verification Agent
+        try:
+            from app.agents.verification_agent.controller import VerificationController
+            import logging
+            logger = logging.getLogger(__name__)
+
+            # Reset file pointer since we already read it
+            await file.seek(0)
+
+            controller = VerificationController(db=db)
+            verification = await controller.verify(
+                user_id=current_user.id,
+                file=file,
+                link=None,
+                profile_data=None,
+            )
+
+            # Update certificate based on AI Verification Result
+            if verification.status == "verified":
+                cert.is_verified = True
+                cert.points = 10  # Standard 10 points for a valid certificate
+                logger.info("[CERT_UPLOAD] Certificate %s verified successfully: %s", cert.id, verification.confidence_score)
+            else:
+                cert.is_verified = False
+                cert.points = 0
+                logger.warning("[CERT_UPLOAD] Certificate %s failed verification: %s", cert.id, verification.status)
+            
+            db.add(cert)
+            await db.commit()
+
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error("[CERT_UPLOAD] Agent Verification encountered an error: %s", exc)
+
+    # Process GitHub project if provided
+    if github_url:
+        if not title:
+            raise HTTPException(status_code=400, detail="Project name (title) is required when submitting a GitHub URL.")
+            
+        from app.models.project import Project
+        
+        new_project = Project(
+            student_id=current_user.id,
+            project_name=title,
+            description=description,
+            github_url=github_url,
+            tech_stack=tech_stack,
+        )
+        db.add(new_project)
+        await db.commit()
+        await db.refresh(new_project)
+
+    return MessageResponse(message="Successfully submitted.")
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
 
 @router.post("/certificates/backfill-points", response_model=MessageResponse)

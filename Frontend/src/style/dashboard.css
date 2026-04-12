@@ -1312,12 +1312,31 @@
 
 /* ── Premium Certificate Upload Card ─────────────────────────────────── */
 
+<<<<<<< HEAD
+=======
+.cert-upload-duo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+@media (max-width: 900px) {
+    .cert-upload-duo-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 .cert-upload-card {
     background: var(--color-bg-card);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     overflow: hidden;
+<<<<<<< HEAD
     margin-bottom: 24px;
+=======
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 }
 
 .cert-upload-card-header {
@@ -1355,6 +1374,12 @@
 
 .cert-upload-form-inner {
     padding: 24px;
+<<<<<<< HEAD
+=======
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 }
 
 .cert-upload-grid {
@@ -1563,24 +1588,42 @@
     padding: 13px 28px;
     border: none;
     border-radius: var(--radius-sm);
+<<<<<<< HEAD
     background: linear-gradient(135deg, #a87ef0, #7c3aed);
+=======
+    background: var(--gradient-primary);
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     color: #fff;
     font-family: var(--font-body);
     font-weight: 600;
     font-size: 0.9rem;
     cursor: pointer;
+<<<<<<< HEAD
     transition: all 0.25s ease;
     width: 100%;
+=======
+    transition: all 0.3s ease;
+    width: 100%;
+    box-shadow: 0 4px 15px rgba(0, 188, 212, 0.25);
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 }
 
 .cert-upload-btn:hover:not(:disabled) {
     transform: translateY(-2px);
+<<<<<<< HEAD
     box-shadow: 0 6px 20px rgba(168, 126, 240, 0.35);
+=======
+    box-shadow: 0 6px 24px rgba(0, 188, 212, 0.45);
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 }
 
 .cert-upload-btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+<<<<<<< HEAD
+=======
+    box-shadow: none;
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 }
 
 .cert-upload-hint {
@@ -1592,7 +1635,64 @@
     margin: 0;
 }
 
+<<<<<<< HEAD
 /* ── Responsive for new components ───────────────────────────────────── */
+=======
+/* ── Textarea in cert forms ── */
+.cert-textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-main);
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    resize: vertical;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    min-height: 80px;
+}
+
+.cert-textarea:focus {
+    outline: none;
+    border-color: var(--color-secondary);
+    box-shadow: 0 0 0 3px rgba(0, 188, 212, 0.12);
+}
+
+.cert-textarea::placeholder {
+    color: var(--color-text-muted);
+}
+
+/* ── GitHub validation error ── */
+.cert-github-error {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--color-error);
+    margin-top: 6px;
+    font-weight: 500;
+}
+
+/* ── Project form 2-col grid ── */
+.cert-proj-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.cert-proj-form-grid .cert-upload-field.full-width {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+    .cert-proj-form-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 
 @media (max-width: 768px) {
     .timetable-grid {
@@ -2556,4 +2656,128 @@
     .jobs-grid {
         grid-template-columns: 1fr;
     }
+<<<<<<< HEAD
+=======
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Candidate Report Modal Styles
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.report-scores-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+@media (max-width: 640px) {
+    .report-scores-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.report-score-card {
+    background: var(--color-bg-main);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 20px 16px;
+    text-align: center;
+    box-shadow: var(--shadow-soft);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.report-score-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-medium);
+}
+
+.report-score-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: var(--color-secondary);
+}
+
+.report-score-final::before {
+    background: var(--gradient-primary);
+}
+
+.report-score-value {
+    font-size: 2.2rem;
+    font-weight: 800;
+    font-family: var(--font-heading);
+    color: var(--color-text-primary);
+    margin-bottom: 4px;
+}
+
+.report-score-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    letter-spacing: 0.5px;
+}
+
+.report-recommendation-badge {
+    display: inline-block;
+    padding: 8px 20px;
+    border-radius: var(--radius-full);
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.report-rec-hire, .report-rec-strong_hire {
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--color-success);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.report-rec-reject, .report-rec-strong_reject {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--color-error);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.report-rec-hold {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--color-warning);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.report-section {
+    background: var(--color-bg-main);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.report-section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-heading);
+}
+
+.report-list {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.report-list li {
+    margin-bottom: 6px;
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
 }

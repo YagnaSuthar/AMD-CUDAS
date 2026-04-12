@@ -60,3 +60,20 @@ from app.models.verification import (  # noqa: F401
     VerificationRun,
     VerificationFeedback,
 )
+<<<<<<< HEAD
+=======
+from app.models.career_advisory import (  # noqa: F401
+    CareerAdvisoryLog,
+)
+from app.models.project import (  # noqa: F401
+    Project,
+)
+from app.models.roadmap import (  # noqa: F401
+    RoadmapStep,
+    RoadmapBranch,
+    BranchStep,
+)
+from app.models.exam import (  # noqa: F401
+    Exam,
+)
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a

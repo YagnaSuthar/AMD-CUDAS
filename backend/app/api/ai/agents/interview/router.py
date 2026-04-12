@@ -19,6 +19,11 @@ from app.api.ai.agents.interview.schema import (
     InterviewHistoryResponse,
     InterviewReportResponse,
     NextQuestionResponse,
+<<<<<<< HEAD
+=======
+    ProctoringViolationRequest,
+    ProctoringViolationResponse,
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
     SessionDetailResponse,
     StartInterviewRequest,
     StartInterviewResponse,
@@ -178,6 +183,10 @@ async def end_interview(
         return await InterviewService.end_interview(
             student_id=student_id,
             session_id=request.session_id,
+<<<<<<< HEAD
+=======
+            ended_reason=request.ended_reason,
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
             db=db,
         )
     except HTTPException:
@@ -331,4 +340,108 @@ async def delete_session(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Failed to delete session")
+<<<<<<< HEAD
+=======
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ── DELETE /interview/history/all ─────────────────────────────────────────
+
+@router.delete(
+    "/history/all",
+    summary="Delete all interview sessions for the logged-in student",
+)
+async def delete_all_history(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Delete ALL interview sessions and related data for this student."""
+    try:
+        student_id = _get_user_id(current_user)
+        count = await InterviewService.delete_all_sessions(
+            student_id=student_id,
+            db=db,
+        )
+        return {"message": f"Deleted {count} interview sessions"}
+    except Exception as exc:
+        logger.exception("Failed to delete all sessions")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ── POST /interview/violation ─────────────────────────────────────────────
+
+@router.post(
+    "/violation",
+    response_model=ProctoringViolationResponse,
+    summary="Report a proctoring violation from the frontend detector",
+)
+async def report_violation(
+    body: ProctoringViolationRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Log a proctoring violation detected by the browser-side detector agent."""
+    try:
+        from app.agents.Interview.sub_agents.detector_agent.agent import DetectorAgent
+
+        detector = DetectorAgent(db)
+        result = await detector.log_violation(
+            session_id=body.session_id,
+            violation_type=body.violation_type,
+            message=body.message,
+            severity=body.severity,
+        )
+        await db.commit()
+        return ProctoringViolationResponse(**result)
+    except Exception as exc:
+        logger.exception("Failed to log proctoring violation")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ── GET /interview/report/{session_id}/recruiter ──────────────────────────
+
+@router.get(
+    "/report/{session_id}/recruiter",
+    summary="Get recruiter-facing AI interview report",
+)
+async def get_recruiter_report(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Fetch the recruiter-specific report with technical/communication/behavior scores."""
+    try:
+        return await InterviewService.get_recruiter_report(
+            session_id=session_id,
+            db=db,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to get recruiter report")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ── GET /interview/report/{session_id}/student ────────────────────────────
+
+@router.get(
+    "/report/{session_id}/student",
+    summary="Get student-facing AI interview report",
+)
+async def get_student_report(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Fetch the student-specific report with encouragement and learning resources."""
+    try:
+        return await InterviewService.get_student_report(
+            session_id=session_id,
+            db=db,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to get student report")
+>>>>>>> b4aa5c97cf73d81492c95d8849bf44ceb641727a
         raise HTTPException(status_code=500, detail=str(exc)) from exc
