@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     )
 
     # ── Database ──────────────────────────────────────────────────────────
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:yagna@localhost:5432/cudas"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:yagna@localhost:5432/CUDAS"
     DATABASE_ECHO: bool = False
 
     # ── LLM Configuration ──────────────────────────────────────────────────
