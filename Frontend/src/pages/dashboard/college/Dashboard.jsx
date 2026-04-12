@@ -77,7 +77,7 @@ export default function Dashboard({ analytics = false, departments = false }) {
             : [];
 
         return (
-            <div className="dashboard-content">
+            <div className="dashboard-content dashboard-home">
                 <div className="page-header slide-in-left">
                     <h1 className="gradient-text">System Analytics Overview</h1>
                     <p>Welcome back, CUDAS administrator.</p>
@@ -161,7 +161,7 @@ export default function Dashboard({ analytics = false, departments = false }) {
 
     // --- GENERAL USER DASHBOARD (Company Admin, Recruiter) ---
     return (
-        <div className="dashboard-content">
+        <div className="dashboard-content dashboard-home">
             <div className="page-header slide-in-left">
                 <h1 className="gradient-text">Welcome, {user.name}</h1>
                 <p>Your current role is <strong>{ROLE_LABELS[user.role] || user.role}</strong>.</p>

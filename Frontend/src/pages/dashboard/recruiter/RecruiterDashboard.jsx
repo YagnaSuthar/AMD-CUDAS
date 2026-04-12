@@ -117,7 +117,7 @@ export default function RecruiterDashboard() {
     };
 
     return (
-        <div className="dashboard-content">
+        <div className="dashboard-content dashboard-home">
             <div className="page-header slide-in-left">
                 <h1 className="gradient-text">Recruiter Dashboard</h1>
                 <p>Welcome back, <strong>{user.name}</strong> | Manage your interview pipelines</p>

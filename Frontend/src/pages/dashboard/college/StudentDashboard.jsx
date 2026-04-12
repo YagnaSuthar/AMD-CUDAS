@@ -44,6 +44,71 @@ export default function StudentDashboard() {
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
 
+    const normalizeSkill = (s) => (s || '').toString().trim();
+
+    const classifySkills = (skills) => {
+        const buckets = {
+            Frontend: [],
+            Backend: [],
+            'AI/ML': [],
+            Tools: [],
+            Other: [],
+        };
+
+        const patterns = [
+            {
+                category: 'Frontend',
+                test: /(react|next\.js|vue|angular|svelte|html|css|sass|tailwind|bootstrap|javascript|typescript|redux|ui|frontend)/i,
+            },
+            {
+                category: 'Backend',
+                test: /(node|express|nestjs|django|flask|fastapi|spring|java|dotnet|c#|php|laravel|api|backend|postgres|mysql|mongodb|redis|sql)/i,
+            },
+            {
+                category: 'AI/ML',
+                test: /(ml|ai|tensorflow|pytorch|keras|sklearn|scikit|nlp|llm|opencv|data science|pandas|numpy|matplotlib)/i,
+            },
+            {
+                category: 'Tools',
+                test: /(git|github|docker|kubernetes|linux|postman|jira|figma|vscode|ci\/cd|aws|azure|gcp|firebase|vercel|netlify)/i,
+            },
+        ];
+
+        (skills || [])
+            .map(normalizeSkill)
+            .filter(Boolean)
+            .forEach((skill) => {
+                const match = patterns.find((p) => p.test.test(skill));
+                const category = match ? match.category : 'Other';
+                buckets[category].push(skill);
+            });
+
+        Object.keys(buckets).forEach((k) => {
+            buckets[k] = Array.from(new Set(buckets[k])).sort((a, b) => a.localeCompare(b));
+        });
+
+        return buckets;
+    };
+
+    const isHighlightedSkill = (skill) => {
+        const s = (skill || '').toLowerCase();
+        return [
+            'react',
+            'javascript',
+            'typescript',
+            'node',
+            'python',
+            'fastapi',
+            'django',
+            'sql',
+            'machine learning',
+            'tensorflow',
+            'pytorch',
+            'git',
+            'docker',
+        ].some((k) => s === k || s.includes(k));
+    };
+
     const fetchPipelines = useCallback(async () => {
         const pipelineRes = await api.get('/pipeline/student');
         setPipelines(pipelineRes.data || []);
@@ -142,28 +207,61 @@ export default function StudentDashboard() {
     }
 
     return (
-        <div className="dashboard-content">
+        <div className="dashboard-content dashboard-home">
             <div className="page-header slide-in-left">
                 <h1 className="gradient-text">Academic Overview</h1>
                 <p>Welcome, <strong>{user.name}</strong> | {user.department || 'N/A'}</p>
             </div>
 
-            {/* Technical Skills Section */}
-            {user.skills && user.skills.length > 0 && (
-                <div className="dashboard-card fade-in-up" style={{ marginBottom: '20px', padding: '15px' }}>
-                    <h4 style={{ marginBottom: '10px', fontSize: '0.9rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Technical Skills</h4>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                        {user.skills.map((skill, idx) => (
-                            <span key={idx} className="badge bg-secondary" style={{ padding: '6px 12px', borderRadius: '50px' }}>
-                                {skill}
-                            </span>
-                        ))}
-                    </div>
-                </div>
-            )}
+            {/* Technical Skills & AI Interview Grid */}
+            <div className="dashboard-row fade-in-up" style={{ marginBottom: '20px' }}>
+                {/* Technical Skills Section */}
+                {user.skills && user.skills.length > 0 && (
+                    <div className="dashboard-card skills-card" style={{ flex: 1 }}>
+                        <div className="skills-card-header">
+                            <div className="skills-card-title">
+                                <span className="skills-card-eyebrow">Technical Skills</span>
+                                <span className="skills-card-subtitle">Organized overview of your current skill set</span>
+                            </div>
+                            <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => navigate('/dashboard/skills')}
+                            >
+                                Manage
+                            </button>
+                        </div>
 
-            {/* AI Interview Section */}
-            <div className="dashboard-card fade-in-up" style={{ marginBottom: '20px', padding: '15px' }}>
+                        <div className="skills-groups">
+                            {Object.entries(classifySkills(user.skills))
+                                .filter(([, list]) => list.length > 0)
+                                .map(([groupName, list]) => (
+                                    <div key={groupName} className="skills-group">
+                                        <div className="skills-group-header">
+                                            <span className="skills-group-title">{groupName}</span>
+                                            <span className="skills-group-count">{list.length}</span>
+                                        </div>
+
+                                        <div className="skills-chips">
+                                            {list.map((skill) => (
+                                                <span
+                                                    key={`${groupName}:${skill}`}
+                                                    className={`skills-chip ${isHighlightedSkill(skill) ? 'skills-chip-highlight' : ''}`}
+                                                    title={skill}
+                                                >
+                                                    <span className="skills-chip-dot" aria-hidden="true" />
+                                                    <span className="skills-chip-label">{skill}</span>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* AI Interview Section */}
+                <div className="dashboard-card" style={{ flex: 1, padding: '15px' }}>
                 <h4 style={{ marginBottom: '10px', fontSize: '0.9rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
                     <FiBriefcase style={{ marginRight: '8px' }} />
                     AI Interview Pipeline
@@ -329,6 +427,7 @@ export default function StudentDashboard() {
                         })}
                     </div>
                 )}
+            </div>
             </div>
 
             <div className="stats-grid fade-in-up">

@@ -66,7 +66,7 @@ export default function PrincipalDashboard() {
     }));
 
     return (
-        <div className="dashboard-content">
+        <div className="dashboard-content dashboard-home">
             <div className="page-header slide-in-left">
                 <h1 className="gradient-text">College Overview</h1>
                 <p>Welcome back, Principal <strong>{user.name}</strong></p>

@@ -96,7 +96,7 @@ export default function HodDashboard() {
     ].filter(d => d.value > 0);
 
     return (
-        <div className="dashboard-content">
+        <div className="dashboard-content dashboard-home">
             <div className="page-header slide-in-left">
                 <h1 className="gradient-text">Department Overview</h1>
                 <p>Department: <strong>{user.department || 'N/A'}</strong></p>

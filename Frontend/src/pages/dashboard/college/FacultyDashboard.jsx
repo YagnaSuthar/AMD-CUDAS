@@ -38,7 +38,7 @@ export default function FacultyDashboard() {
     }));
 
     return (
-        <div className="dashboard-content">
+        <div className="dashboard-content dashboard-home">
             <div className="page-header slide-in-left">
                 <h1 className="gradient-text">Class Overview</h1>
                 <p>Welcome, Professor <strong>{user.name}</strong></p>
