@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiShield } from 'react-icons/fi';
+import { FiFileText, FiShield } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 
@@ -401,24 +401,33 @@ export default function Interviews() {
 
             {/* Recruiter Report Modal */}
             {reportModal && (
-                <div className="job-modal-overlay" onClick={() => setReportModal(false)}>
-                    <div className="job-modal-content slide-in-up" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px', maxHeight: '90vh' }}>
-                        <button className="job-modal-close" onClick={() => setReportModal(false)}>×</button>
-
-                        {reportLoading ? (
-                            <div style={{ padding: '60px', textAlign: 'center' }}>
-                                <div className="spinner" style={{ margin: '0 auto 16px' }}></div>
-                                <p style={{ color: 'var(--color-text-muted)' }}>Loading report...</p>
-                            </div>
-                        ) : reportData ? (
-                            <>
-                                <div className="job-modal-header">
-                                    <h2 style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>AI Interview Report</h2>
-                                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '4px' }}>Recruiter Assessment Summary</p>
+                <div className="popup-overlay" onClick={() => setReportModal(false)}>
+                    <div className="popup-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '720px' }}>
+                        <div className="popup-header">
+                            <div className="popup-header-left">
+                                <div className="popup-icon-wrap">
+                                    <FiFileText size={18} />
                                 </div>
+                                <div>
+                                    <h3>AI Interview Report</h3>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                                        Recruiter Assessment Summary
+                                    </div>
+                                </div>
+                            </div>
+                            <button className="popup-close" onClick={() => setReportModal(false)} aria-label="Close report">
+                                ×
+                            </button>
+                        </div>
 
-                                <div className="job-modal-body" style={{ padding: '24px 32px' }}>
-                                    {/* Score Cards */}
+                        <div className="popup-body" style={{ padding: '22px 24px' }}>
+                            {reportLoading ? (
+                                <div style={{ padding: '44px 0', textAlign: 'center' }}>
+                                    <div className="spinner" style={{ margin: '0 auto 16px' }}></div>
+                                    <p style={{ color: 'var(--color-text-muted)' }}>Loading report…</p>
+                                </div>
+                            ) : reportData ? (
+                                <>
                                     <div className="report-scores-grid">
                                         <div className="report-score-card">
                                             <div className="report-score-value">{((reportData.technical_score || 0) * 100).toFixed(0)}%</div>
@@ -434,65 +443,79 @@ export default function Interviews() {
                                         </div>
                                         <div className="report-score-card report-score-final">
                                             <div className="report-score-value">{((reportData.final_score || 0) * 100).toFixed(0)}%</div>
-                                            <div className="report-score-label">Final Score</div>
+                                            <div className="report-score-label">Overall</div>
                                         </div>
                                     </div>
 
-                                    {/* Recommendation Badge */}
-                                    <div style={{ textAlign: 'center', margin: '20px 0' }}>
+                                    <div style={{ textAlign: 'center', margin: '6px 0 18px' }}>
                                         <span className={`report-recommendation-badge report-rec-${(reportData.recommendation || '').toLowerCase().replace(/ /g, '_')}`}>
-                                            {reportData.recommendation || 'N/A'}
+                                            {`Recommendation: ${reportData.recommendation || 'N/A'}`}
                                         </span>
                                     </div>
 
-                                    {/* Justification */}
                                     {reportData.justification && (
                                         <div className="report-section">
-                                            <h4 className="report-section-title">Justification</h4>
-                                            <p style={{ color: 'var(--color-text-secondary)', lineHeight: '1.6', fontSize: '0.9rem' }}>{reportData.justification}</p>
+                                            <h4 className="report-section-title">Summary</h4>
+                                            <p style={{ color: 'var(--color-text-secondary)', lineHeight: '1.65', fontSize: '0.9rem', margin: 0 }}>
+                                                {reportData.justification}
+                                            </p>
                                         </div>
                                     )}
 
-                                    {/* Strengths & Weaknesses */}
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '16px' }}>
-                                        <div className="report-section">
-                                            <h4 className="report-section-title" style={{ color: 'var(--color-success)' }}>✓ Strengths</h4>
+                                        <div className="report-section" style={{ marginBottom: 0 }}>
+                                            <h4 className="report-section-title" style={{ color: 'var(--color-success)' }}>Strengths</h4>
                                             <ul className="report-list">
                                                 {(reportData.strengths || []).map((s, i) => <li key={i}>{s}</li>)}
-                                                {(!reportData.strengths || !reportData.strengths.length) && <li style={{ color: 'var(--color-text-muted)' }}>None identified</li>}
+                                                {(!reportData.strengths || !reportData.strengths.length) && <li style={{ color: 'var(--color-text-muted)' }}>No strengths listed</li>}
                                             </ul>
                                         </div>
-                                        <div className="report-section">
-                                            <h4 className="report-section-title" style={{ color: 'var(--color-error)' }}>✗ Weaknesses</h4>
+                                        <div className="report-section" style={{ marginBottom: 0 }}>
+                                            <h4 className="report-section-title" style={{ color: 'var(--color-error)' }}>Areas to improve</h4>
                                             <ul className="report-list">
                                                 {(reportData.weaknesses || []).map((w, i) => <li key={i}>{w}</li>)}
-                                                {(!reportData.weaknesses || !reportData.weaknesses.length) && <li style={{ color: 'var(--color-text-muted)' }}>None identified</li>}
+                                                {(!reportData.weaknesses || !reportData.weaknesses.length) && <li style={{ color: 'var(--color-text-muted)' }}>No improvement areas listed</li>}
                                             </ul>
                                         </div>
                                     </div>
 
-                                    {/* Assessments */}
                                     {reportData.technical_assessment && (
-                                        <div className="report-section">
-                                            <h4 className="report-section-title">Technical Assessment</h4>
-                                            <p style={{ color: 'var(--color-text-secondary)', lineHeight: '1.6', fontSize: '0.9rem' }}>{reportData.technical_assessment}</p>
+                                        <div className="report-section" style={{ marginTop: '16px' }}>
+                                            <h4 className="report-section-title">Technical assessment</h4>
+                                            <p style={{ color: 'var(--color-text-secondary)', lineHeight: '1.65', fontSize: '0.9rem', margin: 0 }}>
+                                                {reportData.technical_assessment}
+                                            </p>
                                         </div>
                                     )}
                                     {reportData.communication_assessment && (
                                         <div className="report-section">
-                                            <h4 className="report-section-title">Communication Assessment</h4>
-                                            <p style={{ color: 'var(--color-text-secondary)', lineHeight: '1.6', fontSize: '0.9rem' }}>{reportData.communication_assessment}</p>
+                                            <h4 className="report-section-title">Communication assessment</h4>
+                                            <p style={{ color: 'var(--color-text-secondary)', lineHeight: '1.65', fontSize: '0.9rem', margin: 0 }}>
+                                                {reportData.communication_assessment}
+                                            </p>
                                         </div>
                                     )}
                                     {reportData.behavior_analysis && (
                                         <div className="report-section">
-                                            <h4 className="report-section-title">Behavior Analysis</h4>
-                                            <p style={{ color: 'var(--color-text-secondary)', lineHeight: '1.6', fontSize: '0.9rem' }}>{reportData.behavior_analysis}</p>
+                                            <h4 className="report-section-title">Behavior analysis</h4>
+                                            <p style={{ color: 'var(--color-text-secondary)', lineHeight: '1.65', fontSize: '0.9rem', margin: 0 }}>
+                                                {reportData.behavior_analysis}
+                                            </p>
                                         </div>
                                     )}
+                                </>
+                            ) : (
+                                <div style={{ padding: '22px 0', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+                                    No report is available for this session.
                                 </div>
-                            </>
-                        ) : null}
+                            )}
+                        </div>
+
+                        <div className="popup-footer">
+                            <button className="btn btn-secondary btn-sm" onClick={() => setReportModal(false)}>
+                                Close
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
