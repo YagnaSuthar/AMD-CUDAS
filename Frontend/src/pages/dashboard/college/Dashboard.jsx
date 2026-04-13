@@ -1,9 +1,11 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { ROLE_LABELS } from '../../../utils/roles';
 import api from '../../../utils/api';
 import { FiUsers, FiCheckSquare, FiBriefcase, FiAlertTriangle, FiLayers } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import SkeletonText from '../../../components/common/skeleton/SkeletonText';
+import SkeletonCard from '../../../components/common/skeleton/SkeletonCard';
 
 // Role-specific dashboard components
 import PrincipalDashboard from './PrincipalDashboard';
@@ -39,7 +41,22 @@ export default function Dashboard({ analytics = false, departments = false }) {
     };
 
     if (loading && user.role === 'CUDAS_ADMIN') {
-        return <div className="spinner" style={{ margin: '40px auto' }}></div>;
+        return (
+            <div className="dashboard-content dashboard-home">
+                <div className="page-header slide-in-left">
+                    <SkeletonText variant="title" style={{ width: '250px' }} />
+                    <SkeletonText variant="subtitle" style={{ width: '400px' }} />
+                </div>
+                <div className="stats-grid">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <SkeletonCard key={i} style={{ height: '120px' }} />
+                    ))}
+                </div>
+                <div className="dashboard-card fade-in-up chart-card-full" style={{ marginTop: '24px' }}>
+                    <SkeletonCard style={{ height: '350px' }} />
+                </div>
+            </div>
+        );
     }
 
     // â”€â”€ Dispatch to role-specific dashboards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -209,7 +226,19 @@ function PrincipalDepartments() {
         })();
     }, []);
 
-    if (loading) return <div className="spinner" style={{ margin: '40px auto' }}></div>;
+    if (loading) {
+        return (
+            <div className="dashboard-content">
+                <div className="page-header slide-in-left">
+                    <SkeletonText variant="title" style={{ width: '250px' }} />
+                    <SkeletonText variant="subtitle" style={{ width: '400px' }} />
+                </div>
+                <div className="dashboard-card fade-in-up chart-card-full">
+                    <SkeletonCard style={{ height: '300px' }} />
+                </div>
+            </div>
+        );
+    }
 
     const chartData = depts.map(d => ({
         name: d.department,

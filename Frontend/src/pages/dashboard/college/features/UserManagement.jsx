@@ -4,6 +4,8 @@ import { ROLE_LABELS, CHILD_ROLE_MAP } from '../../../../utils/roles';
 import api from '../../../../utils/api';
 import { FiTrash2, FiCheckCircle, FiXCircle, FiPlus, FiX, FiUserPlus, FiSearch } from 'react-icons/fi';
 import { toast } from 'react-toastify';
+import SkeletonText from '../../../../components/common/skeleton/SkeletonText';
+import SkeletonTableRow from '../../../../components/common/skeleton/SkeletonTableRow';
 
 const TABLE_TITLES = {
     HOD: 'HOD Table',
@@ -130,7 +132,41 @@ export default function UserManagement({ allUsers = false, colleges = false }) {
         }
     };
 
-    if (loading) return <div className="spinner" style={{ margin: '40px auto' }}></div>;
+    if (loading) {
+        return (
+            <div className="dashboard-content fade-in">
+                <div className="page-header slide-in-left">
+                    <SkeletonText variant="title" style={{ width: '250px' }} />
+                    <SkeletonText variant="subtitle" style={{ width: '400px' }} />
+                </div>
+                <div className="data-table-container fade-in-up">
+                    <div className="data-table-header">
+                        <SkeletonText variant="title" style={{ width: '150px' }} />
+                    </div>
+                    <div className="table-scroll-wrapper">
+                        <table className="data-table enhanced-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Department</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Phone</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                    <SkeletonTableRow key={i} columns={7} />
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     // --- RENDERING ADMIN COLLEGE LIST ---
     if (colleges && user.role === 'CUDAS_ADMIN') {
@@ -456,7 +492,10 @@ export default function UserManagement({ allUsers = false, colleges = false }) {
                             </div>
 
                             {detailsLoading ? (
-                                <div className="spinner" style={{ margin: '20px auto' }}></div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '10px 0' }}>
+                                    <SkeletonCard style={{ height: '80px' }} />
+                                    <SkeletonCard style={{ height: '80px' }} />
+                                </div>
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                                     {/* SUBJECTS */}

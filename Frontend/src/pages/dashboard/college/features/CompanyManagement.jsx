@@ -1,8 +1,10 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
 import api from '../../../../utils/api';
 import { FiCheckCircle, FiXCircle, FiBriefcase } from 'react-icons/fi';
 import { toast } from 'react-toastify';
+import SkeletonText from '../../../../components/common/skeleton/SkeletonText';
+import SkeletonTableRow from '../../../../components/common/skeleton/SkeletonTableRow';
 
 export default function CompanyManagement() {
     const { user } = useAuth();
@@ -37,7 +39,38 @@ export default function CompanyManagement() {
         }
     };
 
-    if (loading) return <div className="spinner" style={{ margin: '40px auto' }}></div>;
+    if (loading) {
+        return (
+            <div className="dashboard-content fade-in">
+                <div className="page-header slide-in-left">
+                    <SkeletonText variant="title" style={{ width: '250px' }} />
+                    <SkeletonText variant="subtitle" style={{ width: '400px' }} />
+                </div>
+                <div className="data-table-container fade-in-up">
+                    <div className="data-table-header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <SkeletonText variant="title" style={{ width: '150px', marginBottom: 0 }} />
+                        </div>
+                    </div>
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Company Name</th>
+                                <th>Admin Details</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {Array.from({ length: 5 }).map((_, i) => (
+                                <SkeletonTableRow key={i} columns={4} />
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="dashboard-content fade-in">

@@ -5,6 +5,10 @@ import { FiX } from 'react-icons/fi';
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
 
+// Dynamically imporing local background images
+import bgImage1 from '../assets/BG-1.jpg';
+// Other backgrounds like BG-2, BG-3 can be imported if you want to make it swappable
+
 export default function Sidebar({ isOpen, onClose }) {
     const { user } = useAuth();
     const [unreadCount, setUnreadCount] = useState(0);
@@ -35,6 +39,13 @@ export default function Sidebar({ isOpen, onClose }) {
                 onClick={onClose}
             />
             <aside className={`sidebar ${isOpen ? 'sidebar-open' : ''}`}>
+                {/* Background Layering */}
+                <div 
+                    className="sidebar-bg-image" 
+                    style={{ backgroundImage: `url(${bgImage1})` }}
+                ></div>
+                <div className="sidebar-bg-overlay"></div>
+
                 <div className="sidebar-brand">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h2>CUDAS</h2>

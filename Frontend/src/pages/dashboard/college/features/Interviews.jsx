@@ -1,8 +1,11 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiFileText, FiShield } from 'react-icons/fi';
 import { useAuth } from '../../../../context/AuthContext';
 import api from '../../../../utils/api';
+import SkeletonText from '../../../../components/common/skeleton/SkeletonText';
+import SkeletonTableRow from '../../../../components/common/skeleton/SkeletonTableRow';
+import SkeletonCard from '../../../../components/common/skeleton/SkeletonCard';
 
 export default function Interviews() {
     const navigate = useNavigate();
@@ -155,7 +158,36 @@ export default function Interviews() {
         return arr;
     }, [pipelines]);
 
-    if (loading) return <div className="spinner" style={{ margin: '40px auto' }}></div>;
+    if (loading) {
+        return (
+            <div className="dashboard-content">
+                <div className="page-header slide-in-left">
+                    <SkeletonText variant="title" style={{ width: '250px' }} />
+                    <SkeletonText variant="subtitle" style={{ width: '400px' }} />
+                </div>
+                <div className="data-table-container">
+                    <div className="table-scroll-wrapper">
+                        <table className="data-table enhanced-table">
+                            <thead>
+                                <tr>
+                                    <th>{isRecruiter ? 'Student Name' : 'Job / Role'}</th>
+                                    <th>Status</th>
+                                    <th>Report</th>
+                                    <th>Profile</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                    <SkeletonTableRow key={i} columns={5} />
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="dashboard-content">
@@ -417,14 +449,21 @@ export default function Interviews() {
                             </div>
                             <button className="popup-close" onClick={() => setReportModal(false)} aria-label="Close report">
                                 Ã—
+                                ×
                             </button>
                         </div>
 
                         <div className="popup-body" style={{ padding: '22px 24px' }}>
                             {reportLoading ? (
-                                <div style={{ padding: '44px 0', textAlign: 'center' }}>
-                                    <div className="spinner" style={{ margin: '0 auto 16px' }}></div>
-                                    <p style={{ color: 'var(--color-text-muted)' }}>Loading reportâ€¦</p>
+                                <div style={{ padding: '16px 0' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
+                                        <SkeletonCard style={{ height: '80px' }} />
+                                        <SkeletonCard style={{ height: '80px' }} />
+                                        <SkeletonCard style={{ height: '80px' }} />
+                                        <SkeletonCard style={{ height: '80px' }} />
+                                    </div>
+                                    <SkeletonCard style={{ height: '100px', marginBottom: '16px' }} />
+                                    <SkeletonCard style={{ height: '100px' }} />
                                 </div>
                             ) : reportData ? (
                                 <>

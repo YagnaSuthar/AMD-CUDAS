@@ -1,8 +1,10 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import api from '../../../utils/api';
 import { FiUsers, FiBookOpen, FiLayers, FiTrendingUp, FiCalendar } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import SkeletonText from '../../../components/common/skeleton/SkeletonText';
+import SkeletonCard from '../../../components/common/skeleton/SkeletonCard';
 
 const COLORS = ['#00bcd4', '#a87ef0', '#ffb703', '#22c55e', '#ef4444', '#667eea'];
 
@@ -29,7 +31,24 @@ export default function FacultyDashboard() {
         })();
     }, [user.id]);
 
-    if (loading) return <div className="spinner" style={{ margin: '40px auto' }}></div>;
+    if (loading) {
+        return (
+            <div className="dashboard-content dashboard-home">
+                <div className="page-header slide-in-left">
+                    <SkeletonText variant="title" style={{ width: '300px' }} />
+                    <SkeletonText variant="subtitle" style={{ width: '200px' }} />
+                </div>
+                <div className="stats-grid fade-in-up">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <SkeletonCard key={i} style={{ height: '220px' }} />
+                    ))}
+                </div>
+                <div className="dashboard-card fade-in-up fade-in-delay-1 chart-card-full" style={{ marginTop: '24px' }}>
+                    <SkeletonCard style={{ height: '350px' }} />
+                </div>
+            </div>
+        );
+    }
 
     const chartData = (data?.subject_stats || []).map(s => ({
         name: s.subject_name.length > 12 ? s.subject_name.slice(0, 12) + 'â€¦' : s.subject_name,

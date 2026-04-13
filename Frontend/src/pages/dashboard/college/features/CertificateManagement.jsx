@@ -1,10 +1,12 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
 import api from '../../../../utils/api';
 import { FiUpload, FiAward, FiCheckCircle, FiClock, FiFile, FiGithub, FiCode, FiTrash2, FiExternalLink, FiAlertCircle } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import CertificatePopup from '../../../../components/CertificatePopup';
 import ProjectPopup from '../../../../components/ProjectPopup';
+import SkeletonText from '../../../../components/common/skeleton/SkeletonText';
+import SkeletonCard from '../../../../components/common/skeleton/SkeletonCard';
 
 export default function CertificateManagement() {
     const { user } = useAuth();
@@ -274,7 +276,25 @@ export default function CertificateManagement() {
     const totalPoints = certs.reduce((sum, c) => sum + c.points, 0);
     const verifiedCount = certs.filter(c => c.is_verified).length;
 
-    if (loading) return <div className="spinner" style={{ margin: '40px auto' }}></div>;
+    if (loading) {
+        return (
+            <div className="dashboard-content fade-in">
+                <div className="page-header slide-in-left">
+                    <SkeletonText variant="title" style={{ width: '300px' }} />
+                    <SkeletonText variant="subtitle" style={{ width: '400px' }} />
+                </div>
+                <div className="stats-grid fade-in-up" style={{ marginBottom: '24px' }}>
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <SkeletonCard key={i} style={{ height: '120px' }} />
+                    ))}
+                </div>
+                <div className="cert-upload-duo-grid fade-in-up fade-in-delay-1">
+                    <SkeletonCard style={{ height: '400px' }} />
+                    <SkeletonCard style={{ height: '400px' }} />
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="dashboard-content fade-in">

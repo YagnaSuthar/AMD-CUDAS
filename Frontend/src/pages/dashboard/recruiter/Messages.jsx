@@ -1,7 +1,9 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import api from '../../../utils/api';
 import { FiSend, FiInbox, FiMail, FiClock, FiCheck, FiUser, FiMessageSquare } from 'react-icons/fi';
+import SkeletonText from '../../../components/common/skeleton/SkeletonText';
+import SkeletonAvatar from '../../../components/common/skeleton/SkeletonAvatar';
 
 export default function Messages() {
     const { user } = useAuth();
@@ -279,9 +281,19 @@ export default function Messages() {
 
                     <div className="msg-list">
                         {loading ? (
-                            <div className="msg-empty">
-                                <div className="spinner" style={{ margin: '0 auto' }}></div>
-                                <p>Loading messages...</p>
+                            <div>
+                                {Array.from({ length: 4 }).map((_, i) => (
+                                   <div key={i} className="msg-card skeleton-card">
+                                        <div className="msg-card-top">
+                                            <SkeletonAvatar size="sm" />
+                                            <div className="msg-card-info" style={{ flex: 1 }}>
+                                                <SkeletonText variant="title" style={{ width: '100px', marginBottom: '8px' }} />
+                                                <SkeletonText style={{ width: '200px' }} />
+                                            </div>
+                                            <SkeletonText style={{ width: '60px', height: '20px' }} />
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         ) : messages.length === 0 ? (
                             <div className="msg-empty">

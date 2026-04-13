@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import api from '../../../utils/api';
@@ -6,6 +6,8 @@ import { FiAward, FiTrendingUp, FiHash, FiBarChart2, FiMic, FiBriefcase, FiClock
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import '../../../style/interview.css';
+import SkeletonCard from '../../../components/common/skeleton/SkeletonCard';
+import SkeletonText from '../../../components/common/skeleton/SkeletonText';
 
 /* â”€â”€ SVG Gauge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function Gauge({ value, max = 10, label, color = '#00bcd4', unit = '' }) {
@@ -168,7 +170,33 @@ export default function StudentDashboard() {
         })();
     }, []);
 
-    if (loading) return <div className="spinner" style={{ margin: '40px auto' }}></div>;
+    if (loading) {
+        return (
+            <div className="dashboard-content dashboard-home">
+                <div className="page-header">
+                    <SkeletonText variant="title" style={{ width: '300px', marginBottom: '8px' }} />
+                    <SkeletonText variant="subtitle" style={{ width: '200px' }} />
+                </div>
+                
+                <div className="dashboard-row" style={{ marginBottom: '20px' }}>
+                    <SkeletonCard style={{ flex: 1, minHeight: '200px' }} />
+                    <SkeletonCard style={{ flex: 1, minHeight: '200px' }} />
+                </div>
+
+                <div className="stats-grid">
+                    <div className="skeleton-stat-card"><SkeletonText variant="subtitle" style={{marginBottom: '16px'}}/><SkeletonText style={{ height: '36px', width: '60px' }} /></div>
+                    <div className="skeleton-stat-card"><SkeletonText variant="subtitle" style={{marginBottom: '16px'}}/><SkeletonText style={{ height: '36px', width: '60px' }} /></div>
+                    <div className="skeleton-stat-card"><SkeletonText variant="subtitle" style={{marginBottom: '16px'}}/><SkeletonText style={{ height: '36px', width: '60px' }} /></div>
+                    <div className="skeleton-stat-card"><SkeletonText variant="subtitle" style={{marginBottom: '16px'}}/><SkeletonText style={{ height: '36px', width: '60px' }} /></div>
+                </div>
+
+                <div className="dashboard-row" style={{ marginTop: '20px' }}>
+                    <SkeletonCard style={{ flex: 1, minHeight: '280px' }} />
+                    <SkeletonCard style={{ flex: 1, minHeight: '280px' }} />
+                </div>
+            </div>
+        );
+    }
 
     // Radar data for subject performance
     const radarData = (data?.marks || []).map(m => ({

@@ -67,7 +67,7 @@ async def list_my_users(
             is_verified=u.is_verified,
             department=u.department,
             semester=u.semester,
-            roll_number=u.roll_number,
+            enrollment_number=u.enrollment_number,
             phone_number=u.phone_number,
             parent_id=str(u.parent_id) if u.parent_id else None,
         )
@@ -127,7 +127,7 @@ async def list_all_hierarchy_users(
             is_verified=u.is_verified,
             department=u.department,
             semester=u.semester,
-            roll_number=u.roll_number,
+            enrollment_number=u.enrollment_number,
             phone_number=u.phone_number,
             parent_id=str(u.parent_id) if u.parent_id else None,
         )

@@ -1,8 +1,10 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import api from '../../../utils/api';
 import { FiUsers, FiBookOpen, FiTrendingUp, FiAlertTriangle } from 'react-icons/fi';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import SkeletonText from '../../../components/common/skeleton/SkeletonText';
+import SkeletonCard from '../../../components/common/skeleton/SkeletonCard';
 
 /* â”€â”€ SVG Gauge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function Gauge({ value, max = 100, label, color = '#00bcd4' }) {
@@ -82,7 +84,25 @@ export default function HodDashboard() {
     };
     // ... rest of the file ...
 
-    if (loading) return <div className="spinner" style={{ margin: '40px auto' }}></div>;
+    if (loading) {
+        return (
+            <div className="dashboard-content dashboard-home">
+                <div className="page-header slide-in-left">
+                    <SkeletonText variant="title" style={{ width: '300px' }} />
+                    <SkeletonText variant="subtitle" style={{ width: '200px' }} />
+                </div>
+                <div className="stats-grid fade-in-up">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <SkeletonCard key={i} style={{ height: '120px' }} />
+                    ))}
+                </div>
+                <div className="dashboard-row fade-in-up fade-in-delay-1" style={{ marginTop: '24px' }}>
+                    <SkeletonCard style={{ height: '300px', flex: 1 }} />
+                    <SkeletonCard style={{ height: '300px', flex: 2 }} />
+                </div>
+            </div>
+        );
+    }
 
     const passCount = (data?.top_students || []).length;
     const failCount = (data?.weak_students || []).length;

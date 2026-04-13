@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
 import api from '../../../../utils/api';
 import { 
@@ -7,6 +7,9 @@ import {
     FiEye, FiList, FiCheck, FiChevronRight, FiLayers, FiBookOpen
 } from 'react-icons/fi';
 import { toast } from 'react-toastify';
+import SkeletonText from '../../../../components/common/skeleton/SkeletonText';
+import SkeletonCard from '../../../../components/common/skeleton/SkeletonCard';
+import SkeletonTableRow from '../../../../components/common/skeleton/SkeletonTableRow';
 
 export default function TimetableManagement() {
     const { user } = useAuth();
@@ -169,7 +172,23 @@ export default function TimetableManagement() {
         return `${days}d ${hours}h`;
     };
 
-    if (loading && entries.length === 0) return <div className="spinner" style={{ margin: '40px auto' }}></div>;
+    if (loading && entries.length === 0) {
+        return (
+            <div className="dashboard-content fade-in">
+                <header className="page-header slide-in-left">
+                    <SkeletonText variant="title" style={{ width: '300px' }} />
+                    <SkeletonText variant="subtitle" style={{ width: '400px' }} />
+                </header>
+                <div className="dashboard-tabs" style={{ display: 'flex', gap: '12px', marginBottom: '32px' }}>
+                    <SkeletonCard style={{ width: '120px', height: '40px' }} />
+                    <SkeletonCard style={{ width: '120px', height: '40px' }} />
+                </div>
+                <div className="data-table-container">
+                    <SkeletonTableRow rows={5} columns={5} />
+                </div>
+            </div>
+        );
+    }
 
     const hasErrors = previewData?.some(p => !p.valid);
 

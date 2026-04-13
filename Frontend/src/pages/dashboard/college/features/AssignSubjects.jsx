@@ -1,7 +1,10 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiBook, FiUser, FiLayers, FiBookOpen, FiCode } from 'react-icons/fi';
 import api from '../../../../utils/api';
 import { toast } from 'react-toastify';
+import SkeletonText from '../../../../components/common/skeleton/SkeletonText';
+import SkeletonCard from '../../../../components/common/skeleton/SkeletonCard';
+import SkeletonTableRow from '../../../../components/common/skeleton/SkeletonTableRow';
 
 export default function AssignSubjects() {
     const [faculty, setFaculty] = useState([]);
@@ -94,7 +97,20 @@ export default function AssignSubjects() {
     };
 
     if (loading && assignments.length === 0) {
-        return <div className="spinner" style={{ margin: '40px auto' }}></div>;
+        return (
+            <div className="dashboard-content fade-in">
+                <header className="page-header slide-in-left">
+                    <SkeletonText variant="title" style={{ width: '300px' }} />
+                    <SkeletonText variant="subtitle" style={{ width: '400px' }} />
+                </header>
+                <div className="dashboard-card fade-in-up" style={{ padding: '28px', marginBottom: '32px' }}>
+                    <SkeletonCard style={{ height: '200px' }} />
+                </div>
+                <div className="data-table-container fade-in-up" style={{ animationDelay: '0.1s' }}>
+                    <SkeletonTableRow rows={5} columns={5} />
+                </div>
+            </div>
+        );
     }
 
     return (

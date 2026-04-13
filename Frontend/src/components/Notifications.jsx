@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { FiBell, FiCheck, FiX } from 'react-icons/fi';
+import SkeletonListItem from './common/skeleton/SkeletonListItem';
 
 export default function Notifications() {
     const { user } = useAuth();
@@ -87,7 +88,11 @@ export default function Notifications() {
                     </div>
                     <div className="notifications-list">
                         {loading ? (
-                            <p className="notifications-empty">Loading...</p>
+                            <div>
+                                {Array.from({ length: 3 }).map((_, i) => (
+                                    <SkeletonListItem key={i} style={{ borderBottom: '1px solid var(--color-border)' }} />
+                                ))}
+                            </div>
                         ) : notifications.length === 0 ? (
                             <p className="notifications-empty">No notifications</p>
                         ) : (

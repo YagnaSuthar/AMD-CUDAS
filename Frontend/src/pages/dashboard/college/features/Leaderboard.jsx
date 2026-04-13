@@ -1,8 +1,9 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
 import api from '../../../../utils/api';
 import { FiTrendingUp, FiSearch, FiFilter, FiAward, FiBookOpen } from 'react-icons/fi';
 import { toast } from 'react-toastify';
+import SkeletonTableRow from '../../../../components/common/skeleton/SkeletonTableRow';
 
 export default function Leaderboard() {
     const { user } = useAuth();
@@ -107,7 +108,26 @@ export default function Leaderboard() {
                     <h3>Rankings <span className="table-count">({filteredLeaderboard.length} Students)</span></h3>
                 </div>
                 {loading ? (
-                    <div className="spinner" style={{ margin: '40px auto' }}></div>
+                    <div className="table-scroll-wrapper">
+                        <table className="data-table enhanced-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Student</th>
+                                    <th>Dept & Sem</th>
+                                    <th>Avg Marks</th>
+                                    <th>Cert Points</th>
+                                    <th>Badge</th>
+                                    <th>Total Score</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                    <SkeletonTableRow key={i} columns={7} />
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 ) : filteredLeaderboard.length === 0 ? (
                     <div className="empty-state">
                         <FiTrendingUp className="empty-state-icon" style={{ opacity: 0.3 }} />

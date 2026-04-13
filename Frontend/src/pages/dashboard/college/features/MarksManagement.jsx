@@ -1,8 +1,11 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
 import api from '../../../../utils/api';
 import { FiPlus, FiEdit2, FiLock, FiCheckCircle, FiX, FiSearch } from 'react-icons/fi';
 import { toast } from 'react-toastify';
+import SkeletonText from '../../../../components/common/skeleton/SkeletonText';
+import SkeletonCard from '../../../../components/common/skeleton/SkeletonCard';
+import SkeletonTableRow from '../../../../components/common/skeleton/SkeletonTableRow';
 
 export default function MarksManagement() {
     const { user } = useAuth();
@@ -101,7 +104,22 @@ export default function MarksManagement() {
         return m.student_name?.toLowerCase().includes(t) || m.subject_name?.toLowerCase().includes(t);
     });
 
-    if (loading) return <div className="spinner" style={{ margin: '40px auto' }}></div>;
+    if (loading) {
+        return (
+            <div className="dashboard-content fade-in">
+                <div className="page-header slide-in-left">
+                    <SkeletonText variant="title" style={{ width: '300px' }} />
+                    <SkeletonText variant="subtitle" style={{ width: '400px' }} />
+                </div>
+                <div className="marks-controls fade-in-up" style={{ marginBottom: '24px' }}>
+                    <SkeletonCard style={{ width: '150px', height: '40px' }} />
+                </div>
+                <div className="data-table-container fade-in-up">
+                    <SkeletonTableRow rows={5} columns={7} />
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="dashboard-content fade-in">

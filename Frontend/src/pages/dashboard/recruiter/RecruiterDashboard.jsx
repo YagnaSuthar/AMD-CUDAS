@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import api from '../../../utils/api';
 import { 
@@ -6,6 +6,8 @@ import {
     FiBarChart2, FiActivity, FiUser, FiMail, FiCalendar, FiTarget, FiInfo
 } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import SkeletonText from '../../../components/common/skeleton/SkeletonText';
+import SkeletonCard from '../../../components/common/skeleton/SkeletonCard';
 
 const COLORS = ['#00bcd4', '#a87ef0', '#ffb703', '#22c55e', '#ef4444', '#667eea'];
 
@@ -44,7 +46,23 @@ export default function RecruiterDashboard() {
     };
 
     if (loading) {
-        return <div className="spinner" style={{ margin: '40px auto' }}></div>;
+        return (
+            <div className="dashboard-content dashboard-home">
+                <div className="page-header slide-in-left">
+                    <SkeletonText variant="title" style={{ width: '300px' }} />
+                    <SkeletonText variant="subtitle" style={{ width: '400px' }} />
+                </div>
+                <div className="stats-grid fade-in-up">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                        <SkeletonCard key={i} style={{ height: '120px' }} />
+                    ))}
+                </div>
+                <div className="dashboard-row fade-in-up fade-in-delay-1" style={{ marginTop: '24px' }}>
+                    <SkeletonCard style={{ height: '350px', flex: 1 }} />
+                    <SkeletonCard style={{ height: '350px', flex: 1 }} />
+                </div>
+            </div>
+        );
     }
 
     if (error) {

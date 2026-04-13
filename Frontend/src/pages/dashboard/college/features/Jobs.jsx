@@ -1,7 +1,9 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
 import api from '../../../../utils/api';
 import { FiBriefcase, FiCheckCircle, FiClock, FiAward, FiMic, FiMapPin, FiDollarSign, FiShield, FiX, FiTrash2 } from 'react-icons/fi';
+import SkeletonText from '../../../../components/common/skeleton/SkeletonText';
+import SkeletonButton from '../../../../components/common/skeleton/SkeletonButton';
 
 export default function Jobs() {
     const { user } = useAuth();
@@ -126,7 +128,53 @@ export default function Jobs() {
         return arr;
     }, [jobs]);
 
-    if (loading) return <div className="spinner" style={{ margin: '40px auto' }}></div>;
+    if (loading) {
+        return (
+            <div className="dashboard-content">
+                <div className="page-header slide-in-left">
+                    <SkeletonText variant="title" style={{ width: '250px' }} />
+                    <SkeletonText variant="subtitle" style={{ width: '400px' }} />
+                </div>
+                {canCreate && (
+                    <div className="dashboard-card fade-in-up" style={{ marginBottom: '24px' }}>
+                        <SkeletonText variant="title" style={{ width: '150px' }} />
+                        <div style={{ display: 'grid', gap: '12px', marginTop: '12px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                <SkeletonText style={{ height: '40px', width: '100%' }} />
+                                <SkeletonText style={{ height: '40px', width: '100%' }} />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                <SkeletonText style={{ height: '40px', width: '100%' }} />
+                                <SkeletonText style={{ height: '40px', width: '100%' }} />
+                            </div>
+                            <SkeletonText style={{ height: '100px', width: '100%' }} />
+                            <SkeletonButton style={{ height: '40px' }} />
+                        </div>
+                    </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <SkeletonText variant="subtitle" style={{ width: '120px' }} />
+                </div>
+                <div className="jobs-grid">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="job-card skeleton-card" style={{ padding: '24px', gap: '16px' }}>
+                            <SkeletonText variant="title" style={{ width: '70%' }} />
+                            <SkeletonText style={{ width: '100%' }} />
+                            <SkeletonText style={{ width: '90%' }} />
+                            <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                                <SkeletonText style={{ width: '80px', height: '24px', borderRadius: '12px', marginBottom: 0 }} />
+                                <SkeletonText style={{ width: '80px', height: '24px', borderRadius: '12px', marginBottom: 0 }} />
+                                <SkeletonText style={{ width: '80px', height: '24px', borderRadius: '12px', marginBottom: 0 }} />
+                            </div>
+                            <div style={{ marginTop: 'auto', paddingTop: '16px', display: 'flex', justifyContent: 'space-between' }}>
+                                <SkeletonButton style={{ width: '100px', height: '32px' }} />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="dashboard-content">

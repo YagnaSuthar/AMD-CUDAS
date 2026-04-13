@@ -1,7 +1,9 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import api from '../../../utils/api';
 import { FiInbox, FiCheckCircle, FiXCircle, FiClock, FiBriefcase, FiUser, FiMail, FiAward, FiInfo, FiTrash2 } from 'react-icons/fi';
+import SkeletonText from '../../../components/common/skeleton/SkeletonText';
+import SkeletonTableRow from '../../../components/common/skeleton/SkeletonTableRow';
 
 export default function Applications() {
     const { user } = useAuth();
@@ -144,13 +146,42 @@ export default function Applications() {
     if (loading && applications.length === 0) {
         return (
             <div className="dashboard-page">
-                <div className="page-header">
-                    <h2>Applications</h2>
-                    <p>Manage student job applications</p>
+                <div className="page-header slide-in-left">
+                    <SkeletonText variant="title" style={{ width: '250px' }} />
+                    <SkeletonText variant="subtitle" style={{ width: '400px' }} />
+                </div>
+                <div className="card" style={{ marginBottom: '24px' }}>
+                    <div className="card-header">
+                        <SkeletonText variant="title" style={{ width: '150px' }} />
+                    </div>
+                    <div className="card-body">
+                        <SkeletonText style={{ width: '400px', height: '40px' }} />
+                    </div>
                 </div>
                 <div className="card">
-                    <div className="card-body" style={{ textAlign: 'center', padding: '3rem' }}>
-                        Loading applications...
+                    <div className="card-header">
+                        <SkeletonText variant="title" style={{ width: '200px' }} />
+                    </div>
+                    <div className="card-body" style={{ padding: 0 }}>
+                        <div className="table-responsive">
+                            <table className="table">
+                                <thead>
+                                    <tr>
+                                        <th>Student</th>
+                                        <th>Job</th>
+                                        <th>Applied Date</th>
+                                        <th>Status</th>
+                                        <th>AI Score</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {Array.from({ length: 5 }).map((_, i) => (
+                                        <SkeletonTableRow key={i} columns={6} />
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>

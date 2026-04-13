@@ -4,6 +4,9 @@ import { ROLE_LABELS } from '../../../../utils/roles';
 import api from '../../../../utils/api';
 import { FiUser, FiMail, FiPhone, FiBriefcase, FiSave, FiShield, FiBookOpen, FiHash, FiTarget, FiEdit2, FiX, FiGithub } from 'react-icons/fi';
 import { toast } from 'react-toastify';
+import SkeletonText from '../../../../components/common/skeleton/SkeletonText';
+import SkeletonAvatar from '../../../../components/common/skeleton/SkeletonAvatar';
+import SkeletonButton from '../../../../components/common/skeleton/SkeletonButton';
 
 export default function Profile() {
     const { user, fetchUser } = useAuth();
@@ -88,7 +91,35 @@ export default function Profile() {
     };
 
     if (!profileData) {
-        return <div className="spinner" style={{ margin: '40px auto' }}></div>;
+        return (
+            <div className="dashboard-content fade-in">
+                <div className="page-header">
+                    <SkeletonText variant="title" style={{ width: '250px' }} />
+                    <SkeletonText variant="subtitle" style={{ width: '350px' }} />
+                </div>
+                <div className="profile-page-grid">
+                    <div className="profile-card">
+                        <div className="profile-avatar-section" style={{ alignItems: 'center', display: 'flex', flexDirection: 'column' }}>
+                            <SkeletonAvatar size="lg" style={{ marginBottom: '16px' }} />
+                            <SkeletonText variant="title" style={{ width: '150px', marginBottom: '8px' }} />
+                            <SkeletonButton style={{ width: '100px', height: '24px', borderRadius: '12px' }} />
+                        </div>
+                    </div>
+                    <div className="profile-details-card">
+                        <SkeletonText variant="title" style={{ width: '200px', marginBottom: '24px' }} />
+                        {Array.from({ length: 5 }).map((_, i) => (
+                            <div key={i} className="profile-field" style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
+                                <SkeletonAvatar size="sm" />
+                                <div style={{ flex: 1 }}>
+                                    <SkeletonText variant="subtitle" style={{ width: '100px', marginBottom: '4px' }} />
+                                    <SkeletonText style={{ width: '250px' }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
     }
 
     const data = profileData;
