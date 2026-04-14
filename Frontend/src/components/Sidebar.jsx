@@ -14,7 +14,11 @@ export default function Sidebar({ isOpen, onClose }) {
     const [unreadCount, setUnreadCount] = useState(0);
 
     const fetchUnreadCount = async () => {
-        if (user?.role !== 'STUDENT') return;
+        if (!user) return;
+        // Students see badge on notifications, college roles see badge on messages
+        const isCollegeRole = ['COLLEGE_PRINCIPAL', 'HOD', 'FACULTY'].includes(user?.role);
+        const isStudent = user?.role === 'STUDENT';
+        if (!isStudent && !isCollegeRole) return;
         try {
             const res = await api.get('/messages/notifications');
             setUnreadCount(res.data.unread_count || 0);
@@ -72,7 +76,14 @@ export default function Sidebar({ isOpen, onClose }) {
                                 <route.icon />
                             </span>
                             {route.label}
+                            {/* Student notification badge */}
                             {user.role === 'STUDENT' && route.path === '/dashboard/notifications' && unreadCount > 0 && (
+                                <span className="sidebar-badge">
+                                    {unreadCount}
+                                </span>
+                            )}
+                            {/* College role messages badge */}
+                            {['COLLEGE_PRINCIPAL', 'HOD', 'FACULTY'].includes(user.role) && route.path === '/dashboard/college-messages' && unreadCount > 0 && (
                                 <span className="sidebar-badge">
                                     {unreadCount}
                                 </span>

@@ -97,6 +97,40 @@
     text-decoration: none;
 }
 
+/* ── Star Button ───────────────────────────────────────────────────────── */
+
+.notif-star-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+    padding-top: 4px;
+}
+
+.notif-star-btn:hover {
+    color: var(--color-accent);
+    background: rgba(255, 183, 3, 0.08);
+}
+
+.notif-star-btn.starred {
+    color: var(--color-accent);
+    fill: var(--color-accent);
+}
+
+.notif-star-btn.starred svg {
+    fill: var(--color-accent);
+    stroke: var(--color-accent);
+}
+
 /* ── Notification List ──────────────────────────────────────────────── */
 
 .notif-list {
@@ -237,6 +271,11 @@
     color: #fff;
 }
 
+.notif-avatar-icon.college {
+    background: linear-gradient(135deg, #a87ef0, #7c3aed);
+    color: #fff;
+}
+
 /* ── Content ────────────────────────────────────────────────────────── */
 
 .notif-content {
@@ -259,6 +298,26 @@
     line-height: 1.5;
 }
 
+.notif-message.college-subject {
+    font-family: var(--font-heading);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin-bottom: 6px;
+}
+
+.notif-college-body {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+    margin-bottom: 10px;
+    display: -webkit-box;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+}
+
 .notif-timestamp {
     font-size: 0.75rem;
     color: var(--color-text-muted);
@@ -276,8 +335,8 @@
     margin-top: 8px;
 }
 
-.notif-preview-text {
-    flex: 1;
+/* .notif-preview-text {
+    /* flex: 1;
     padding: 8px 14px;
     background: var(--color-primary);
     border: 1px solid var(--color-border);
@@ -287,9 +346,9 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
+} */
 
-[data-theme="dark"] .notif-preview-text {
+*/ [data-theme="dark"] .notif-preview-text {
     background: var(--color-primary-200);
 }
 
@@ -385,9 +444,12 @@
 }
 
 @keyframes notifPulse {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 0 6px rgba(0, 188, 212, 0.4);
     }
+
     50% {
         box-shadow: 0 0 12px rgba(0, 188, 212, 0.7);
     }
@@ -590,9 +652,12 @@
 }
 
 @keyframes skeletonShimmer {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 0.5;
     }
+
     50% {
         opacity: 1;
     }

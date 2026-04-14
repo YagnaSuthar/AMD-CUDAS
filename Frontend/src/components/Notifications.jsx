@@ -6,7 +6,7 @@ import SkeletonListItem from './common/skeleton/SkeletonListItem';
 
 export default function Notifications() {
     const { user } = useAuth();
-    const isStudent = user?.role === 'STUDENT';
+    const hasNotifications = ['STUDENT', 'COLLEGE_PRINCIPAL', 'HOD', 'FACULTY'].includes(user?.role);
 
     const [open, setOpen] = useState(false);
     const [notifications, setNotifications] = useState([]);
@@ -15,7 +15,7 @@ export default function Notifications() {
     const dropdownRef = useRef(null);
 
     const fetchNotifications = async () => {
-        if (!isStudent) return;
+        if (!hasNotifications) return;
         try {
             setLoading(true);
             const res = await api.get('/messages/notifications');

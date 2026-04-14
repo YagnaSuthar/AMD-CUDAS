@@ -104,6 +104,51 @@ async def lifespan(app: FastAPI):
             """)
         )
 
+        # ── Messages table: role-based messaging columns ──
+        await conn.execute(
+            text("""
+                ALTER TABLE messages
+                    ADD COLUMN IF NOT EXISTS sender_role VARCHAR(50),
+                    ADD COLUMN IF NOT EXISTS receiver_role VARCHAR(50),
+                    ADD COLUMN IF NOT EXISTS receiver_ids JSONB,
+                    ADD COLUMN IF NOT EXISTS semester_id INTEGER,
+                    ADD COLUMN IF NOT EXISTS cc_ids JSONB;
+            """)
+        )
+
+        # Make recipient_id nullable (bulk messages don't have a single recipient)
+        await conn.execute(
+            text("""
+                ALTER TABLE messages
+                    ALTER COLUMN recipient_id DROP NOT NULL;
+            """)
+        )
+
+        # Drop the old message_type enum constraint if it exists and use varchar
+        await conn.execute(
+            text("""
+                ALTER TABLE messages
+                    ALTER COLUMN message_type TYPE VARCHAR(50) USING message_type::VARCHAR(50);
+            """)
+        )
+
+        # ── Notifications table: starring and sender_role ──
+        await conn.execute(
+            text("""
+                ALTER TABLE notifications
+                    ADD COLUMN IF NOT EXISTS is_starred BOOLEAN DEFAULT FALSE,
+                    ADD COLUMN IF NOT EXISTS sender_role VARCHAR(50);
+            """)
+        )
+
+        # Drop the old notification_type enum constraint and use varchar
+        await conn.execute(
+            text("""
+                ALTER TABLE notifications
+                    ALTER COLUMN notification_type TYPE VARCHAR(50) USING notification_type::VARCHAR(50);
+            """)
+        )
+
         # extension
         try:
             await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))

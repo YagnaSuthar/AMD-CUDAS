@@ -1,5 +1,6 @@
 """
-Message and Notification models for recruiter-to-student messaging.
+Message and Notification models for role-based messaging.
+Supports: Recruiter→Student, Principal/HOD/Faculty→Student/Faculty/HOD/Principal.
 """
 
 import enum
@@ -13,9 +14,10 @@ from sqlalchemy import (
     String,
     Text,
     Boolean,
+    Integer,
     JSON,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -26,6 +28,11 @@ from app.core.database import Base
 
 class MessageType(str, enum.Enum):
     RECRUITER_TO_STUDENT = "RECRUITER_TO_STUDENT"
+    COLLEGE_TO_STUDENT = "COLLEGE_TO_STUDENT"
+    COLLEGE_TO_FACULTY = "COLLEGE_TO_FACULTY"
+    COLLEGE_TO_HOD = "COLLEGE_TO_HOD"
+    COLLEGE_TO_PRINCIPAL = "COLLEGE_TO_PRINCIPAL"
+    INTERNAL = "INTERNAL"
 
 
 class NotificationType(str, enum.Enum):
@@ -33,13 +40,14 @@ class NotificationType(str, enum.Enum):
     AI_ASSIGNED = "AI_ASSIGNED"
     ROUND2_INVITED = "ROUND2_INVITED"
     HIRED = "HIRED"
+    COLLEGE_MESSAGE = "COLLEGE_MESSAGE"
 
 
 # ── Message ───────────────────────────────────────────────────────────────
 
 
 class Message(Base):
-    """A message sent from a recruiter to a student."""
+    """A message sent between roles."""
 
     __tablename__ = "messages"
 
@@ -51,16 +59,25 @@ class Message(Base):
         ForeignKey("auth_users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    recipient_id: Mapped[uuid.UUID] = mapped_column(
+    # Legacy single recipient (kept for backward compat with recruiter messages)
+    recipient_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("auth_users.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
     )
     message_type: Mapped[str] = mapped_column(
-        SAEnum(MessageType, name="message_type_enum", create_constraint=True),
+        String(50),
         nullable=False,
         default=MessageType.RECRUITER_TO_STUDENT,
     )
+
+    # ── New role-based fields ──
+    sender_role: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    receiver_role: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    receiver_ids: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    semester_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cc_ids: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+
     subject: Mapped[str] = mapped_column(String(255), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -80,7 +97,7 @@ class Message(Base):
 
 
 class Notification(Base):
-    """A notification for a student (messages, pipeline updates, etc.)."""
+    """A notification for any user (messages, pipeline updates, etc.)."""
 
     __tablename__ = "notifications"
 
@@ -93,12 +110,14 @@ class Notification(Base):
         nullable=False,
     )
     notification_type: Mapped[str] = mapped_column(
-        SAEnum(NotificationType, name="notification_type_enum", create_constraint=True),
+        String(50),
         nullable=False,
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_starred: Mapped[bool] = mapped_column(Boolean, default=False)
+    sender_role: Mapped[str | None] = mapped_column(String(50), nullable=True)
     read_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

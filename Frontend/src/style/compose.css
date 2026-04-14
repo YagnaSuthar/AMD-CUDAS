@@ -1,0 +1,887 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Compose Message Modal — Gmail-inspired, using root colors
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Overlay ───────────────────────────────────────────────────────────── */
+
+.compose-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: composeOverlayIn 0.25s ease;
+}
+
+@keyframes composeOverlayIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* ── Modal ─────────────────────────────────────────────────────────────── */
+
+.compose-modal {
+    background: var(--color-bg-card);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.2);
+    width: 640px;
+    max-width: 92vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: composeModalIn 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    border: 1px solid var(--color-border);
+}
+
+@keyframes composeModalIn {
+    from {
+        opacity: 0;
+        transform: translateY(24px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* ── Header ────────────────────────────────────────────────────────────── */
+
+.compose-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--color-border);
+    background: linear-gradient(135deg, rgba(0, 188, 212, 0.04), transparent);
+}
+
+.compose-header h3 {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    color: var(--color-text-primary);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.compose-close-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    font-size: 1.1rem;
+}
+
+.compose-close-btn:hover {
+    background: var(--color-primary-200);
+    color: var(--color-text-primary);
+}
+
+/* ── Step Indicator ────────────────────────────────────────────────────── */
+
+.compose-steps {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-primary);
+}
+
+.compose-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    border-radius: var(--radius-full);
+    transition: all 0.3s ease;
+    cursor: default;
+}
+
+.compose-step.active {
+    background: var(--color-secondary);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(0, 188, 212, 0.25);
+}
+
+.compose-step.completed {
+    color: var(--color-secondary);
+}
+
+.compose-step-num {
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-full);
+    border: 2px solid currentColor;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.compose-step.active .compose-step-num {
+    border-color: #fff;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.compose-step.completed .compose-step-num {
+    border-color: var(--color-secondary);
+    background: rgba(0, 188, 212, 0.1);
+}
+
+.compose-step-divider {
+    width: 32px;
+    height: 2px;
+    background: var(--color-border);
+    margin: 0 4px;
+    border-radius: 1px;
+}
+
+.compose-step-divider.completed {
+    background: var(--color-secondary);
+}
+
+/* ── Body / Steps Container ────────────────────────────────────────────── */
+
+.compose-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+    position: relative;
+}
+
+.compose-step-content {
+    padding: 24px;
+    animation: composeStepSlide 0.3s ease;
+}
+
+@keyframes composeStepSlide {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* ── Step 1: Role Selection ────────────────────────────────────────────── */
+
+.compose-role-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.compose-role-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 16px;
+    background: var(--color-bg-main);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.25s ease;
+    text-align: center;
+}
+
+.compose-role-card:hover {
+    border-color: var(--color-secondary-light);
+    background: rgba(0, 188, 212, 0.04);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 188, 212, 0.1);
+}
+
+.compose-role-card.selected {
+    border-color: var(--color-secondary);
+    background: rgba(0, 188, 212, 0.06);
+    box-shadow: 0 0 0 3px rgba(0, 188, 212, 0.12);
+}
+
+.compose-role-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    background: var(--gradient-primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+}
+
+.compose-role-card h4 {
+    font-family: var(--font-heading);
+    font-size: 0.85rem;
+    color: var(--color-text-primary);
+    margin: 0;
+}
+
+.compose-role-card p {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+/* ── Step 2: Recipient Selection ───────────────────────────────────────── */
+
+.compose-semester-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.compose-sem-chip {
+    padding: 10px 8px;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-main);
+    cursor: pointer;
+    text-align: center;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    transition: all 0.2s ease;
+}
+
+.compose-sem-chip:hover {
+    border-color: var(--color-secondary-light);
+    background: rgba(0, 188, 212, 0.04);
+}
+
+.compose-sem-chip.selected {
+    border-color: var(--color-secondary);
+    background: var(--color-secondary);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(0, 188, 212, 0.2);
+}
+
+.compose-send-all-toggle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--color-primary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 16px;
+}
+
+.compose-send-all-toggle label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    cursor: pointer;
+    flex: 1;
+}
+
+.compose-send-all-toggle input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-secondary);
+    cursor: pointer;
+}
+
+.compose-recipient-search {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-main);
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+    margin-bottom: 12px;
+    transition: border-color 0.2s ease;
+}
+
+.compose-recipient-search:focus {
+    outline: none;
+    border-color: var(--color-secondary);
+    box-shadow: 0 0 0 3px rgba(0, 188, 212, 0.12);
+}
+
+.compose-recipient-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-main);
+}
+
+.compose-recipient-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.compose-recipient-item:last-child {
+    border-bottom: none;
+}
+
+.compose-recipient-item:hover {
+    background: rgba(0, 188, 212, 0.06);
+}
+
+.compose-recipient-item.selected {
+    background: rgba(0, 188, 212, 0.08);
+}
+
+.compose-recipient-item input[type="checkbox"] {
+    accent-color: var(--color-secondary);
+    width: 16px;
+    height: 16px;
+}
+
+.compose-recipient-item .r-name {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--color-text-primary);
+}
+
+.compose-recipient-item .r-email {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+}
+
+.compose-recipient-item .r-dept {
+    margin-left: auto;
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    background: var(--color-primary-200);
+    color: var(--color-text-muted);
+}
+
+.compose-selected-count {
+    font-size: 0.82rem;
+    color: var(--color-secondary);
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+/* ── Step 3: Compose Form (Gmail-style) ────────────────────────────────── */
+
+.compose-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* To / Cc fields */
+.compose-field-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.compose-field-label {
+    width: 32px;
+    flex-shrink: 0;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    padding-top: 6px;
+}
+
+.compose-chips-area {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    min-height: 36px;
+}
+
+.compose-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: var(--color-primary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.compose-chip-remove {
+    width: 16px;
+    height: 16px;
+    border: none;
+    background: var(--color-text-muted);
+    color: #fff;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    transition: background 0.2s ease;
+    flex-shrink: 0;
+}
+
+.compose-chip-remove:hover {
+    background: var(--color-error);
+}
+
+.compose-bulk-chip {
+    background: var(--color-secondary);
+    color: #fff;
+    border-color: var(--color-secondary);
+}
+
+/* Subject */
+.compose-subject-input {
+    width: 100%;
+    padding: 12px 0;
+    border: none;
+    border-bottom: 1px solid var(--color-border);
+    background: transparent;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    outline: none;
+}
+
+.compose-subject-input::placeholder {
+    color: var(--color-text-muted);
+    font-weight: 400;
+}
+
+.compose-subject-input:focus {
+    border-bottom-color: var(--color-secondary);
+}
+
+/* Rich Text Editor */
+.compose-editor-area {
+    min-height: 180px;
+    padding: 14px 0;
+    position: relative;
+}
+
+.compose-editor {
+    min-height: 160px;
+    outline: none;
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: var(--color-text-primary);
+    cursor: text;
+}
+
+.compose-editor:empty::before {
+    content: attr(data-placeholder);
+    color: var(--color-text-muted);
+    pointer-events: none;
+}
+
+.compose-editor a {
+    color: var(--color-secondary);
+    text-decoration: underline;
+}
+
+/* Floating Toolbar */
+.compose-toolbar {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 6px;
+    background: var(--color-text-primary);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+}
+
+.compose-toolbar-btn {
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: transparent;
+    color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    transition: background 0.15s ease;
+}
+
+.compose-toolbar-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.compose-toolbar-btn.active {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Footer ────────────────────────────────────────────────────────────── */
+
+.compose-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-bg-card);
+}
+
+.compose-footer-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.compose-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.compose-discard-btn {
+    padding: 8px 18px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-card);
+    color: var(--color-text-secondary);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.compose-discard-btn:hover {
+    border-color: var(--color-error);
+    color: var(--color-error);
+    background: rgba(239, 68, 68, 0.04);
+}
+
+.compose-send-later-btn {
+    padding: 8px 18px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-card);
+    color: var(--color-text-secondary);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+
+.compose-send-later-btn:hover {
+    border-color: var(--color-secondary);
+    color: var(--color-secondary);
+}
+
+.compose-send-btn {
+    padding: 8px 24px;
+    border: none;
+    background: var(--color-secondary);
+    color: #fff;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.compose-send-btn:hover:not(:disabled) {
+    background: var(--color-secondary-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 188, 212, 0.3);
+}
+
+.compose-send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.compose-footer-icon-btn {
+    width: 34px;
+    height: 34px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+}
+
+.compose-footer-icon-btn:hover {
+    background: var(--color-primary-200);
+    color: var(--color-text-primary);
+}
+
+/* ── Navigation Buttons ────────────────────────────────────────────────── */
+
+.compose-nav-btns {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+    gap: 12px;
+}
+
+.compose-back-btn {
+    padding: 10px 20px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-card);
+    color: var(--color-text-secondary);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.compose-back-btn:hover {
+    border-color: var(--color-secondary);
+    color: var(--color-secondary);
+}
+
+.compose-next-btn {
+    padding: 10px 24px;
+    border: none;
+    background: var(--gradient-primary);
+    color: #fff;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.compose-next-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(0, 188, 212, 0.3);
+}
+
+.compose-next-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ── Section Labels ────────────────────────────────────────────────────── */
+
+.compose-section-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-muted);
+    margin-bottom: 12px;
+}
+
+/* ── College Messages Page Styles ──────────────────────────────────────── */
+
+.college-msg-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+}
+
+.college-msg-new-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px;
+    border: none;
+    background: var(--gradient-primary);
+    color: #fff;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    box-shadow: 0 4px 15px rgba(0, 188, 212, 0.25);
+}
+
+.college-msg-new-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 22px rgba(0, 188, 212, 0.4);
+}
+
+.college-msg-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.college-msg-card {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 18px 20px;
+    transition: all 0.25s ease;
+    cursor: default;
+    opacity: 0;
+    animation: fadeInUp 0.4s ease forwards;
+}
+
+.college-msg-card:hover {
+    border-color: rgba(0, 188, 212, 0.3);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.college-msg-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.college-msg-card-subject {
+    font-family: var(--font-heading);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.college-msg-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.college-msg-card-role {
+    padding: 3px 10px;
+    border-radius: var(--radius-full);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: rgba(0, 188, 212, 0.1);
+    color: var(--color-secondary);
+}
+
+.college-msg-card-time {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.college-msg-card-body {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+    margin-bottom: 10px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.college-msg-card-stats {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-top: 10px;
+    border-top: 1px solid var(--color-border);
+}
+
+.college-msg-stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+}
+
+.college-msg-stat .stat-val {
+    font-weight: 700;
+    color: var(--color-secondary);
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+    .compose-modal {
+        width: 100vw;
+        max-width: 100vw;
+        height: 100vh;
+        max-height: 100vh;
+        border-radius: 0;
+    }
+
+    .compose-role-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .compose-semester-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .compose-footer {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .compose-footer-left,
+    .compose-footer-right {
+        width: 100%;
+        justify-content: center;
+    }
+}

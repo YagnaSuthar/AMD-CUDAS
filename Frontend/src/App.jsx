@@ -32,6 +32,7 @@ import CareerGuidance from './pages/dashboard/college/features/CareerGuidance';
 import Round2Meeting from './pages/dashboard/college/features/Round2Meeting';
 import InterviewLive from './pages/dashboard/college/features/InterviewLive';
 import AssignSubjects from './pages/dashboard/college/features/AssignSubjects';
+import CollegeMessages from './pages/dashboard/college/features/CollegeMessages';
 
 function App() {
   return (
@@ -75,6 +76,7 @@ function App() {
               <Route path="notifications" element={<Notifications />} />
               <Route path="round2/:pipelineId" element={<Round2Meeting />} />
               <Route path="career-guidance" element={<CareerGuidance />} />
+              <Route path="college-messages" element={<CollegeMessages />} />
               <Route path="departments" element={<Dashboard departments />} />
             </Route>
           </Route>

@@ -1,8 +1,9 @@
 import {
     FiCheck, FiX, FiClock, FiMessageSquare,
-    FiArrowRight, FiTrendingUp, FiCpu
+    FiArrowRight, FiTrendingUp, FiCpu, FiStar,
+    FiMail, FiEye, FiEyeOff
 } from 'react-icons/fi';
-import { FaRobot } from 'react-icons/fa';
+import { FaRobot, FaSchool } from 'react-icons/fa';
 
 /**
  * Determine notification visual type from the raw notification_type / type field.
@@ -18,7 +19,17 @@ function getNotifMeta(notification) {
                 avatarClass: '',           // will use person avatar / initials
                 typeBadge: 'Message',
                 Icon: FiMessageSquare,
-                actionLabel: 'Reply',
+                actionLabel: 'View',
+                actionClass: 'btn-reply',
+            };
+
+        case 'COLLEGE_MESSAGE':
+            return {
+                category: 'college',
+                avatarClass: 'college',
+                typeBadge: 'College',
+                Icon: FaSchool,
+                actionLabel: 'View',
                 actionClass: 'btn-reply',
             };
 
@@ -68,10 +79,26 @@ function getNotifMeta(notification) {
  * Extract display-friendly sender name from notification fields.
  */
 function getSenderName(notification) {
+    if (notification.meta_json?.sender_name) return notification.meta_json.sender_name;
     if (notification.sender_name) return notification.sender_name;
     if (notification.title) return notification.title;
     if (notification.subject) return notification.subject;
     return 'System';
+}
+
+/**
+ * Get sender role badge text.
+ */
+function getSenderRoleBadge(notification) {
+    const role = notification.sender_role || notification.meta_json?.sender_role;
+    if (!role) return null;
+    const map = {
+        'COLLEGE_PRINCIPAL': 'Principal',
+        'HOD': 'HOD',
+        'FACULTY': 'Faculty',
+        'RECRUITER': 'Recruiter',
+    };
+    return map[role] || null;
 }
 
 /**
@@ -119,17 +146,23 @@ export default function NotificationItem({
     checked,
     onCheck,
     onMarkRead,
+    onMarkUnread,
+    onToggleStar,
     onDelete,
     onAction,
 }) {
     const meta = getNotifMeta(notification);
     const senderName = getSenderName(notification);
+    const senderRoleBadge = getSenderRoleBadge(notification);
     const messageText = notification.message || notification.body || '';
+    const bodyPreview = notification.meta_json?.body_preview || '';
     const isUnread = !notification.is_read;
+    const isStarred = notification.is_starred;
     const isAI = meta.category === 'ai';
-    const isPersonMessage = meta.category === 'message';
+    const isPersonMessage = meta.category === 'message' || meta.category === 'college';
 
     // For AI notifications, show a robot icon avatar.
+    // For college messages, show school icon.
     // For person messages, show initials or profile image.
     // For system / promo / analytics, show an icon avatar.
 
@@ -139,6 +172,16 @@ export default function NotificationItem({
                 <div className="notif-avatar">
                     <div className="notif-avatar-icon ai">
                         <FaRobot />
+                    </div>
+                </div>
+            );
+        }
+
+        if (meta.category === 'college') {
+            return (
+                <div className="notif-avatar">
+                    <div className="notif-avatar-icon college">
+                        <FaSchool />
                     </div>
                 </div>
             );
@@ -211,6 +254,15 @@ export default function NotificationItem({
                 />
             </div>
 
+            {/* Star */}
+            <button
+                className={`notif-star-btn ${isStarred ? 'starred' : ''}`}
+                onClick={() => onToggleStar && onToggleStar(notification.id)}
+                title={isStarred ? 'Unstar' : 'Star'}
+            >
+                <FiStar />
+            </button>
+
             {/* Avatar */}
             {renderAvatar()}
 
@@ -223,9 +275,27 @@ export default function NotificationItem({
                             {meta.typeBadge}
                         </span>
                     )}
+                    {senderRoleBadge && (
+                        <span className="notif-type-badge college">
+                            {senderRoleBadge}
+                        </span>
+                    )}
                 </div>
 
-                <div className="notif-message">{messageText}</div>
+                <div 
+                    className={`notif-message ${meta.category === 'college' ? 'college-subject' : ''}`} 
+                    dangerouslySetInnerHTML={{ __html: messageText }} 
+                />
+
+                {/* Body preview for college messages */}
+                {bodyPreview && (
+                    <div className={meta.category === 'college' ? 'notif-college-body' : 'notif-preview-box'}>
+                        <div 
+                            className="notif-preview-text" 
+                            dangerouslySetInnerHTML={{ __html: bodyPreview }} 
+                        />
+                    </div>
+                )}
 
                 <div className="notif-timestamp">
                     <FiClock size={12} />
@@ -235,15 +305,6 @@ export default function NotificationItem({
                         {fullTimestamp(notification.created_at)}
                     </span>
                 </div>
-
-                {/* Message preview box for MESSAGE type */}
-                {isPersonMessage && notification.preview && (
-                    <div className="notif-preview-box">
-                        <span className="notif-preview-text">
-                            {notification.preview}
-                        </span>
-                    </div>
-                )}
 
                 {/* Scheduled info for Round 2 */}
                 {meta.category === 'round2' && notification.meta_json?.round2_scheduled_at && (
@@ -259,7 +320,8 @@ export default function NotificationItem({
                 {renderAction()}
 
                 <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    {isUnread && (
+                    {/* Read / Unread toggle */}
+                    {isUnread ? (
                         <button
                             className="notif-icon-btn mark-read"
                             title="Mark as read"
@@ -267,6 +329,16 @@ export default function NotificationItem({
                         >
                             <FiCheck />
                         </button>
+                    ) : (
+                        onMarkUnread && (
+                            <button
+                                className="notif-icon-btn mark-read"
+                                title="Mark as unread"
+                                onClick={() => onMarkUnread(notification.id)}
+                            >
+                                <FiEyeOff size={14} />
+                            </button>
+                        )
                     )}
                     <button
                         className="notif-icon-btn delete"

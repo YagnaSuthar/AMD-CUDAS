@@ -1,9 +1,18 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../../context/AuthContext';
 import api from '../../../../utils/api';
 import NotificationItem from '../../../../components/NotificationItem';
-import { FiBell, FiInbox, FiCheckCircle } from 'react-icons/fi';
+import { FiBell, FiInbox, FiCheckCircle, FiStar, FiCpu, FiBriefcase } from 'react-icons/fi';
+import { FaSchool } from 'react-icons/fa';
+
+const TABS = [
+    { key: 'college', label: 'College', Icon: FaSchool },
+    { key: 'ai', label: 'AI Agent', Icon: FiCpu },
+    { key: 'recruiter', label: 'Recruiter', Icon: FiBriefcase },
+    { key: 'starred', label: 'Starred', Icon: FiStar },
+    { key: 'read', label: 'Read', Icon: FiCheckCircle },
+];
 
 export default function Notifications() {
     const { user } = useAuth();
@@ -12,10 +21,10 @@ export default function Notifications() {
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [activeTab, setActiveTab] = useState('inbox');   // 'inbox' | 'read'
+    const [activeTab, setActiveTab] = useState('college');
     const [selectedIds, setSelectedIds] = useState(new Set());
 
-    /* â”€â”€ Fetch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+    /* ── Fetch ──────────────────────────────────────────────────────────── */
 
     const fetchNotifications = async () => {
         try {
@@ -36,10 +45,40 @@ export default function Notifications() {
         fetchNotifications();
     }, []);
 
-    /* â”€â”€ Derived lists â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+    /* ── Categorized lists ─────────────────────────────────────────────── */
 
-    const inboxList = useMemo(
-        () => notifications.filter(n => !n.is_read),
+    const collegeList = useMemo(
+        () => notifications.filter(n =>
+            !n.is_read && (
+                n.notification_type === 'COLLEGE_MESSAGE' ||
+                ['COLLEGE_PRINCIPAL', 'HOD', 'FACULTY'].includes(n.sender_role) ||
+                (n.meta_json?.sender_role && ['COLLEGE_PRINCIPAL', 'HOD', 'FACULTY'].includes(n.meta_json.sender_role))
+            )
+        ),
+        [notifications]
+    );
+
+    const aiList = useMemo(
+        () => notifications.filter(n =>
+            !n.is_read && n.notification_type === 'AI_ASSIGNED'
+        ),
+        [notifications]
+    );
+
+    const recruiterList = useMemo(
+        () => notifications.filter(n =>
+            !n.is_read && (
+                n.sender_role === 'RECRUITER' ||
+                (n.notification_type === 'MESSAGE' && !['COLLEGE_PRINCIPAL', 'HOD', 'FACULTY'].includes(n.sender_role)) ||
+                n.notification_type === 'ROUND2_INVITED' ||
+                n.notification_type === 'HIRED'
+            )
+        ),
+        [notifications]
+    );
+
+    const starredList = useMemo(
+        () => notifications.filter(n => n.is_starred),
         [notifications]
     );
 
@@ -48,9 +87,23 @@ export default function Notifications() {
         [notifications]
     );
 
-    const currentList = activeTab === 'inbox' ? inboxList : readList;
+    const tabCounts = {
+        college: collegeList.length,
+        ai: aiList.length,
+        recruiter: recruiterList.length,
+        starred: starredList.length,
+        read: readList.length,
+    };
 
-    /* â”€â”€ Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+    const currentList = {
+        college: collegeList,
+        ai: aiList,
+        recruiter: recruiterList,
+        starred: starredList,
+        read: readList,
+    }[activeTab] || [];
+
+    /* ── Actions ────────────────────────────────────────────────────────── */
 
     const markAsRead = async (notificationId) => {
         try {
@@ -67,6 +120,33 @@ export default function Notifications() {
             });
         } catch (err) {
             console.error('Failed to mark as read:', err);
+        }
+    };
+
+    const markAsUnread = async (notificationId) => {
+        try {
+            await api.put(`/messages/notifications/${notificationId}/unread`);
+            setNotifications(prev =>
+                prev.map(n => n.id === notificationId ? { ...n, is_read: false, read_at: null } : n)
+            );
+        } catch (err) {
+            console.error('Failed to mark as unread:', err);
+        }
+    };
+
+    const toggleStar = async (notificationId) => {
+        const notif = notifications.find(n => n.id === notificationId);
+        if (!notif) return;
+        const newStarred = !notif.is_starred;
+        try {
+            await api.put(`/messages/notifications/${notificationId}/star`, {
+                is_starred: newStarred,
+            });
+            setNotifications(prev =>
+                prev.map(n => n.id === notificationId ? { ...n, is_starred: newStarred } : n)
+            );
+        } catch (err) {
+            console.error('Failed to toggle star:', err);
         }
     };
 
@@ -89,7 +169,7 @@ export default function Notifications() {
     };
 
     const markAllAsRead = async () => {
-        const unreadIds = inboxList.map(n => n.id);
+        const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id);
         if (unreadIds.length === 0) return;
         try {
             await api.post('/messages/notifications/mark-read', {
@@ -123,12 +203,13 @@ export default function Notifications() {
         if (type === 'ROUND2_INVITED' && notification.meta_json?.pipeline_id) {
             navigate(`/dashboard/round2/${notification.meta_json.pipeline_id}`);
         }
-        if (type === 'MESSAGE') {
-            navigate('/dashboard/messages');
+        if (type === 'MESSAGE' || type === 'COLLEGE_MESSAGE') {
+            // Auto-mark as read when viewing
+            if (!notification.is_read) markAsRead(notification.id);
         }
     };
 
-    /* â”€â”€ Selection helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+    /* ── Selection helpers ──────────────────────────────────────────────── */
 
     const toggleSelect = (id) => {
         setSelectedIds(prev => {
@@ -139,7 +220,7 @@ export default function Notifications() {
         });
     };
 
-    /* â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+    /* ── Render ─────────────────────────────────────────────────────────── */
 
     const renderSkeleton = () => (
         <div className="notif-list-container">
@@ -164,7 +245,7 @@ export default function Notifications() {
                 {/* Page Header */}
                 <div className="page-header slide-in-left">
                     <h1 className="gradient-text">Notifications</h1>
-                    <p>Stay updated with your interview status and feedback</p>
+                    <p>Stay updated with messages, interviews, and more</p>
                 </div>
 
                 {/* Error */}
@@ -177,33 +258,26 @@ export default function Notifications() {
                 {/* Tabs Bar */}
                 <div className="notif-tabs-bar fade-in-up">
                     <div className="notif-tabs">
-                        <button
-                            className={`notif-tab ${activeTab === 'inbox' ? 'active' : ''}`}
-                            onClick={() => { setActiveTab('inbox'); setSelectedIds(new Set()); }}
-                        >
-                            <FiInbox style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                            Inbox
-                            {inboxList.length > 0 && (
-                                <span className="notif-tab-count">{inboxList.length}</span>
-                            )}
-                        </button>
-                        <button
-                            className={`notif-tab ${activeTab === 'read' ? 'active' : ''}`}
-                            onClick={() => { setActiveTab('read'); setSelectedIds(new Set()); }}
-                        >
-                            <FiCheckCircle style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                            Read
-                            {readList.length > 0 && (
-                                <span className="notif-tab-count">{readList.length}</span>
-                            )}
-                        </button>
+                        {TABS.map(tab => (
+                            <button
+                                key={tab.key}
+                                className={`notif-tab ${activeTab === tab.key ? 'active' : ''}`}
+                                onClick={() => { setActiveTab(tab.key); setSelectedIds(new Set()); }}
+                            >
+                                <tab.Icon style={{ marginRight: 6, verticalAlign: 'middle' }} size={14} />
+                                {tab.label}
+                                {tabCounts[tab.key] > 0 && (
+                                    <span className="notif-tab-count">{tabCounts[tab.key]}</span>
+                                )}
+                            </button>
+                        ))}
                     </div>
 
-                    {activeTab === 'inbox' && (
+                    {!['starred', 'read'].includes(activeTab) && (
                         <button
                             className="notif-mark-read"
                             onClick={selectedIds.size > 0 ? markSelectedAsRead : markAllAsRead}
-                            disabled={inboxList.length === 0}
+                            disabled={currentList.filter(n => !n.is_read).length === 0}
                         >
                             {selectedIds.size > 0
                                 ? `Mark ${selectedIds.size} as read`
@@ -222,14 +296,24 @@ export default function Notifications() {
                             <FiBell />
                         </div>
                         <h3>
-                            {activeTab === 'inbox'
-                                ? 'All caught up!'
-                                : 'No read notifications'}
+                            {activeTab === 'starred'
+                                ? 'No starred messages'
+                                : activeTab === 'read'
+                                ? 'No read notifications'
+                                : activeTab === 'college'
+                                ? 'No college messages'
+                                : activeTab === 'ai'
+                                ? 'No AI notifications'
+                                : 'No recruiter messages'
+                            }
                         </h3>
                         <p>
-                            {activeTab === 'inbox'
-                                ? "You don't have any unread notifications. Check back later for updates."
-                                : 'Read notifications will appear here.'}
+                            {activeTab === 'starred'
+                                ? 'Star important messages to find them here.'
+                                : activeTab === 'read'
+                                ? 'Read notifications will appear here.'
+                                : 'New messages will appear here when received.'
+                            }
                         </p>
                     </div>
                 ) : (
@@ -242,6 +326,8 @@ export default function Notifications() {
                                     checked={selectedIds.has(notification.id)}
                                     onCheck={toggleSelect}
                                     onMarkRead={markAsRead}
+                                    onMarkUnread={markAsUnread}
+                                    onToggleStar={toggleStar}
                                     onDelete={deleteNotification}
                                     onAction={handleAction}
                                 />
