@@ -15,7 +15,9 @@ export default function DashboardLayout() {
             <Header onMenuClick={toggleSidebar} />
 
             <main className="main-content fade-in">
-                <Outlet />
+                <div className="dashboard-inner">
+                    <Outlet />
+                </div>
             </main>
         </div>
     );
