@@ -35,5 +35,5 @@ class Project(Base):
     )
 
     # Relationships
-    student = relationship("AuthUser", backref="projects")
+    student = relationship("AuthUser", backref="project_records")
     verification_run = relationship("VerificationRun", foreign_keys=[verification_run_id])

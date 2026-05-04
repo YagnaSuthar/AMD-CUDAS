@@ -10,11 +10,80 @@ import logging
 import uuid
 from typing import List, Optional
 
+import re
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.retrieval_service import RetrievalService
+from app.agents.Interview.utils import InterviewTracer
 
 logger = logging.getLogger(__name__)
+
+
+def clean_chunks(chunks):
+    cleaned = []
+
+    for c in chunks:
+        text = (c or "").strip()
+
+        if not text:
+            continue
+
+        # Normalize whitespace
+        text = re.sub(r"\s+", " ", text)
+
+        # remove broken OCR-like text
+        if len(text) < 60:
+            continue
+
+        # remove useless metadata
+        if any(x in text.lower() for x in [
+            "linkedin", "student name", "department",
+            "semester", "career goal"
+        ]):
+            continue
+
+        # remove contact info / headers / footers
+        if re.search(r"\b(email|e-mail|phone|mobile|address|github)\b", text, re.IGNORECASE):
+            continue
+        if re.search(r"\b\+?\d[\d\s().-]{7,}\b", text):
+            continue
+        if re.search(r"\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b", text, re.IGNORECASE):
+            continue
+
+        # remove common section headings when they are mostly standalone
+        if re.fullmatch(r"(projects?|experience|education|skills?|summary|objective)\s*:?", text.strip(), re.IGNORECASE):
+            continue
+
+        # remove spaced text (OCR issue)
+        if " " in text and all(len(word) == 1 for word in text.split()[:10]):
+            continue
+
+        # Prefer chunks that look like project/skill descriptions
+        projecty = any(k in text.lower() for k in [
+            "built", "developed", "implemented", "designed", "deployed",
+            "project", "api", "frontend", "backend", "database", "pipeline",
+            "react", "flask", "django", "fastapi", "node", "postgres", "mysql",
+            "mongodb", "redis", "docker", "kubernetes", "aws", "azure", "gcp",
+            "cuda", "ml", "model", "inference", "training",
+        ])
+
+        if not projecty:
+            continue
+
+        cleaned.append(text)
+
+    # De-duplicate while preserving order
+    seen = set()
+    uniq = []
+    for t in cleaned:
+        key = t.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        uniq.append(t)
+
+    return uniq[:3]
 
 
 async def get_interview_context(
@@ -38,20 +107,18 @@ async def get_interview_context(
 
     if not results:
         logger.info("RAG: No relevant chunks found for student %s, query='%s'", student_id, query[:50])
+        InterviewTracer.log_rag(query, top_k, [])
         return ""
 
-    # Format the chunks for LLM consumption
-    context_parts: List[str] = []
-    for i, r in enumerate(results, 1):
-        score = r.get("score", 0)
-        content = r.get("content", "").strip()
-        if content and score > 0.2:  # Only include reasonably relevant chunks
-            context_parts.append(f"[Chunk {i}] (relevance: {score:.2f})\n{content}")
+    InterviewTracer.log_rag(query, top_k, results)
 
-    context = "\n\n".join(context_parts)
+    raw_chunks = [r.get("content", "") for r in results if r.get("score", 0) > 0.2]
+    rag_chunks = clean_chunks(raw_chunks)
+    context = "\n\n".join(rag_chunks)
+
     logger.info(
         "RAG: Retrieved %d relevant chunks for student %s (query='%s...')",
-        len(context_parts), student_id, query[:50],
+        len(rag_chunks), student_id, query[:50],
     )
     return context
 
@@ -80,7 +147,10 @@ async def get_followup_context(
     )
 
     if not results:
+        InterviewTracer.log_rag(f"Followup: {answer_text[:50]}", top_k, [])
         return ""
+
+    InterviewTracer.log_rag(f"Followup: {answer_text[:50]}", top_k, results)
 
     # Format for follow-up intelligence
     parts: List[str] = []

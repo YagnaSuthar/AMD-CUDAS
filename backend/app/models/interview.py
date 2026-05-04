@@ -8,12 +8,15 @@ from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy import (
+    Boolean,
     Column,
     DateTime,
     Enum as SAEnum,
     Float,
     ForeignKey,
     Integer,
+    Index,
+    JSON,
     String,
     Text,
 )
@@ -96,6 +99,8 @@ class StudentProfile(Base):
     resume_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     portfolio_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     experience_years: Mapped[int] = mapped_column(Integer, default=0)
+    has_projects: Mapped[bool] = mapped_column(Boolean, default=False)
+    project_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Relationships (no back_populates to AuthUser — separate model)
     skills: Mapped[List["Skill"]] = relationship(
@@ -137,6 +142,7 @@ class InterviewSession(Base):
         nullable=False,
     )
     job_role: Mapped[str] = mapped_column(String(255), nullable=False)
+    mode: Mapped[str] = mapped_column(String(50), nullable=False, default="basic")
     status: Mapped[str] = mapped_column(
         SAEnum(SessionStatus, name="session_status_enum", create_constraint=True),
         nullable=False,
@@ -157,6 +163,9 @@ class InterviewSession(Base):
     overall_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     communication_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     recommendation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    current_turn_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
 
     # Relationships (student_id references auth_users, no ORM back_populates)
     questions: Mapped[List["Question"]] = relationship(
@@ -173,6 +182,11 @@ class InterviewSession(Base):
     )
     violations: Mapped[List["ProctoringViolation"]] = relationship(
         back_populates="session", cascade="all, delete-orphan"
+    )
+    turns: Mapped[List["InterviewTurn"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="InterviewTurn.timestamp",
     )
 
 
@@ -279,7 +293,7 @@ class InterviewMemory(Base):
     summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
     weak_areas: Mapped[list] = mapped_column(ARRAY(String), default=list)
     strong_areas: Mapped[list] = mapped_column(ARRAY(String), default=list)
-    last_behavior_state: Mapped[str] = mapped_column(String(50), default="neutral")
+    last_behavior_state: Mapped[str] = mapped_column(Text, default="neutral")
     token_usage: Mapped[int] = mapped_column(Integer, default=0)
 
     # Relationships
@@ -303,6 +317,41 @@ class InterviewReport(Base):
 
     # Relationships
     session: Mapped["InterviewSession"] = relationship(back_populates="report")
+
+
+class InterviewTurn(Base):
+    """A single interview turn: question + answer + evaluation + metadata."""
+
+    __tablename__ = "interview_turns"
+
+    __table_args__ = (
+        Index("idx_turn_session_answer", "session_id", "answer"),
+        Index("idx_turn_session_timestamp", "session_id", "timestamp"),
+    )
+
+    turn_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("interview_sessions.session_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    answer: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow
+    )
+    answer_timestamp: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    evaluation: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default=None)
+    # Optional metadata for context
+    phase: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    difficulty: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+
+    # Relationships
+    session: Mapped["InterviewSession"] = relationship(back_populates="turns")
 
 
 class ProctoringViolation(Base):

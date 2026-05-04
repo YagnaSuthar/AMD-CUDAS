@@ -1,8 +1,9 @@
-﻿import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../../../../utils/api';
 import ProctoringDetector from '../../../../components/ProctoringDetector';
 import DeviceGuard from '../../../../components/DeviceGuard';
+import TranscriptPanel from '../../../../components/TranscriptPanel';
 import '../../../../style/interviewLive.css';
 
 /**
@@ -37,6 +38,17 @@ const STATES = {
   ERROR: 'error',
 };
 
+const SOFT_PAUSE = 10;
+const HARD_PAUSE = 15;
+const SKIP_PATTERNS = [
+  'skip',
+  "i don't know",
+  'i dont know',
+  'no idea',
+  'not sure',
+  'pass',
+];
+
 /* â”€â”€ SVG Icons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 const MicIcon   = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>;
@@ -53,6 +65,7 @@ export default function InterviewLive() {
   const queryParams = new URLSearchParams(location.search);
   const jobIdUrl = queryParams.get('job_id');
   const modeParam = queryParams.get('mode') || 'practice';
+  const roleParam = queryParams.get('role') || 'basic';
 
   /* â”€â”€ state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const [state, setState]   = useState(STATES.LOADING);
@@ -61,10 +74,22 @@ export default function InterviewLive() {
   const [agentText, setAgentText]     = useState('');
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [questionNumber, setQuestionNumber]   = useState(0);
+  const [questionCount, setQuestionCount] = useState(0);
+  const [showTranscript, setShowTranscript]   = useState(false);
+  const [sessionTurns, setSessionTurns]       = useState([]);
   const [transcript, setTranscript]   = useState('');
+  const [liveTranscript, setLiveTranscript] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isSpeaking, setIsSpeaking]   = useState(false);
+  const [agentSpeaking, setAgentSpeaking] = useState(false);
   const [timeLeft, setTimeLeft]       = useState(0);
+  const [globalTimeLeft, setGlobalTimeLeft] = useState(20 * 60);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [interviewStarted, setInterviewStarted] = useState(false);
+  const [speechHint, setSpeechHint]   = useState('');
+  const [userSpeaking, setUserSpeaking] = useState(false);
+  const [startTimer, setStartTimer] = useState(0);
+  const [silenceTimer, setSilenceTimer] = useState(0);
   const [report, setReport]           = useState(null);
   const [studentReport, setStudentReport] = useState(null);
   const [reportTab, setReportTab]     = useState('student');
@@ -77,6 +102,7 @@ export default function InterviewLive() {
   const [volumeOn, setVolumeOn] = useState(true);
   const [proctorWarning, setProctorWarning] = useState(null);
   const [cameraRequired, setCameraRequired] = useState(true);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const proctorWarningTimer = useRef(null);
 
   const recognitionRef  = useRef(null);
@@ -84,6 +110,21 @@ export default function InterviewLive() {
   const silenceTimerRef = useRef(null);
   const videoRef        = useRef(null);
   const streamRef       = useRef(null);
+  const micStreamRef    = useRef(null);
+  const audioCtxRef     = useRef(null);
+  const analyserRef     = useRef(null);
+  const rafRef          = useRef(null);
+  const listeningStartTsRef = useRef(null);
+  const userSpeakingRef = useRef(false);
+  const userHasSpokenRef = useRef(false);
+  const lastWaitingTickTsRef = useRef(null);
+  const waitingTimeRef = useRef(0);
+  const silenceTimerRef2 = useRef(0);
+  const blankSubmittedRef = useRef(false);
+  const silenceStartTsRef = useRef(null);
+  const answerStartTsRef = useRef(null);
+  const autoListenRef   = useRef(false);
+  const submitAnswerRef  = useRef(null);
   const hasStartedRef   = useRef(false);
   const finalTranscriptRef = useRef('');         // accumulates final results across STT segments
   const isListeningRef     = useRef(false);      // tracks if we WANT to keep listening
@@ -96,6 +137,48 @@ export default function InterviewLive() {
   const clearTimers = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+  }, []);
+
+  const stopAudioAnalysis = useCallback(() => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }, []);
+
+  const stopMicStream = useCallback(() => {
+    stopAudioAnalysis();
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach(t => t.stop());
+      micStreamRef.current = null;
+    }
+    if (audioCtxRef.current) {
+      try { audioCtxRef.current.close(); } catch {}
+      audioCtxRef.current = null;
+    }
+    analyserRef.current = null;
+  }, [stopAudioAnalysis]);
+
+  const ensureMicStream = useCallback(async () => {
+    if (micStreamRef.current) return micStreamRef.current;
+    const s = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      }
+    });
+    micStreamRef.current = s;
+
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AudioCtx();
+    audioCtxRef.current = ctx;
+    const source = ctx.createMediaStreamSource(s);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    source.connect(analyser);
+    analyserRef.current = analyser;
+    return s;
   }, []);
 
   const fetchStudentReport = useCallback(async () => {
@@ -155,6 +238,10 @@ export default function InterviewLive() {
 
   useEffect(() => () => streamRef.current?.getTracks().forEach(t => t.stop()), []);
 
+  useEffect(() => {
+    setAgentSpeaking(isSpeaking);
+  }, [isSpeaking]);
+
   /* â”€â”€ TTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const speak = useCallback((text, onEnd) => {
     if (!window.speechSynthesis || !volumeOn) { onEnd?.(); return; }
@@ -167,7 +254,6 @@ export default function InterviewLive() {
     window.speechSynthesis.speak(u);
   }, [volumeOn]);
 
-  /* â”€â”€ end / recording â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const stopRecording = useCallback(() => {
     isListeningRef.current = false;
     if (recognitionRef.current) {
@@ -175,7 +261,218 @@ export default function InterviewLive() {
       recognitionRef.current = null;
     }
     setIsRecording(false);
-  }, []);
+    setLiveTranscript('');
+    setState(s => (s === STATES.LISTENING ? STATES.QUESTION : s));
+    stopAudioAnalysis();
+  }, [stopAudioAnalysis]);
+
+  const submitFromCurrentTranscript = useCallback(() => {
+    const accumulated = (finalTranscriptRef.current || '').trim() || (transcript || '').trim();
+    if (!accumulated) return null;
+    return accumulated;
+  }, [transcript]);
+
+  /* â”€â”€ end / recording â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  const runSilenceMonitor = useCallback(() => {
+    const analyser = analyserRef.current;
+    if (!analyser) return;
+
+    const buf = new Uint8Array(analyser.fftSize);
+    const threshold = 0.01;
+
+    const tick = () => {
+      if (!isListeningRef.current || blankSubmittedRef.current) {
+        return;
+      }
+      analyser.getByteTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const v = (buf[i] - 128) / 128;
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / buf.length);
+      const now = Date.now();
+
+      const speaking = rms > threshold;
+      userSpeakingRef.current = speaking;
+
+      // No time-based cutoffs. We only end an answer after the user has spoken
+      // and then stays silent for HARD_PAUSE seconds.
+      lastWaitingTickTsRef.current = null;
+
+      if (speaking) {
+        userHasSpokenRef.current = true;
+        if (!userSpeaking) setUserSpeaking(true);
+        waitingTimeRef.current = 0;
+        setStartTimer(0);
+        if (silenceTimerRef2.current !== 0) {
+          silenceTimerRef2.current = 0;
+          setSilenceTimer(0);
+        }
+        setSpeechHint('');
+        silenceStartTsRef.current = null;
+        if (!answerStartTsRef.current) answerStartTsRef.current = now;
+      } else {
+        if (userHasSpokenRef.current) {
+          if (!silenceStartTsRef.current) silenceStartTsRef.current = now;
+          const silenceSec = (now - silenceStartTsRef.current) / 1000;
+
+          // Phase 2 (Silence Timer): only active after user started speaking.
+          silenceTimerRef2.current = silenceSec;
+          setSilenceTimer(silenceSec);
+          setStartTimer(0);
+          waitingTimeRef.current = 0;
+          const remaining = Math.max(0, Math.ceil(HARD_PAUSE - silenceSec));
+          setTimeLeft(remaining);
+
+          if (silenceSec >= SOFT_PAUSE && silenceSec < HARD_PAUSE) {
+            setSpeechHint("You can continue if you're not finished");
+          }
+
+          if (silenceSec >= HARD_PAUSE) {
+            const payload = submitFromCurrentTranscript();
+            stopRecording();
+            if (payload) {
+              submitAnswerRef.current?.(payload);
+              return;
+            }
+          }
+        }
+      }
+
+      if (blankSubmittedRef.current) {
+        return;
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+  }, [isRecording, isSpeaking, stopRecording, submitFromCurrentTranscript, userSpeaking]);
+
+  const startRecording = useCallback(async () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      setError('Use Chrome for speech.');
+      return;
+    }
+
+    try {
+      await ensureMicStream();
+    } catch {
+      setError('Microphone permission denied or not available.');
+      return;
+    }
+
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    finalTranscriptRef.current = '';
+    isListeningRef.current = true;
+    userHasSpokenRef.current = false;
+    blankSubmittedRef.current = false;
+    silenceStartTsRef.current = null;
+    answerStartTsRef.current = null;
+    listeningStartTsRef.current = Date.now();
+    lastWaitingTickTsRef.current = null;
+    waitingTimeRef.current = 0;
+    silenceTimerRef2.current = 0;
+    setStartTimer(0);
+    setSilenceTimer(0);
+    setUserSpeaking(false);
+    setTimeLeft(HARD_PAUSE);
+    setSpeechHint('');
+
+    const createRecognition = () => {
+      const r = new SR();
+      r.continuous = true;
+      r.interimResults = true;
+      r.lang = 'en-US';
+
+      r.onresult = e => {
+        let finalDelta = '';
+        let interimDelta = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const result = e.results[i];
+          const transcript = result[0].transcript;
+          if (result.isFinal) {
+            finalDelta += transcript + ' ';
+          } else {
+            interimDelta += transcript;
+          }
+        }
+
+        // Instant live transcript (browser-based). Do not wait for finalization.
+        // Keep this separate from persisted transcript used for submission.
+        const liveNow = interimDelta.trim();
+        if (liveNow) {
+          setLiveTranscript(liveNow);
+        }
+
+        // Update live UI with final + interim text
+        const liveText = (finalTranscriptRef.current + ' ' + finalDelta + ' ' + interimDelta).trim();
+        setTranscript(liveText);
+        console.log('[STT Live]', { finalDelta: finalDelta.trim(), interimDelta: interimDelta.trim(), liveText });
+
+        // Persist only final results for submission
+        if (finalDelta.trim()) {
+          finalTranscriptRef.current = `${finalTranscriptRef.current} ${finalDelta}`.trim();
+          setLiveTranscript('');
+        }
+
+        const currentTranscript = (finalTranscriptRef.current || '').trim();
+
+        // Treat STT activity itself as speech to avoid premature silence cutoff
+        // when the user speaks softly and RMS threshold doesn't trigger.
+        if (currentTranscript) {
+          userHasSpokenRef.current = true;
+          if (!userSpeakingRef.current) userSpeakingRef.current = true;
+          setUserSpeaking(true);
+          waitingTimeRef.current = 0;
+          setStartTimer(0);
+          silenceStartTsRef.current = null;
+          setSpeechHint('');
+          if (!answerStartTsRef.current) answerStartTsRef.current = Date.now();
+        }
+
+        const lower = currentTranscript.toLowerCase();
+        if (SKIP_PATTERNS.some(p => lower.includes(p))) {
+          stopRecording();
+          submitAnswerRef.current?.(currentTranscript);
+        }
+      };
+
+      r.onerror = e => {
+        // Keep mic/listening on even if SpeechRecognition reports transient errors.
+        // The onend handler will restart as long as isListeningRef.current is true.
+        if (e.error !== 'aborted') {
+          setIsRecording(true);
+        }
+      };
+
+      r.onend = () => {
+        if (isListeningRef.current) {
+          try {
+            const newR = createRecognition();
+            recognitionRef.current = newR;
+            newR.start();
+          } catch {
+            setIsRecording(false);
+            isListeningRef.current = false;
+          }
+        } else {
+          setIsRecording(false);
+        }
+      };
+
+      return r;
+    };
+
+    const r = createRecognition();
+    recognitionRef.current = r;
+    r.start();
+    setIsRecording(true);
+    setState(STATES.LISTENING);
+    setTranscript('');
+    setLiveTranscript('');
+    runSilenceMonitor();
+  }, [ensureMicStream, runSilenceMonitor, stopRecording]);
 
   const endInterview = useCallback(async (reason = 'normal') => {
     if (!sessionId) return;
@@ -183,6 +480,7 @@ export default function InterviewLive() {
     stopRecording();
     window.speechSynthesis?.cancel();
     setIsSpeaking(false);
+    setInterviewStarted(false);
     
     setState(STATES.EVALUATING);
     setAgentText('Generating report...');
@@ -193,10 +491,46 @@ export default function InterviewLive() {
       await fetchStudentReport();
       setState(STATES.REPORT);
     } catch (e) {
-      setError(e.response?.data?.detail || 'Failed');
-      setState(STATES.ERROR);
+      // Best-effort: even if the end call fails, try fetching any already-generated report.
+      try {
+        await fetchReport();
+      } catch {
+        setError(e.response?.data?.detail || 'Failed');
+        setState(STATES.ERROR);
+      }
     }
   }, [sessionId, stopRecording, clearTimers, fetchStudentReport]);
+
+  const isBasicMode = roleParam === 'basic';
+
+  // Count-up timer for non-basic modes
+  useEffect(() => {
+    if (!interviewStarted || isBasicMode) return;
+
+    const timer = setInterval(() => {
+      setElapsedTime(prev => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [interviewStarted, isBasicMode]);
+
+  // Existing countdown timer for basic mode
+  useEffect(() => {
+    if (!interviewStarted || !isBasicMode) return;
+
+    const timer = setInterval(() => {
+      setGlobalTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          endInterview();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [interviewStarted, isBasicMode, endInterview]);
 
   /* â”€â”€ proctoring callbacks (must be after endInterview) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const handleProctorWarning = useCallback((type, message) => {
@@ -220,37 +554,77 @@ export default function InterviewLive() {
     if (![STATES.QUESTION, STATES.LISTENING, STATES.EVALUATING].includes(state)) return;
     setShowTabWarning(true);
     await endInterview('TAB_SWITCH');
-    navigate('/dashboard/interview');
-  }, [state, endInterview, navigate]);
+  }, [state, endInterview]);
 
   const handleTerminate = useCallback(async () => {
-    clearTimers();
-    stopRecording();
-    window.speechSynthesis?.cancel();
-    setIsSpeaking(false);
-    setState(STATES.CLOSED);
-    setAgentText('Interview ended.');
-    if (sessionId) {
-      try {
-        await api.post('/ai/interview/end', { session_id: sessionId, ended_reason: 'USER_TERMINATED' });
-      } catch (e) {
-        console.error('Terminate cleanup error:', e);
+    await endInterview('USER_TERMINATED');
+  }, [endInterview]);
+
+  const formatApiError = useCallback((err, fallback = 'Something went wrong') => {
+    const data = err?.response?.data;
+    const detail = data?.detail ?? data;
+
+    if (typeof detail === 'string' && detail.trim()) return detail;
+    if (Array.isArray(detail) && detail.length > 0) {
+      const first = detail[0];
+      if (typeof first === 'string') return first;
+      if (first && typeof first === 'object') {
+        const loc = Array.isArray(first.loc) ? first.loc.join('.') : '';
+        const msg = typeof first.msg === 'string' ? first.msg : '';
+        const composed = [loc, msg].filter(Boolean).join(': ');
+        if (composed) return composed;
+        try {
+          return JSON.stringify(first);
+        } catch {
+          return fallback;
+        }
       }
     }
-  }, [sessionId, stopRecording, clearTimers]);
+    if (detail && typeof detail === 'object') {
+      try {
+        return JSON.stringify(detail);
+      } catch {
+        return fallback;
+      }
+    }
+    if (typeof err?.message === 'string' && err.message.trim()) return err.message;
+    return fallback;
+  }, []);
 
   /* â”€â”€ submit answer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const submitAnswer = useCallback(async (txt) => {
     if (!currentQuestion || !sessionId) return;
+
+    const normalizedTxt = (txt ?? '').toString();
+    const displayTxt = normalizedTxt.trim() ? normalizedTxt : '[No response]';
+
+    const questionId = currentQuestion.question_id || currentQuestion.questionId || currentQuestion.id;
+    if (!questionId) {
+      setError('Unable to submit answer: missing question id. Please restart the interview.');
+      setState(STATES.ERROR);
+      return;
+    }
+
     clearTimers();
     stopRecording();
+    setLiveTranscript('');
     setState(STATES.EVALUATING);
     setAgentText('Analyzing your response...');
+    
+    // Update local transcript with user's answer
+    setSessionTurns(prev => {
+      const newTurns = [...prev];
+      if (newTurns.length > 0) {
+        newTurns[newTurns.length - 1].a = displayTxt;
+      }
+      return newTurns;
+    });
+
     try {
       const r = await api.post('/ai/interview/answer', { 
         session_id: sessionId, 
-        question_id: currentQuestion.question_id, 
-        answer_text: txt 
+        question_id: questionId, 
+        answer_text: normalizedTxt 
       });
       const d = r.data;
       setRunningScore(d.running_avg_score || 0);
@@ -260,6 +634,7 @@ export default function InterviewLive() {
         setAgentText(d.early_exit_message || 'Interview concluded.');
         speak(d.early_exit_message || 'Interview concluded.', () => fetchReport());
         setState(STATES.EARLY_EXIT);
+        setInterviewStarted(false);
       } else if (d.next_action === 'end') {
         setAgentText((d.agent_response || '') + ' Preparing your report...');
         speak(d.agent_response, () => endInterview());
@@ -267,117 +642,61 @@ export default function InterviewLive() {
         setAgentText(d.agent_response);
         speak(d.agent_response, () => {
           if (d.next_question) {
+            const nextQid = d.next_question.question_id || d.next_question.questionId || d.next_question.id;
+            if (!nextQid) {
+              setError('Received next question without an id. Please restart the interview.');
+              setState(STATES.ERROR);
+              return;
+            }
             setCurrentQuestion(d.next_question);
             setQuestionNumber(p => p + 1);
+            setQuestionCount(prev => prev + 1);
+            setSessionTurns(prev => [...prev, { q: d.next_question.question, a: null }]);
             setTranscript('');
+            setLiveTranscript('');
             setDifficulty(d.next_question.difficulty || 'medium');
             setAgentText(d.next_question.question);
             setState(STATES.QUESTION);
-            speak(d.next_question.question, () => startTimer(config.answer_timeout));
+            speak(d.next_question.question, () => {
+              autoListenRef.current = true;   // arm auto-listen after TTS ends
+            });
           }
         });
       }
     } catch (e) {
-      setError(e.response?.data?.detail || 'Failed');
-      setState(STATES.ERROR);
+      setError(formatApiError(e, 'Failed to submit answer'));
+      // If submit fails mid-interview, still try to end and show report so the user can download.
+      await endInterview('ERROR');
     }
-  }, [currentQuestion, sessionId, config.answer_timeout, stopRecording, clearTimers, speak, fetchReport, endInterview]);
+  }, [currentQuestion, sessionId, stopRecording, clearTimers, speak, fetchReport, endInterview, formatApiError]);
 
-  const handleTimeout = useCallback(() => {
-    if (transcript.trim()) {
-      submitAnswer(transcript);
-    } else {
-      setAgentText("Are you there? Can you respond?");
-      speak("Are you there?", () => startTimer(config.answer_timeout));
-    }
-  }, [transcript, config.answer_timeout, submitAnswer, speak]);
+  useEffect(() => {
+    submitAnswerRef.current = submitAnswer;
+  }, [submitAnswer]);
 
-  const startTimer = useCallback((s) => {
-    clearTimers();
-    setTimeLeft(s);
-    timerRef.current = setInterval(() => {
-      setTimeLeft(p => {
-        if (p <= 1) {
-          clearInterval(timerRef.current);
-          handleTimeout();
-          return 0;
-        }
-        return p - 1;
+  const downloadPDF = async () => {
+    if (!sessionId || pdfLoading) return;
+    try {
+      setPdfLoading(true);
+      const res = await api.get(`/ai/interview/report/pdf/${sessionId}`, {
+        responseType: 'blob'
       });
-    }, 1000);
-  }, [clearTimers, handleTimeout]);
-
-  const startRecording = useCallback(() => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      setError('Use Chrome for speech.');
-      return;
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Interview_Report_${sessionId.substring(0, 8)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (err) {
+      console.error("Download failed", err);
+      setError("Failed to download PDF report");
+    } finally {
+      setPdfLoading(false);
     }
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    finalTranscriptRef.current = '';
-    isListeningRef.current = true;
-
-    const createRecognition = () => {
-      const r = new SR();
-      r.continuous = true;
-      r.interimResults = true;
-      r.lang = 'en-US';
-
-      r.onresult = e => {
-        let segmentFinal = '', interim = '';
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          if (e.results[i].isFinal) segmentFinal += e.results[i][0].transcript + ' ';
-          else interim += e.results[i][0].transcript;
-        }
-        // Accumulate final results across segments
-        const fullText = finalTranscriptRef.current + segmentFinal;
-        if (segmentFinal) finalTranscriptRef.current = fullText;
-        setTranscript(fullText + interim);
-
-        // Silence timeout â†’ auto-submit
-        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-        silenceTimerRef.current = setTimeout(() => {
-          const accumulated = finalTranscriptRef.current.trim();
-          if (accumulated) {
-            isListeningRef.current = false;
-            stopRecording();
-            submitAnswer(accumulated);
-          }
-        }, config.silence_timeout * 1000);
-      };
-
-      r.onerror = e => {
-        if (e.error !== 'no-speech' && e.error !== 'aborted') {
-          setIsRecording(false);
-          isListeningRef.current = false;
-        }
-      };
-
-      // Auto-restart when browser stops recognition (60s limit)
-      r.onend = () => {
-        if (isListeningRef.current) {
-          // Browser stopped but we still want to listen â€” restart
-          try {
-            const newR = createRecognition();
-            recognitionRef.current = newR;
-            newR.start();
-          } catch {
-            setIsRecording(false);
-            isListeningRef.current = false;
-          }
-        } else {
-          setIsRecording(false);
-        }
-      };
-
-      return r;
-    };
-
-    const r = createRecognition();
-    recognitionRef.current = r;
-    r.start();
-    setIsRecording(true);
-    setTranscript('');
-  }, [config.silence_timeout, stopRecording, submitAnswer]);
+  };
 
   const toggleMic = useCallback(() => {
     if (isRecording) {
@@ -385,10 +704,30 @@ export default function InterviewLive() {
       stopRecording();
       const accumulated = finalTranscriptRef.current.trim() || transcript.trim();
       if (accumulated) submitAnswer(accumulated);
+      else if (!userHasSpokenRef.current) submitAnswer('');
     } else {
       startRecording();
     }
   }, [isRecording, transcript, startRecording, stopRecording, submitAnswer]);
+
+  useEffect(() => {
+    if (isSpeaking) {
+      autoListenRef.current = false;
+      setSpeechHint('');
+      stopRecording();
+      if (micStreamRef.current) {
+        micStreamRef.current.getAudioTracks().forEach(t => { t.enabled = false; });
+      }
+    } else {
+      if (micStreamRef.current) {
+        micStreamRef.current.getAudioTracks().forEach(t => { t.enabled = true; });
+      }
+      if (autoListenRef.current && state === STATES.QUESTION && !isRecording) {
+        autoListenRef.current = false;
+        startRecording();
+      }
+    }
+  }, [isSpeaking, startRecording, stopRecording, state, isRecording, setSpeechHint]);
 
   /* â”€â”€ greeting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const handleGreeting = useCallback(async (ans) => {
@@ -401,21 +740,36 @@ export default function InterviewLive() {
       if (d.next_step === 'confirm_start') setState(STATES.CONFIRM_START);
       else if (d.next_step === 'session_closed') setState(STATES.CLOSED);
       else if (d.next_step === 'first_question' && d.first_question) {
+        const firstQid = d.first_question.question_id || d.first_question.questionId || d.first_question.id;
+        if (!firstQid) {
+          setError('Received first question without an id. Please restart the interview.');
+          setState(STATES.ERROR);
+          return;
+        }
         setCurrentQuestion(d.first_question);
         setQuestionNumber(1);
+        setQuestionCount(1);
+        setGlobalTimeLeft(20 * 60);
+        setElapsedTime(0);
+        setInterviewStarted(true);
+        setSessionTurns([{ q: d.first_question.question, a: null }]);
         setDifficulty(d.first_question.difficulty || 'medium');
+        setTranscript('');
+        setLiveTranscript('');
         speak(d.agent_message, () => {
           setAgentText(d.first_question.question);
           setState(STATES.QUESTION);
-          speak(d.first_question.question, () => startTimer(config.answer_timeout));
+          speak(d.first_question.question, () => {
+              autoListenRef.current = true;   // arm auto-listen after TTS ends
+            });
         });
         return;
       }
     } catch (e) {
-      setError(e.response?.data?.detail || 'Error');
+      setError(formatApiError(e, 'Error'));
       setState(STATES.ERROR);
     }
-  }, [sessionId, config.answer_timeout, speak, startTimer]);
+  }, [sessionId, speak, formatApiError]);
 
   /* â”€â”€ Effects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   useEffect(() => {
@@ -433,6 +787,7 @@ export default function InterviewLive() {
 
         let jr = 'Software Developer';
         let interviewMode = modeParam;
+        let selectedRole = roleParam;
         if (jobIdUrl) {
           const pr = await api.get('/pipeline/student');
           const pipelineData = pr.data?.find(p => String(p.job_id) === String(jobIdUrl));
@@ -444,6 +799,8 @@ export default function InterviewLive() {
           if (pipelineData) {
               jr = pipelineData.job_title || pipelineData.job_role || jr;
               interviewMode = 'recruiter';
+              // In recruiter flow, job_role comes from the job title; mode must remain a valid enum value.
+              selectedRole = 'basic';
           }
         }
         const c = await api.get('/ai/interview/config');
@@ -451,16 +808,17 @@ export default function InterviewLive() {
         const r = await api.post('/ai/interview/start', { 
             job_role: jr,
             job_id: jobIdUrl || null,
-            interview_type: interviewMode
+            interview_type: interviewMode,
+            mode: selectedRole,
         });
         setSessionId(r.data.session_id);
         setAgentText(r.data.greeting);
         setState(STATES.GREETING);
         // We do not auto-speak here due to browser gesture requirements; the user can read the text and click 'Yes' to proceed.
-      } catch (e) { setError(e.response?.data?.detail || 'Failed to start'); setState(STATES.ERROR); }
+      } catch (e) { setError(formatApiError(e, 'Failed to start')); setState(STATES.ERROR); }
     })();
     return () => { clearTimers(); stopRecording(); window.speechSynthesis?.cancel(); streamRef.current?.getTracks().forEach(t => t.stop()); };
-  }, [jobIdUrl, modeParam, speak, clearTimers, stopRecording, startCamera]);
+  }, [jobIdUrl, modeParam, speak, clearTimers, stopRecording, startCamera, formatApiError]);
 
   useEffect(() => {
     const onVis = () => { if (document.hidden) handleTabSwitch(); };
@@ -479,10 +837,20 @@ export default function InterviewLive() {
 
   /* â”€â”€ helper circle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const circ = 2 * Math.PI * 18;
-  const off  = circ - (timeLeft / config.answer_timeout) * circ;
+  const activeTotal = HARD_PAUSE;
+  const off  = circ - (timeLeft / Math.max(activeTotal, 1)) * circ;
   const tCls = timeLeft <= 5 ? 'danger' : timeLeft <= 10 ? 'warn' : '';
 
   const isActive = [STATES.QUESTION, STATES.LISTENING, STATES.EVALUATING].includes(state);
+
+  const minutes = Math.floor(globalTimeLeft / 60);
+  const seconds = globalTimeLeft % 60;
+  const formattedTime = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+  // Count-up timer display for non-basic modes
+  const elapsedMinutes = Math.floor(elapsedTime / 60);
+  const elapsedSeconds = elapsedTime % 60;
+  const formattedElapsed = `${elapsedMinutes}:${elapsedSeconds < 10 ? '0' : ''}${elapsedSeconds}`;
 
   /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
      RENDER
@@ -517,19 +885,33 @@ export default function InterviewLive() {
           <span className="meet-brand">AI INTERVIEW</span>
         </div>
         <div className="meet-topbar-center">
-          {questionNumber > 0 && <>
-            <span className="meet-badge">Q{questionNumber} / {config.max_questions}</span>
+          {questionCount > 0 && <>
+            <span className="meet-badge">Question {questionCount} / {isBasicMode ? 20 : 15}</span>
             <span className={`meet-badge meet-diff ${difficulty}`}>{difficulty}</span>
+            <span className="meet-badge">{isBasicMode ? formattedTime : `⏱ ${formattedElapsed}`}</span>
           </>}
-          {runningScore > 0 && <span className="meet-badge">{(runningScore * 100).toFixed(0)}%</span>}
+          {runningScore > 0 && <span className="meet-badge">{(runningScore * 100).toFixed(0)}% ({(runningScore * 10).toFixed(1)}/10)</span>}
         </div>
         <div className="meet-topbar-right">
-          {tabSwitchCount > 0 && <span className="meet-badge" style={{ color: '#f59e0b' }}>âš  {tabSwitchCount}</span>}
+          {tabSwitchCount > 0 && <span className="meet-badge" style={{ color: '#f59e0b' }}>⚠️ {tabSwitchCount}</span>}
         </div>
       </div>
 
-      {/* â”€â”€ VIDEO GRID â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div className={`meet-grid ${(!isActive && state !== STATES.EVALUATING && state !== STATES.GREETING && state !== STATES.CONFIRM_START && state !== STATES.RULES) ? 'solo' : ''}`}>
+      {/* ── MAIN CONTENT AREA ── */}
+      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden', width: '100%' }}>
+
+        {/* === LEFT: Video Grid & Overlays === */}
+        <div style={{
+          flex: showTranscript ? '0 0 70%' : '1',
+          maxWidth: showTranscript ? '70%' : '100%',
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+        }}>
+
+          {/* ── VIDEO GRID ── */}
+          <div className={`meet-grid ${(!isActive && state !== STATES.EVALUATING && state !== STATES.GREETING && state !== STATES.CONFIRM_START && state !== STATES.RULES) ? 'solo' : ''}`}>
 
         {/* === AI TILE === */}
         <div className="meet-tile">
@@ -537,7 +919,7 @@ export default function InterviewLive() {
           {state === STATES.LOADING && (
             <div className="meet-state-center">
               <div className="meet-spinner" />
-              <p className="meet-loading-text">Connecting to AI Interviewerâ€¦</p>
+              <p className="meet-loading-text">Connecting to AI Interviewer…</p>
             </div>
           )}
 
@@ -594,7 +976,7 @@ export default function InterviewLive() {
                 </div>
               </div>
               {state === STATES.EVALUATING && (
-                <><div className="meet-spinner" /><p className="meet-loading-text">Analyzing your responseâ€¦</p></>
+                <><div className="meet-spinner" /><p className="meet-loading-text">Analyzing your response…</p></>
               )}
             </div>
           )}
@@ -602,10 +984,10 @@ export default function InterviewLive() {
           {/* Early Exit */}
           {state === STATES.EARLY_EXIT && (
             <div className="meet-state-center">
-              <div style={{ fontSize: '3rem' }}>ðŸŽ¯</div>
+              <div style={{ fontSize: '3rem' }}>🎯</div>
               <p className="meet-agent-text">{agentText}</p>
               <div className="meet-spinner" />
-              <p className="meet-loading-text">Generating your reportâ€¦</p>
+              <p className="meet-loading-text">Generating your report…</p>
             </div>
           )}
 
@@ -618,25 +1000,25 @@ export default function InterviewLive() {
                   <p className="meet-report-sub">Your detailed performance report</p>
                 </div>
                 <div className="meet-report-tabs">
-                  <button className={`meet-report-tab ${reportTab === 'student' ? 'active' : ''}`} onClick={() => setReportTab('student')}>ðŸ“š Your Report</button>
-                  <button className={`meet-report-tab ${reportTab === 'summary' ? 'active' : ''}`} onClick={() => setReportTab('summary')}>ðŸ“Š Score Summary</button>
+                  <button className={`meet-report-tab ${reportTab === 'student' ? 'active' : ''}`} onClick={() => setReportTab('student')}>📚 Your Report</button>
+                  <button className={`meet-report-tab ${reportTab === 'summary' ? 'active' : ''}`} onClick={() => setReportTab('summary')}>📊 Score Summary</button>
                 </div>
                 {reportTab === 'student' && studentReport && <>
                   <div className="meet-report-scores">
-                    <div className="meet-report-score-card"><div className="meet-report-score-val">{(studentReport.final_score * 100).toFixed(0)}%</div><div className="meet-report-score-lbl">Overall</div></div>
+                    <div className="meet-report-score-card"><div className="meet-report-score-val">{(studentReport.final_score * 10).toFixed(0)}%</div><div className="meet-report-score-lbl">Overall ({(studentReport.final_score).toFixed(1)}/10)</div></div>
                   </div>
                   {studentReport.weak_areas?.length > 0 && <div className="meet-report-section"><h4>Areas to Improve</h4><ul className="meet-report-list wk">{studentReport.weak_areas.map((w, i) => <li key={i}>{w}</li>)}</ul></div>}
                   {studentReport.missing_skills?.length > 0 && <div className="meet-report-section"><h4>Skills to Learn</h4><ul className="meet-report-list wk">{studentReport.missing_skills.map((s, i) => <li key={i}>{s}</li>)}</ul></div>}
                   {studentReport.improvements?.length > 0 && <div className="meet-report-section"><h4>Improvement Suggestions</h4><ul className="meet-report-list lrn">{studentReport.improvements.map((x, i) => <li key={i}>{x}</li>)}</ul></div>}
                   {studentReport.learning_path?.length > 0 && <div className="meet-report-section"><h4>Learning Path</h4><ul className="meet-report-list lrn">{studentReport.learning_path.map((x, i) => <li key={i}>{x}</li>)}</ul></div>}
-                  {studentReport.encouragement && <div className="meet-report-section"><h4>ðŸ’ª Encouragement</h4><p>{studentReport.encouragement}</p></div>}
+                  {studentReport.encouragement && <div className="meet-report-section"><h4>💪 Encouragement</h4><p>{studentReport.encouragement}</p></div>}
                 </>}
-                {reportTab === 'student' && !studentReport && report && <div className="meet-report-scores"><div className="meet-report-score-card"><div className="meet-report-score-val">{report.final_score > 1 ? report.final_score.toFixed(1) : (report.final_score * 100).toFixed(0) + '%'}</div><div className="meet-report-score-lbl">Overall</div></div></div>}
+                {reportTab === 'student' && !studentReport && report && <div className="meet-report-scores"><div className="meet-report-score-card"><div className="meet-report-score-val">{(report.final_score * 10).toFixed(0)}%</div><div className="meet-report-score-lbl">Overall ({(report.final_score).toFixed(1)}/10)</div></div></div>}
                 {reportTab === 'summary' && report && <>
                   <div className="meet-report-scores">
-                    <div className="meet-report-score-card"><div className="meet-report-score-val">{report.final_score > 1 ? report.final_score.toFixed(1) : (report.final_score * 100).toFixed(0) + '%'}</div><div className="meet-report-score-lbl">Technical</div></div>
-                    <div className="meet-report-score-card"><div className="meet-report-score-val">{report.communication_score !== undefined ? (report.communication_score * 100).toFixed(0) + '%' : 'â€”'}</div><div className="meet-report-score-lbl">Communication</div></div>
-                    {report.behavior_score > 0 && <div className="meet-report-score-card"><div className="meet-report-score-val">{(report.behavior_score * 100).toFixed(0)}%</div><div className="meet-report-score-lbl">Behavior</div></div>}
+                    <div className="meet-report-score-card"><div className="meet-report-score-val">{(report.final_score * 10).toFixed(0)}%</div><div className="meet-report-score-lbl">Technical ({(report.final_score).toFixed(1)}/10)</div></div>
+                    <div className="meet-report-score-card"><div className="meet-report-score-val">{report.communication_score !== undefined ? (report.communication_score * 10).toFixed(0) + '%' : '—'}</div><div className="meet-report-score-lbl">Communication</div></div>
+                    {report.behavior_score > 0 && <div className="meet-report-score-card"><div className="meet-report-score-val">{(report.behavior_score * 10).toFixed(0)}%</div><div className="meet-report-score-lbl">Behavior</div></div>}
                   </div>
                   {report.strengths?.length > 0 ? (
                     <div className="meet-report-section"><h4>Abilities / Strengths</h4><ul className="meet-report-list str">{report.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul></div>
@@ -647,7 +1029,17 @@ export default function InterviewLive() {
                   {report.behavior_summary && <div className="meet-report-section"><h4>Behavior</h4><p>{report.behavior_summary}</p></div>}
                   {report.recommendation && <div className={`meet-recommendation ${(report.recommendation || '').split(':')[0]}`}>{report.recommendation}</div>}
                 </>}
-                <div style={{ textAlign: 'center', marginTop: 20 }}><button className="meet-btn-yes" onClick={goBack}>Return to Dashboard</button></div>
+                <div style={{ textAlign: 'center', marginTop: 20, display: 'flex', justifyContent: 'center', gap: '12px' }}>
+                  <button 
+                    className="meet-btn-yes" 
+                    onClick={downloadPDF} 
+                    disabled={pdfLoading}
+                    style={{ background: 'linear-gradient(135deg, #a87ef0 0%, #6366f1 100%)', minWidth: '160px' }}
+                  >
+                    {pdfLoading ? 'Downloading...' : 'Download Report'}
+                  </button>
+                  <button className="meet-btn-yes" onClick={goBack}>Return to Dashboard</button>
+                </div>
               </div>
             </div>
           )}
@@ -694,14 +1086,25 @@ export default function InterviewLive() {
         </div>
       )}
 
-      {/* â”€â”€ TRANSCRIPT OVERLAY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── TRANSCRIPT OVERLAY ── */}
       {isActive && state !== STATES.EVALUATING && (
         <div className={`meet-transcript ${isRecording ? 'active' : ''}`}>
-          {transcript || <span className="meet-transcript-ph">Your answer will appear hereâ€¦</span>}
+          {(liveTranscript || transcript) || <span className="meet-transcript-ph">Your answer will appear here…</span>}
         </div>
       )}
 
-      {/* â”€â”€ FLOATING CONTROL BAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        </div>
+
+        {/* ── TRANSCRIPT PANEL ── */}
+        <TranscriptPanel 
+          isOpen={showTranscript} 
+          onClose={() => setShowTranscript(false)}
+          turns={sessionTurns} 
+        />
+        
+      </div>
+
+      {/* ── FLOATING CONTROL BAR ── */}
       <div className="meet-controls">
         {/* Mic */}
         <button
@@ -720,6 +1123,19 @@ export default function InterviewLive() {
           title={cameraOn ? 'Turn off camera' : 'Turn on camera'}
         >
           {cameraOn ? <CamIcon /> : <CamOffIcon />}
+        </button>
+
+        {/* Transcript Toggle (CC) */}
+        <button
+          className={`meet-ctrl-btn ${showTranscript ? 'cc-active' : 'default'}`}
+          onClick={() => setShowTranscript(s => !s)}
+          title={showTranscript ? 'Hide Transcript' : 'Show Transcript'}
+        >
+          <svg className="cc-icon" viewBox="0 0 24 24">
+            <rect x="2" y="4" width="20" height="16" rx="2" ry="2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M10 10a2 2 0 1 0 0 4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M18 10a2 2 0 1 0 0 4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
         </button>
 
         {/* Volume */}

@@ -44,8 +44,7 @@ async def mark_pipeline_ai_completed(
     )
     pipeline = result.scalar_one_or_none()
     if pipeline is None:
-        logger.warning("mark_pipeline_ai_completed: no pipeline found for session_id=%s", session_id)
-        return
+        raise RuntimeError(f"Pipeline not found for session_id={session_id}")
 
     logger.info("mark_pipeline_ai_completed: found pipeline id=%s, current status=%s", pipeline.id, pipeline.status)
     pipeline.status = PipelineStatus.AI_COMPLETED

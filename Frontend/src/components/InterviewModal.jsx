@@ -59,8 +59,19 @@ export default function InterviewModal({ onClose, pipeline = null }) {
     const [error, setError] = useState('');
 
     const recognitionRef = useRef(null);
-    const timerRef = useRef(null);
     const silenceTimerRef = useRef(null);
+    const userHasSpokenRef = useRef(false);
+    const lastSpeechTsRef = useRef(null);
+
+    const SILENCE_SECONDS = 15;
+    const SKIP_PATTERNS = [
+        'skip',
+        "i don't know",
+        'i dont know',
+        'no idea',
+        'not sure',
+        'pass',
+    ];
 
     // ── Text-to-Speech (Browser native, free) ────────────────────────
     const speak = useCallback((text, onEnd) => {
@@ -106,7 +117,7 @@ export default function InterviewModal({ onClose, pipeline = null }) {
 
                 // Start interview — returns ONLY the greeting
                 const jobRole = pipeline?.job_title || pipeline?.job_role || 'Software Developer';
-                const res = await api.post('/ai/interview/start', { job_role: jobRole });
+                const res = await api.post('/ai/interview/start', { job_role: jobRole, mode: 'basic' });
                 const data = res.data;
                 setSessionId(data.session_id);
                 setAgentText(data.greeting);
@@ -157,9 +168,7 @@ export default function InterviewModal({ onClose, pipeline = null }) {
                         speak(data.agent_message, () => {
                             setAgentText(data.first_question.question);
                             setState(STATES.QUESTION);
-                            speak(data.first_question.question, () => {
-                                startTimer(config.answer_timeout);
-                            });
+                            speak(data.first_question.question);
                         });
                         return; // Don't speak again below
                     }
@@ -172,39 +181,11 @@ export default function InterviewModal({ onClose, pipeline = null }) {
             setError(err.response?.data?.detail || 'Failed to process response');
             setState(STATES.ERROR);
         }
-    }, [sessionId, config.answer_timeout]);
-
-    // ── Timer ────────────────────────────────────────────────────────
-    const startTimer = useCallback((seconds) => {
-        clearTimers();
-        setTimeLeft(seconds);
-        timerRef.current = setInterval(() => {
-            setTimeLeft(prev => {
-                if (prev <= 1) {
-                    clearInterval(timerRef.current);
-                    handleTimeout();
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-    }, []);
+    }, [sessionId, speak]);
 
     const clearTimers = () => {
-        if (timerRef.current) clearInterval(timerRef.current);
         if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     };
-
-    const handleTimeout = useCallback(() => {
-        if (transcript.trim()) {
-            submitAnswer(transcript);
-        } else {
-            setAgentText("Are you able to hear me? Would you like me to repeat the question?");
-            speak("Are you able to hear me? Would you like me to repeat the question?", () => {
-                startTimer(config.answer_timeout);
-            });
-        }
-    }, [transcript, config.answer_timeout]);
 
     // ── Speech Recognition (Web Speech API, free) ────────────────────
     const startRecording = useCallback(() => {
@@ -220,26 +201,38 @@ export default function InterviewModal({ onClose, pipeline = null }) {
         recognition.lang = 'en-US';
 
         recognition.onresult = (event) => {
-            let finalTranscript = '';
-            let interimTranscript = '';
+            let finalDelta = '';
             for (let i = 0; i < event.results.length; i++) {
                 const result = event.results[i];
                 if (result.isFinal) {
-                    finalTranscript += result[0].transcript + ' ';
-                } else {
-                    interimTranscript += result[0].transcript;
+                    finalDelta += result[0].transcript + ' ';
                 }
             }
-            setTranscript(finalTranscript + interimTranscript);
+
+            const delta = finalDelta.trim();
+            if (delta) {
+                setTranscript(prev => (`${(prev || '').trim()} ${delta}`).trim());
+                userHasSpokenRef.current = true;
+                lastSpeechTsRef.current = Date.now();
+            }
+
+            const current = (transcript || '').trim();
+            const lower = current.toLowerCase();
+            if (SKIP_PATTERNS.some(p => lower.includes(p))) {
+                stopRecording();
+                submitAnswer(current);
+                return;
+            }
 
             // Reset silence timer on speech
             if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
             silenceTimerRef.current = setTimeout(() => {
-                if (finalTranscript.trim()) {
-                    stopRecording();
-                    submitAnswer(finalTranscript.trim());
-                }
-            }, config.silence_timeout * 1000);
+                // End only if user has started speaking, then we got SILENCE_SECONDS of silence
+                if (!userHasSpokenRef.current) return;
+                stopRecording();
+                const finalText = (transcript || '').trim();
+                submitAnswer(finalText);
+            }, SILENCE_SECONDS * 1000);
         };
 
         recognition.onerror = (event) => {
@@ -257,7 +250,9 @@ export default function InterviewModal({ onClose, pipeline = null }) {
         recognition.start();
         setIsRecording(true);
         setTranscript('');
-    }, [config.silence_timeout]);
+        userHasSpokenRef.current = false;
+        lastSpeechTsRef.current = null;
+    }, []);
 
     const stopRecording = useCallback(() => {
         if (recognitionRef.current) {
@@ -330,9 +325,7 @@ export default function InterviewModal({ onClose, pipeline = null }) {
                         setTranscript('');
                         setAgentText(data.next_question.question);
                         setState(STATES.QUESTION);
-                        speak(data.next_question.question, () => {
-                            startTimer(config.answer_timeout);
-                        });
+                        speak(data.next_question.question);
                     }
                 });
             }
@@ -341,7 +334,7 @@ export default function InterviewModal({ onClose, pipeline = null }) {
             setError(err.response?.data?.detail || 'Failed to submit answer');
             setState(STATES.ERROR);
         }
-    }, [currentQuestion, sessionId, config.answer_timeout, clearTimers, stopRecording, speak, endInterview, startTimer]);
+    }, [currentQuestion, sessionId, clearTimers, stopRecording, speak, endInterview]);
 
     // ── Terminate Interview Manually ─────────────────────────────────
     const handleTerminate = useCallback(async () => {
@@ -364,8 +357,8 @@ export default function InterviewModal({ onClose, pipeline = null }) {
 
     // ── Timer circle ─────────────────────────────────────────────────
     const circumference = 2 * Math.PI * 24;
-    const timerOffset = circumference - (timeLeft / config.answer_timeout) * circumference;
-    const timerClass = timeLeft <= 5 ? 'danger' : timeLeft <= 10 ? 'warning' : '';
+    const timerOffset = circumference;
+    const timerClass = '';
 
     // ── Render ───────────────────────────────────────────────────────
     return (

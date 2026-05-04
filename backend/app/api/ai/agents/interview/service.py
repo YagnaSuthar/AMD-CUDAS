@@ -17,7 +17,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, cast, Integer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.llm import get_llm
@@ -34,6 +34,7 @@ from app.agents.Interview.sub_agents.memory_agent.agent import update_memory
 from app.agents.Interview.sub_agents.question_generator.agent import generate_question
 from app.agents.Interview.sub_agents.profile_intelligence.agent import analyze_profile
 from app.agents.Interview.sub_agents.feedback_agent.agent import generate_report
+from app.agents.Interview.orchestrator.orchestrator import InterviewOrchestrator, InterviewState
 from app.api.ai.agents.interview.schema import (
     EndInterviewResponse,
     EvaluationOutput,
@@ -43,9 +44,14 @@ from app.api.ai.agents.interview.schema import (
     InterviewHistoryItem,
     InterviewHistoryResponse,
     InterviewReportResponse,
+    InterviewSessionReportResponse,
+    InterviewScoreBreakdown,
+    InterviewReportQuestionItem,
     MemoryOutput,
     NextQuestionResponse,
     ProfileOutput,
+    ProctoringViolationRequest,
+    ProctoringViolationResponse,
     QuestionOutput,
     SessionDetailResponse,
     SessionQuestionAnswer,
@@ -53,7 +59,6 @@ from app.api.ai.agents.interview.schema import (
     SubmitAnswerResponse,
 )
 from app.core.config import settings
-from app.core.llm import get_llm
 from app.models.interview import (
     Answer,
     AnswerScore,
@@ -62,13 +67,62 @@ from app.models.interview import (
     InterviewMemory,
     InterviewReport,
     InterviewSession,
+    InterviewTurn,
+    ProctoringViolation,
     Question,
-    QuestionType,
     SessionStatus,
+    Skill,
+    StudentProfile,
 )
+from app.agents.Interview.report.report_builder import build_report
 from app.services.pipeline_service import attach_session_to_pipeline, mark_pipeline_ai_completed
+from app.core.modes import normalize_interview_mode
 
 logger = logging.getLogger(__name__)
+
+
+def _clamp_0_10(val: float) -> float:
+    try:
+        v = float(val)
+    except Exception:
+        v = 0.0
+    return max(0.0, min(10.0, v))
+
+
+def _safe_mean(values: list[float]) -> float:
+    vals = [v for v in values if v is not None]
+    if not vals:
+        return 0.0
+    return float(sum(vals) / len(vals))
+
+
+def _is_dsa_like_turn(question: str, phase: str | None) -> bool:
+    if (phase or "").strip().lower() in ("problem_solving", "dsa"):
+        return True
+    q = (question or "").lower()
+    keywords = [
+        "array",
+        "linked list",
+        "stack",
+        "queue",
+        "binary search",
+        "two pointers",
+        "sliding window",
+        "hashmap",
+        "heap",
+        "priority queue",
+        "tree",
+        "graph",
+        "bfs",
+        "dfs",
+        "dynamic programming",
+        "dp",
+        "recursion",
+        "time complexity",
+        "space complexity",
+        "big o",
+    ]
+    return any(k in q for k in keywords)
 
 
 async def _get_job_description_from_session(
@@ -113,13 +167,17 @@ class InterviewService:
         student_name: str,
         job_role: str,
         db: AsyncSession,
+        mode: str = "basic",
     ) -> StartInterviewResponse:
         """Create a session and return the greeting. No LLM call yet."""
+
+        normalized_mode = normalize_interview_mode(mode)
 
         # 1. Create the session record
         session = InterviewSession(
             student_id=student_id,
             job_role=job_role,
+            mode=normalized_mode,
             status=SessionStatus.ACTIVE,
             current_difficulty=Difficulty.MEDIUM,
         )
@@ -127,7 +185,12 @@ class InterviewService:
         await db.flush()
         await db.commit()
 
-        logger.info("start_interview: created session_id=%s for student_id=%s", session.session_id, student_id)
+        logger.info(
+            "start_interview: created session_id=%s for student_id=%s mode=%s",
+            session.session_id,
+            student_id,
+            normalized_mode,
+        )
 
         try:
             logger.info("start_interview: calling attach_session_to_pipeline for session_id=%s", session.session_id)
@@ -166,7 +229,11 @@ class InterviewService:
         answer: str,
         db: AsyncSession,
     ) -> GreetingResponse:
-        """Handle Yes/No responses during the greeting handshake."""
+        """Handle Yes/No responses during the greeting handshake.
+
+        Uses InterviewOrchestrator.step(INIT) to generate the first question
+        so phase tracking, RAG retrieval, and topic ordering all begin correctly.
+        """
 
         # Fetch session
         sess_result = await db.execute(
@@ -179,19 +246,10 @@ class InterviewService:
         if not session:
             raise ValueError(f"Session {session_id} not found")
 
-        # Count existing questions to determine greeting step
-        q_count_result = await db.execute(
-            select(func.count()).select_from(Question).where(
-                Question.session_id == session_id
-            )
-        )
-        q_count = q_count_result.scalar() or 0
-
         normalized = answer.strip().lower()
         is_yes = normalized in ("yes", "y", "yeah", "yep", "sure", "ok", "okay")
 
         # ── Determine which step we are in ─────────────────────────────
-        # If q_count == 0 and session total_questions == 0, we're still in greeting.
         # We use session.total_questions as a state marker:
         #   total_questions == 0 → "are you comfortable?" step
         #   total_questions == -1 → "can we start?" step (marker)
@@ -199,7 +257,6 @@ class InterviewService:
         if session.total_questions == 0:
             # Step 1 response: "Are you comfortable?"
             if is_yes:
-                # Mark that we've moved to "confirm start" step
                 session.total_questions = -1  # marker for confirm step
                 await db.flush()
                 return GreetingResponse(
@@ -208,7 +265,6 @@ class InterviewService:
                     session_id=session_id,
                 )
             else:
-                # Close the session
                 session.status = SessionStatus.CANCELLED
                 session.end_time = datetime.utcnow()
                 await db.flush()
@@ -219,62 +275,83 @@ class InterviewService:
                 )
 
         elif session.total_questions == -1:
-            # Step 3 response: "Can we start the interview?"
+            # Step 2 response: "Can we start the interview?"
             if is_yes:
-                # Reset total_questions to 0 for real usage
+                # Reset total_questions to 0 so the orchestrator owns the count
                 session.total_questions = 0
                 await db.flush()
 
-                # NOW run profile analysis + generate first question
+                # ── Use InterviewOrchestrator (INIT) ─────────────────────
+                # This ensures:
+                #   • Phase starts at "resume"
+                #   • RAG context is fetched for project-based Q1
+                #   • _question_count & _questions_in_phase begin properly
                 llm = get_llm()
-                profile_data = await analyze_profile(student_id, db, llm)
-
-                # Generate the first question (resume-aware)
-                has_projects = profile_data.get("has_projects", False)
-                project_summary = profile_data.get("project_summary", "")
-                skills_list = profile_data.get("skills", [])
-                skill_summary = ", ".join(skills_list) if skills_list else "general topics"
-
-                # Fetch job description for question generation
-                job_description = await _get_job_description_from_session(db, session_id)
-
-                q_data = await generate_question(
-                    context="",
-                    difficulty="medium",
-                    llm=llm,
-                    skill_summary=skill_summary,
-                    resume_has_projects=has_projects,
-                    resume_project_summary=project_summary,
-                    is_first_question=True,
-                    job_description=job_description,
-                )
-
-                # Persist the question
-                q = Question(
+                orchestrator = InterviewOrchestrator(
+                    student_id=student_id,
                     session_id=session_id,
-                    question_text=q_data.get("question", ""),
-                    question_order=1,
-                    topic=q_data.get("topic", "general"),
-                    difficulty=Difficulty(q_data.get("difficulty", "medium")),
-                    question_type=QuestionType.TECHNICAL,
+                    db=db,
+                    llm=llm,
+                    job_role=getattr(session, "job_role", "") or "",
+                    mode=getattr(session, "mode", "basic") or "basic",
                 )
-                db.add(q)
-                await db.flush()
+
+                # If no resume/projects found, skip resume phase to core
+                # (orchestrator INIT handles this internally)
+                result = await orchestrator.step(last_answer="")
+
+                if result.get("action") == "error":
+                    raise RuntimeError(result.get("message", "Orchestrator INIT failed"))
+
+                data = result.get("data", {})
+                question_data = data.get("question", {})
+                profile_data = data.get("profile", {})
+
+                if not question_data or not question_data.get("question"):
+                    raise RuntimeError("Orchestrator did not return a first question")
+
+                # The orchestrator already persisted the InterviewTurn; fetch it
+                turn_result = await db.execute(
+                    select(InterviewTurn)
+                    .where(InterviewTurn.session_id == session_id)
+                    .order_by(InterviewTurn.timestamp.desc())
+                    .limit(1)
+                )
+                turn = turn_result.scalar_one_or_none()
+
+                if not turn:
+                    raise RuntimeError("InterviewTurn not found after orchestrator INIT")
+
+                # Commit: guarantee the first question turn is durable before returning to UI.
+                await db.commit()
+
+                logger.info(
+                    "respond_greeting: first question generated via orchestrator "
+                    "phase=%s topic=%s question='%s'",
+                    getattr(orchestrator, "_current_phase", "n/a"),
+                    getattr(orchestrator, "_current_topic", "n/a"),
+                    turn.question,
+                )
+
+                profile_out = ProfileOutput(**profile_data) if profile_data else None
 
                 return GreetingResponse(
-                    agent_message=f"Let's begin! Here's your first question.",
+                    agent_message="Let's begin! Here's your first question.",
                     next_step="first_question",
                     session_id=session_id,
-                    profile=ProfileOutput(**profile_data),
+                    profile=profile_out,
                     first_question=QuestionOutput(
-                        question_id=q.question_id,
-                        question=q.question_text,
-                        topic=q.topic,
-                        difficulty=q.difficulty.value if isinstance(q.difficulty, Difficulty) else q.difficulty,
+                        question_id=str(turn.turn_id),
+                        question=turn.question,
+                        topic=question_data.get("topic", "resume"),
+                        difficulty=(
+                            turn.difficulty.value
+                            if isinstance(turn.difficulty, Difficulty)
+                            else str(turn.difficulty)
+                        ),
                     ),
                 )
             else:
-                # Close the session
                 session.status = SessionStatus.CANCELLED
                 session.end_time = datetime.utcnow()
                 session.total_questions = 0
@@ -303,195 +380,205 @@ class InterviewService:
         audio_path: Optional[str],
         db: AsyncSession,
     ) -> SubmitAnswerResponse:
-        """Evaluate the answer, classify behavior, update memory, and decide next step."""
+        """Submit an answer via InterviewOrchestrator (state-driven)."""
+
+        print("ANSWER API CALLED")
+        print("SETTING STATE TO EVALUATING")
+        print("CALLING ORCHESTRATOR STEP")
+
         llm = get_llm()
 
-        # Fetch the question
-        q_result = await db.execute(
-            select(Question).where(Question.question_id == question_id)
+        sess_result = await db.execute(
+            select(InterviewSession).where(InterviewSession.session_id == session_id)
         )
-        question = q_result.scalar_one()
+        session = sess_result.scalar_one_or_none()
+        if session is None:
+            raise RuntimeError("Session not found")
 
-        # Persist the answer
-        answer = Answer(
-            session_id=session_id,
-            question_id=question_id,
-            answer_text=answer_text,
-            audio_path=audio_path,
-        )
-        db.add(answer)
-        await db.flush()
-
-        # Evaluate (now includes behavior classification)
-        # Pass current session difficulty so evaluator can recommend decrease
-        sess_result_pre = await db.execute(
-            select(InterviewSession).where(
-                InterviewSession.session_id == session_id,
-            )
-        )
-        session_pre = sess_result_pre.scalar_one()
-        current_diff = session_pre.current_difficulty
-        if isinstance(current_diff, Difficulty):
-            current_diff = current_diff.value
-
-        eval_data = await evaluate_answer(
-            question=question.question_text,
-            answer=answer_text,
-            llm=llm,
-            difficulty=current_diff,
-        )
-
-        behavior_flag = eval_data.get("behavior_flag", "neutral")
-        technical_score = eval_data.get("technical_score", 5)
-
-        # Compute overall score and persist with behavior
-        overall = round(
-            (eval_data["clarity"] + eval_data["depth"] + eval_data["confidence"]) / 3,
-            2,
-        )
-
-        # Map behavior string to enum
-        try:
-            behavior_enum = BehaviorFlag(behavior_flag)
-        except ValueError:
-            behavior_enum = BehaviorFlag.NEUTRAL
-
-        score = AnswerScore(
-            answer_id=answer.answer_id,
-            clarity=eval_data["clarity"],
-            depth=eval_data["depth"],
-            confidence=eval_data["confidence"],
-            technical_score=technical_score,
-            overall_score=overall,
-            behavior_flag=behavior_enum,
-        )
-        db.add(score)
-
-        # Update memory with behavior
-        memory_data = await update_memory(
-            session_id=session_id,
-            answer=answer_text,
-            db=db,
-            llm=llm,
-            behavior=behavior_flag,
-        )
-
-        # Generate behavior-reactive agent response using weighted scores
-        weighted = eval_data.get("weighted_score", 0.5)
-        has_answer = bool(answer_text.strip())
-        answer_type = eval_data.get("answer_type", "VALID")
-
-        # Load last feedback from memory to avoid repetition
         mem_result = await db.execute(
             select(InterviewMemory).where(InterviewMemory.session_id == session_id)
         )
-        memory_obj = mem_result.scalar_one_or_none()
-        last_feedback = ""
-        used_sentences_set = set()
-        if memory_obj and memory_obj.last_behavior_state:
-            # We store last feedback in last_behavior_state field after the behavior flag
-            parts = memory_obj.last_behavior_state.split("||")
-            if len(parts) >= 2:
-                last_feedback = parts[1]
+        memory = mem_result.scalar_one_or_none()
 
-        agent_response = get_feedback_for_answer(
-            weighted, has_answer, answer_type,
-            used_sentences=used_sentences_set,
-            last_feedback=last_feedback,
+        orchestrator = InterviewOrchestrator(
+            student_id=student_id,
+            session_id=session_id,
+            db=db,
+            llm=llm,
+            job_role=getattr(session, "job_role", "") or "",
+            mode=getattr(session, "mode", "basic") or "basic",
         )
 
-        # Persist last feedback into memory for next question
-        if memory_obj:
-            memory_obj.last_behavior_state = f"{behavior_flag}||{agent_response}"
-            await db.flush()
 
-        # Determine next difficulty using code logic (NOT trusting the LLM)
-        # This ensures difficulty always adjusts based on actual performance
-        weighted = eval_data.get("weighted_score", 0.5)
-        if weighted < 0.4:
-            next_diff = "easy"
-        elif weighted > 0.7:
-            next_diff = "hard"
-        else:
-            next_diff = "medium"
-        
-        # Override in eval_data too so frontend gets consistent info
-        eval_data["next_difficulty"] = next_diff
-        
-        logger.info(
-            "submit_answer: weighted_score=%.2f → next_difficulty=%s",
-            weighted, next_diff,
-        )
-        
-        session_result = await db.execute(
-            select(InterviewSession).where(
-                InterviewSession.session_id == session_id,
+        # Restore continuity fields from DB so the orchestrator knows its phase
+        turn_count_result = await db.execute(
+            select(func.count()).select_from(InterviewTurn).where(
+                InterviewTurn.session_id == session_id
             )
         )
-        session = session_result.scalar_one()
-        session.current_difficulty = Difficulty(next_diff)
-        await db.flush()
+        orchestrator._question_count = int(turn_count_result.scalar() or 0)
 
-        # Compute running average score across the session
-        avg_result = await db.execute(
-            select(func.avg(AnswerScore.overall_score))
-            .select_from(Answer)
-            .join(AnswerScore, AnswerScore.answer_id == Answer.answer_id, isouter=True)
-            .where(Answer.session_id == session_id)
-        )
-        running_avg = avg_result.scalar()
-        running_avg_score = float(running_avg) / 10.0 if running_avg is not None else 0.0
+        if session is not None:
+            cd = getattr(session, "current_difficulty", "medium")
+            orchestrator._current_difficulty = cd.value if hasattr(cd, "value") else str(cd)
 
-        # Count questions to decide next action
-        q_count_result = await db.execute(
-            select(func.count()).select_from(Question).where(
-                Question.session_id == session_id
-            )
-        )
-        q_count = q_count_result.scalar() or 0
+        if memory is not None:
+            orchestrator._profile_context = memory.summary or ""
+            orchestrator._skill_summary = ", ".join(memory.strong_areas) if getattr(memory, "strong_areas", None) else ""
 
-        if q_count >= settings.MAX_QUESTIONS_PER_SESSION:
-            next_action = "end"
-            next_question = None
-        else:
-            next_action = "ask_question"
-            # Fetch job description for follow-up questions
-            job_description = await _get_job_description_from_session(db, session_id)
-            # Generate next question with context-aware follow-up
-            q_data = await generate_question(
-                context=memory_data.get("summary", ""),
-                difficulty=next_diff,
-                llm=llm,
-                last_question=question.question_text,
-                last_answer_summary=memory_data.get("summary", ""),
-                behavior=behavior_flag,
-                skill_summary=memory_data.get("summary", ""),
-                job_description=job_description,
+        # ── Restore profile data (projects/skills) for personalization ─────
+        try:
+            profile_res = await db.execute(
+                select(StudentProfile).where(StudentProfile.student_id == student_id)
             )
-            q_obj = Question(
-                session_id=session_id,
-                question_text=q_data.get("question", ""),
-                question_order=q_count + 1,
-                topic=q_data.get("topic", "general"),
-                difficulty=Difficulty(q_data.get("difficulty", "medium")),
-                question_type=QuestionType.TECHNICAL,
+            profile = profile_res.scalar_one_or_none()
+            if profile:
+                orchestrator._project_summary = profile.project_summary or ""
+                orchestrator._has_projects = profile.has_projects
+                if not orchestrator._skill_summary:
+                    # Fallback to profile skills if memory is new
+                    skills_res = await db.execute(
+                        select(Skill).where(Skill.student_id == student_id)
+                    )
+                    s_list = skills_res.scalars().all()
+                    orchestrator._skill_summary = ", ".join([s.skill_name for s in s_list])
+        except Exception as e:
+            logger.warning("submit_answer: could not restore profile data: %s", e)
+
+        # ── Restore current phase and per-phase question count from turns ──────
+        # Phase is stored per-turn. We derive the current phase and how many
+        # questions have been asked in that phase from persisted turns.
+        try:
+            all_turns_result = await db.execute(
+                select(InterviewTurn.phase)
+                .where(InterviewTurn.session_id == session_id)
+                .order_by(InterviewTurn.timestamp.asc())
             )
-            db.add(q_obj)
-            await db.flush()
-            next_question = QuestionOutput(
-                question_id=q_obj.question_id,
-                question=q_obj.question_text,
-                topic=q_obj.topic,
-                difficulty=q_obj.difficulty.value if isinstance(q_obj.difficulty, Difficulty) else q_obj.difficulty,
+            phase_list = [row[0] for row in all_turns_result.fetchall() if row[0]]
+            if phase_list:
+                # Current phase = phase of the latest turn
+                orchestrator._current_phase = phase_list[-1]
+                # Per-phase count = how many turns share the current phase at the tail
+                current_ph = phase_list[-1]
+                count_in_phase = sum(1 for p in reversed(phase_list) if p == current_ph)
+                orchestrator._questions_in_phase = count_in_phase
+
+            # Enforce resume phase for first 2 questions when the candidate has projects.
+            # This is derived from persisted turns, not runtime state.
+            resume_count_result = await db.execute(
+                select(func.count()).select_from(InterviewTurn).where(
+                    InterviewTurn.session_id == session_id,
+                    InterviewTurn.phase == "resume",
+                )
             )
+            resume_turns = int(resume_count_result.scalar() or 0)
+            if getattr(orchestrator, "_has_projects", False) and resume_turns < 2:
+                orchestrator._current_phase = "resume"
+                orchestrator._questions_in_phase = resume_turns
+
+            # Topic persistence (without a DB column): deterministically reconstruct
+            # which topics were already used in the current phase based on how many
+            # questions have been asked in that phase.
+            phase_topics = getattr(orchestrator, "_phase_topics", {}).get(orchestrator._current_phase, [])
+            used = []
+            for item in phase_topics[: max(orchestrator._questions_in_phase, 0)]:
+                t = item.get("topic")
+                if t:
+                    used.append(t)
+            orchestrator._previous_topics = used
+            if used:
+                orchestrator._current_topic = used[-1]
+
+            logger.info(
+                "submit_answer: restored orchestrator phase=%s, q_in_phase=%d, q_count=%d",
+                orchestrator._current_phase,
+                orchestrator._questions_in_phase,
+                orchestrator._question_count,
+            )
+        except Exception as exc:
+            logger.warning("submit_answer: could not restore phase state: %s", exc)
+
+        orchestrator.set_state(InterviewState.EVALUATING)
+        result = await orchestrator.step(last_answer=answer_text)
+
+        # If the next step is to ask a question, keep it orchestrator-driven.
+        # The EVALUATING step returns eval+memory+agent_response; QUESTIONING generates the next question.
+        if result.get("action") == "ask_question":
+            orchestrator.set_state(InterviewState.QUESTIONING)
+            q_result2 = await orchestrator.step(last_answer="")
+            if isinstance(q_result2, dict) and (q_result2.get("data") is not None):
+                result_data = result.get("data") or {}
+                q_data = q_result2.get("data") or {}
+                # preserve evaluation/memory/agent_response + attach question
+                if "question" in q_data:
+                    result_data["question"] = q_data["question"]
+                result["data"] = result_data
+
+        # Commit: guarantee answer + evaluation + (optional) next question are durable.
+        await db.commit()
+
+
+        # Map orchestrator output back into the existing SubmitAnswerResponse contract
+        data = result.get("data") or {}
+        eval_data = data.get("evaluation") or {}
+        memory_data = data.get("memory") or {}
+        agent_response = data.get("agent_response") or ""
+
+        next_action = result.get("action") or "ask_question"
+        next_difficulty = result.get("difficulty") or eval_data.get("next_difficulty") or "medium"
+
+        next_question = None
+        if next_action == "ask_question":
+            qd = data.get("question") or {}
+            if isinstance(qd, dict) and qd.get("question"):
+                next_question = QuestionOutput(
+                    question_id=qd.get("question_id"),
+                    question=qd.get("question", ""),
+                    topic=qd.get("topic", "general"),
+                    difficulty=qd.get("difficulty", next_difficulty),
+                )
+
+        # Normalize evaluation payload to match EvaluationOutput schema requirements.
+        # Evaluator/orchestrator may return {communication, concept_depth, confidence} instead.
+        def _num(val, default: float = 0.0) -> float:
+            try:
+                if val is None:
+                    return float(default)
+                return float(val)
+            except Exception:
+                return float(default)
+
+        normalized_eval = dict(eval_data) if isinstance(eval_data, dict) else {}
+        normalized_eval.setdefault("clarity", _num(normalized_eval.get("clarity", normalized_eval.get("communication")), 0.0))
+        normalized_eval.setdefault("depth", _num(normalized_eval.get("depth", normalized_eval.get("concept_depth")), 0.0))
+        normalized_eval.setdefault("confidence", _num(normalized_eval.get("confidence"), 0.0))
+
+        # Running average: computed from stored turn evaluation.overall_score (0–10 scale).
+        running_avg_score = 0.0
+        try:
+            turn_evals_result = await db.execute(
+                select(InterviewTurn.evaluation).where(InterviewTurn.session_id == session_id)
+            )
+            scores: list[float] = []
+            for (ev,) in turn_evals_result.all():
+                if not isinstance(ev, dict):
+                    continue
+                try:
+                    scores.append(float(ev.get("overall_score", 0.0)))
+                except Exception:
+                    scores.append(0.0)
+            if scores:
+                running_avg_score = float(round(sum(scores) / len(scores), 2))
+        except Exception:
+            pass
 
         return SubmitAnswerResponse(
-            evaluation=EvaluationOutput(**eval_data),
+            evaluation=EvaluationOutput(**normalized_eval),
             memory=MemoryOutput(**memory_data),
             agent_response=agent_response,
-            behavior_flag=behavior_flag,
+            behavior_flag=eval_data.get("behavior_flag", "neutral"),
             next_action=next_action,
-            next_difficulty=next_diff,
+            next_difficulty=next_difficulty,
             next_question=next_question,
             running_avg_score=running_avg_score,
         )
@@ -512,19 +599,57 @@ class InterviewService:
         sess_result = await db.execute(
             select(InterviewSession).where(
                 InterviewSession.session_id == session_id,
+                InterviewSession.student_id == student_id,
             )
         )
-        session = sess_result.scalar_one()
-        session.status = SessionStatus.COMPLETED
+        session = sess_result.scalar_one_or_none()
+        if session is None:
+            raise ValueError(f"Session {session_id} not found")
+
+        # Mark completion vs early termination using the existing enum.
+        # We map early termination to CANCELLED to avoid invalid enum writes.
+        if ended_reason != "normal":
+            session.status = SessionStatus.CANCELLED
+        else:
+            session.status = SessionStatus.COMPLETED
         session.end_time = datetime.utcnow()
 
-        # Count total questions
+        # Count total questions via InterviewTurn
         q_count_result = await db.execute(
-            select(func.count()).select_from(Question).where(
-                Question.session_id == session_id
+            select(func.count()).select_from(InterviewTurn).where(
+                InterviewTurn.session_id == session_id
             )
         )
         session.total_questions = q_count_result.scalar() or 0
+
+        # Finalization: ensure every stored turn has answer + evaluation before report.
+        # This guarantees early termination still produces a complete partial report.
+        try:
+            turns_result = await db.execute(
+                select(InterviewTurn)
+                .where(InterviewTurn.session_id == session_id)
+                .order_by(InterviewTurn.timestamp.asc())
+            )
+            turns = list(turns_result.scalars().all())
+            if not turns:
+                logger.error("end_interview: no turns found for session_id=%s", session_id)
+            else:
+                for t in turns:
+                    if not t.question:
+                        logger.error("end_interview: turn %s missing question", getattr(t, "turn_id", "n/a"))
+                    if not t.answer or not str(t.answer).strip():
+                        t.answer = "Skipped"
+                    if not isinstance(t.evaluation, dict) or not t.evaluation:
+                        t.evaluation = {
+                            "overall_score": 0,
+                            "error": "evaluation_failed",
+                        }
+                await db.flush()
+        except Exception as exc:
+            logger.exception("end_interview: finalization validation failed (non-fatal)")
+
+        # Commit: ensure session + any turn fixes are durable BEFORE generating report.
+        await db.commit()
 
         # Generate report
         logger.info("end_interview: generating report for session_id=%s", session_id)
@@ -558,13 +683,17 @@ class InterviewService:
         except Exception as exc:
             logger.warning("mark_pipeline_ai_completed failed (non-fatal): %s", exc)
 
-        # Commit all changes — ensure COMPLETED status persists
+        # Commit all changes — ensure report + session status persist
         await db.commit()
-        logger.info("end_interview: committed session_id=%s as COMPLETED", session_id)
+        logger.info(
+            "end_interview: committed session_id=%s as %s",
+            session_id,
+            "CANCELLED" if ended_reason != "normal" else "COMPLETED",
+        )
 
         return EndInterviewResponse(
             session_id=session_id,
-            status="completed",
+            status="terminated" if ended_reason != "normal" else "completed",
             report=FeedbackOutput(**report_data),
         )
 
@@ -588,11 +717,14 @@ class InterviewService:
         if report is None:
             logger.warning("No report found for session %s; creating fallback report", session_id)
 
+            # Fallback: compute average from InterviewTurn evaluations
             avg_score_result = await db.execute(
-                select(func.avg(AnswerScore.overall_score))
-                .select_from(Answer)
-                .join(AnswerScore, AnswerScore.answer_id == Answer.answer_id, isouter=True)
-                .where(Answer.session_id == session_id)
+                select(func.avg((cast(func.json_extract(InterviewTurn.evaluation, "$.overall_score"), Integer) / 10.0)))
+                .select_from(InterviewTurn)
+                .where(
+                    InterviewTurn.session_id == session_id,
+                    InterviewTurn.evaluation.isnot(None)
+                )
             )
             avg_score = avg_score_result.scalar()
 
@@ -721,38 +853,27 @@ class InterviewService:
             )
             rec = rpt_result.scalar_one_or_none()
 
-        # Fetch questions with answers
-        q_result = await db.execute(
-            select(Question)
-            .where(Question.session_id == session_id)
-            .order_by(Question.question_order)
-        )
-        questions = q_result.scalars().all()
-
         qa_list = []
-        for q in questions:
-            # Get the answer for this question
-            ans_result = await db.execute(
-                select(Answer).where(Answer.question_id == q.question_id)
-            )
-            ans = ans_result.scalar_one_or_none()
-
-            # Get the score
+        # Prefer InterviewTurn as source of truth; fall back to legacy Question for order/topic if needed
+        turns_result = await db.execute(
+            select(InterviewTurn).where(InterviewTurn.session_id == session_id)
+        )
+        turns = list(turns_result.scalars().all())
+        for idx, turn in enumerate(sorted(turns, key=lambda t: t.timestamp)):
+            # Extract score from evaluation JSON if present
             score_val = None
-            if ans:
-                sc_result = await db.execute(
-                    select(AnswerScore.overall_score).where(
-                        AnswerScore.answer_id == ans.answer_id
-                    )
-                )
-                score_val = sc_result.scalar_one_or_none()
+            try:
+                if turn.evaluation:
+                    score_val = int(turn.evaluation.get("overall_score"))
+            except Exception:
+                pass
 
             qa_list.append(SessionQuestionAnswer(
-                question_order=q.question_order,
-                question_text=q.question_text,
-                topic=q.topic,
-                difficulty=q.difficulty.value if isinstance(q.difficulty, Difficulty) else str(q.difficulty),
-                answer_text=ans.answer_text if ans else None,
+                question_order=idx + 1,
+                question_text=turn.question or "",
+                topic="general",  # Topic can be enriched later from evaluation if needed
+                difficulty=turn.difficulty.value if isinstance(turn.difficulty, Difficulty) else str(turn.difficulty),
+                answer_text=turn.answer,
                 score=score_val,
             ))
 
@@ -767,6 +888,254 @@ class InterviewService:
             recommendation=rec,
             questions=qa_list,
         )
+
+    # ── GET /interview/{session_id}/report ─────────────────────────────
+
+    @staticmethod
+    async def get_session_report(
+        student_id: UUID,
+        session_id: UUID,
+        db: AsyncSession,
+    ) -> InterviewSessionReportResponse:
+        """Build a full report view for history (works for partial/failed sessions)."""
+
+        sess_result = await db.execute(
+            select(InterviewSession).where(
+                InterviewSession.session_id == session_id,
+                InterviewSession.student_id == student_id,
+            )
+        )
+        session = sess_result.scalar_one_or_none()
+        if not session:
+            raise ValueError("Session not found or access denied")
+
+        turns_result = await db.execute(
+            select(InterviewTurn)
+            .where(InterviewTurn.session_id == session_id)
+            .order_by(InterviewTurn.timestamp.asc())
+        )
+        turns = list(turns_result.scalars().all())
+
+        # Determine status for history view
+        status_raw = session.status.value if isinstance(session.status, SessionStatus) else str(session.status)
+        status = status_raw
+        if status_raw != SessionStatus.COMPLETED.value:
+            viol_res = await db.execute(
+                select(func.count()).select_from(ProctoringViolation).where(
+                    ProctoringViolation.session_id == session_id
+                )
+            )
+            viol_count = int(viol_res.scalar() or 0)
+            status = "failed" if viol_count > 0 else "partial"
+
+        turn_dicts = []
+        for t in turns:
+            turn_dicts.append({
+                "question": t.question or "",
+                "answer": t.answer or "",
+                "evaluation": t.evaluation if t.evaluation else {},
+            })
+
+        report_dict = build_report(turn_dicts)
+        summary_obj = report_dict.get("summary") if isinstance(report_dict, dict) else {}
+        if not isinstance(summary_obj, dict):
+            summary_obj = {}
+
+        avg_corr = float(summary_obj.get("average_correctness") or 0.0)
+        avg_comm = float(summary_obj.get("average_communication") or 0.0)
+        avg_conf = float(summary_obj.get("average_confidence") or 0.0)
+
+        # Scores: keep 0-10 scale in response breakdown, but final_score in 0-100
+        final_0_10 = float(summary_obj.get("overall_score") or report_dict.get("final_score") or 0.0)
+        final_score = max(0.0, min(100.0, (final_0_10 / 10.0) * 100.0))
+
+        # Behavior: best-effort from evaluation payload if present, otherwise use confidence average.
+        beh_scores = []
+        for t in turns:
+            try:
+                ev = t.evaluation or {}
+                if isinstance(ev, dict) and "behavior_score" in ev:
+                    beh_scores.append(float(ev.get("behavior_score") or 0.0) * 10.0)
+            except Exception:
+                pass
+        behavior = (sum(beh_scores) / len(beh_scores)) if beh_scores else avg_conf
+
+        questions = [
+            InterviewReportQuestionItem(
+                question=td.get("question", ""),
+                answer=td.get("answer", ""),
+                evaluation=td.get("evaluation", {}) if isinstance(td.get("evaluation"), dict) else {},
+            )
+            for td in turn_dicts
+        ]
+
+        summary_text = ""
+        if isinstance(summary_obj.get("communication_summary"), str):
+            summary_text = summary_obj.get("communication_summary") or ""
+        elif not turn_dicts:
+            summary_text = "No answers provided."
+
+        return InterviewSessionReportResponse(
+            session_id=session_id,
+            status=status,
+            final_score=round(final_score, 2),
+            scores=InterviewScoreBreakdown(
+                technical=round(avg_corr, 2),
+                communication=round(avg_comm, 2),
+                behavior=round(float(behavior or 0.0), 2),
+            ),
+            strengths=list(report_dict.get("strengths") or []),
+            weaknesses=list(report_dict.get("weaknesses") or []),
+            summary=summary_text,
+            questions=questions,
+            pdf_url=f"/ai/interview/{session_id}/download",
+        )
+
+    @staticmethod
+    async def get_visualization_report(
+        student_id: UUID,
+        session_id: UUID,
+        db: AsyncSession,
+    ) -> dict:
+        """Aggregate multi-question performance metrics for visualization.
+
+        Deterministic: relies on stored per-turn evaluation payloads.
+        STT robustness is handled upstream by the per-turn evaluator.
+        """
+
+        sess_result = await db.execute(
+            select(InterviewSession).where(
+                InterviewSession.session_id == session_id,
+                InterviewSession.student_id == student_id,
+            )
+        )
+        session = sess_result.scalar_one_or_none()
+        if not session:
+            raise ValueError("Session not found or access denied")
+
+        turns_result = await db.execute(
+            select(InterviewTurn)
+            .where(InterviewTurn.session_id == session_id)
+            .order_by(InterviewTurn.timestamp.asc())
+        )
+        turns = list(turns_result.scalars().all())
+
+        per_correctness: list[float] = []
+        per_communication: list[float] = []
+        per_depth: list[float] = []
+        per_confidence: list[float] = []
+        per_overall: list[float] = []
+        dsa_scores: list[float] = []
+
+        strengths: list[str] = []
+        weaknesses: list[str] = []
+        improvements: list[str] = []
+
+        for t in turns:
+            ev = t.evaluation if isinstance(t.evaluation, dict) else {}
+            if not ev:
+                continue
+
+            corr = ev.get("correctness")
+            comm = ev.get("communication")
+            depth = ev.get("concept_depth")
+            conf = ev.get("confidence")
+
+            if corr is not None:
+                per_correctness.append(_clamp_0_10(corr))
+            if comm is not None:
+                per_communication.append(_clamp_0_10(comm))
+            if depth is not None:
+                per_depth.append(_clamp_0_10(depth))
+            if conf is not None:
+                per_confidence.append(_clamp_0_10(conf))
+
+            # Use stored overall_score if present; otherwise compute per-turn approximation.
+            o = ev.get("overall_score")
+            if o is None:
+                o = (
+                    _clamp_0_10(corr) * 0.40
+                    + _clamp_0_10(comm) * 0.20
+                    + _clamp_0_10(depth) * 0.20
+                    + _clamp_0_10(conf) * 0.20
+                )
+            per_overall.append(_clamp_0_10(o))
+
+            if _is_dsa_like_turn(t.question or "", getattr(t, "phase", None)):
+                # If evaluator doesn't provide a DSA score explicitly, approximate with correctness+depth.
+                dsa_scores.append((_clamp_0_10(corr) * 0.6) + (_clamp_0_10(depth) * 0.4))
+
+            gp = ev.get("good_points")
+            if isinstance(gp, list):
+                for item in gp:
+                    s = str(item).strip()
+                    if s and s not in strengths and len(strengths) < 6:
+                        strengths.append(s)
+
+            ms = ev.get("mistakes")
+            if isinstance(ms, list):
+                for item in ms:
+                    s = str(item).strip()
+                    if s and s not in weaknesses and len(weaknesses) < 6:
+                        weaknesses.append(s)
+
+            mp = ev.get("missing_points")
+            if isinstance(mp, list):
+                for item in mp:
+                    s = str(item).strip()
+                    if s and s not in improvements and len(improvements) < 6:
+                        improvements.append(s)
+
+        avg_correctness = _safe_mean(per_correctness)
+        avg_communication = _safe_mean(per_communication)
+        avg_depth = _safe_mean(per_depth)
+        avg_confidence = _safe_mean(per_confidence)
+        avg_dsa = _safe_mean(dsa_scores) if dsa_scores else 0.0
+
+        # Consistency: based on std-dev of per-question overall scores.
+        import math
+
+        if per_overall:
+            mean_overall = _safe_mean(per_overall)
+            variance = _safe_mean([(x - mean_overall) ** 2 for x in per_overall])
+            std = math.sqrt(max(0.0, variance))
+            # Map higher std => lower consistency. std≈0 => 10. std>=5 => ~0.
+            consistency = _clamp_0_10(10.0 - (std * 2.0))
+        else:
+            consistency = 0.0
+
+        overall_score = (
+            (avg_correctness * 0.4)
+            + (avg_communication * 0.2)
+            + (avg_depth * 0.2)
+            + (avg_dsa * 0.1)
+            + (avg_confidence * 0.1)
+        )
+        overall_score = _clamp_0_10(overall_score)
+
+        if overall_score < 4.0:
+            rating = "Needs Improvement"
+        elif overall_score < 7.0:
+            rating = "Average"
+        else:
+            rating = "Good"
+
+        return {
+            "overall_score": round(overall_score, 2),
+            "rating": rating,
+            "radar": {
+                "correctness": round(_clamp_0_10(avg_correctness), 2),
+                "communication": round(_clamp_0_10(avg_communication), 2),
+                "depth": round(_clamp_0_10(avg_depth), 2),
+                "dsa": round(_clamp_0_10(avg_dsa), 2),
+                "consistency": round(_clamp_0_10(consistency), 2),
+            },
+            "summary": {
+                "strengths": strengths[:2] if strengths else [],
+                "weaknesses": weaknesses[:2] if weaknesses else [],
+                "improvements": improvements[:2] if improvements else [],
+            },
+        }
 
     # ── DELETE /interview/session/{session_id} ────────────────────────────
 
@@ -840,7 +1209,7 @@ class InterviewService:
                 recruiter_data = {}
 
         # Build response with fallbacks
-        return {
+        base = {
             "session_id": str(session_id),
             "final_score": report.final_score,
             "technical_score": recruiter_data.get("technical_score", report.final_score / 10.0 if report.final_score else 0),
@@ -854,6 +1223,14 @@ class InterviewService:
             "communication_assessment": recruiter_data.get("communication_assessment", ""),
             "behavior_analysis": recruiter_data.get("behavior_analysis", ""),
         }
+
+        # Include new structured fields if present
+        if "critical_issues" in recruiter_data:
+            base["critical_issues"] = recruiter_data["critical_issues"]
+        if "evaluations" in recruiter_data:
+            base["evaluations"] = recruiter_data["evaluations"]
+
+        return base
 
     # ── GET /interview/report/{session_id}/student ────────────────────
 
@@ -880,7 +1257,7 @@ class InterviewService:
             except Exception:
                 student_data = {}
 
-        return {
+        base = {
             "session_id": str(session_id),
             "final_score": report.final_score,
             "strengths": student_data.get("strengths", list(report.strengths) if report.strengths else []),
@@ -890,3 +1267,10 @@ class InterviewService:
             "recommendation": report.recommendation or "",
         }
 
+        # Include new structured fields if present
+        if "critical_issues" in student_data:
+            base["critical_issues"] = student_data["critical_issues"]
+        if "evaluations" in student_data:
+            base["evaluations"] = student_data["evaluations"]
+
+        return base

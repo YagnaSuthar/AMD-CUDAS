@@ -7,8 +7,9 @@ Updated with greeting handshake, interview history, and session detail.
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.api.ai.agents.interview.schema import (
     EndInterviewRequest,
@@ -18,6 +19,8 @@ from app.api.ai.agents.interview.schema import (
     InterviewConfigResponse,
     InterviewHistoryResponse,
     InterviewReportResponse,
+    VisualizationReportResponse,
+    InterviewSessionReportResponse,
     NextQuestionResponse,
     ProctoringViolationRequest,
     ProctoringViolationResponse,
@@ -30,6 +33,10 @@ from app.api.ai.agents.interview.schema import (
 from app.api.ai.agents.interview.service import InterviewService
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.modes import normalize_interview_mode
+from app.models.interview import InterviewSession, InterviewTurn
+from app.agents.Interview.report.report_builder import build_report
+from app.agents.Interview.report.pdf_generator import generate_report_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -74,11 +81,17 @@ async def start_interview(
         student_id = _get_user_id(current_user)
         student_name = _get_user_name(current_user)
 
+        try:
+            mode = normalize_interview_mode(getattr(request, "mode", None))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
         return await InterviewService.start_interview(
             student_id=student_id,
             student_name=student_name,
             job_role=request.job_role,
             db=db,
+            mode=mode,
         )
     except HTTPException:
         raise
@@ -214,6 +227,101 @@ async def get_report(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Failed to get report")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ── GET /interview/{session_id}/report ────────────────────────────────────
+
+@router.get(
+    "/{session_id}/report",
+    response_model=InterviewSessionReportResponse,
+    summary="Get detailed interview report for history",
+)
+async def get_session_report(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+) -> InterviewSessionReportResponse:
+    """Retrieve a detailed report for a session (works for partial/failed sessions)."""
+    try:
+        student_id = _get_user_id(current_user)
+        return await InterviewService.get_session_report(
+            student_id=student_id,
+            session_id=session_id,
+            db=db,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to get session report")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ── GET /interview/{session_id}/download ──────────────────────────────────
+
+@router.get(
+    "/{session_id}/download",
+    summary="Download interview report as PDF",
+)
+async def get_session_report_pdf(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Fetch session data, build a structured report, and return it as a downloadable PDF.
+    """
+    try:
+        student_id = _get_user_id(current_user)
+
+        # 1. Fetch session to verify ownership and existence
+        result = await db.execute(
+            select(InterviewSession).where(
+                InterviewSession.session_id == session_id,
+                InterviewSession.student_id == student_id
+            )
+        )
+        session = result.scalar_one_or_none()
+        if not session:
+            raise HTTPException(status_code=404, detail="Interview session not found.")
+
+        # 2. Fetch all turns (questions and answers) for this session
+        turns_result = await db.execute(
+            select(InterviewTurn)
+            .where(InterviewTurn.session_id == session_id)
+            .order_by(InterviewTurn.timestamp.asc())
+        )
+        turns = turns_result.scalars().all()
+
+        # 3. Prepare data for report_builder
+        # build_report expects a list of dicts with 'question', 'answer', and 'evaluation'
+        turn_dicts = []
+        for t in turns:
+            turn_dicts.append({
+                "question": t.question,
+                "answer": t.answer,
+                "evaluation": t.evaluation if t.evaluation else {}
+            })
+
+        # 4. Generate structured report data
+        report_dict = build_report(turn_dicts)
+
+        # 5. Generate PDF bytes using WeasyPrint
+        pdf_bytes = generate_report_pdf(report_dict)
+
+        # 6. Return as downloadable response
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=Interview_Report_{session_id.hex[:8]}.pdf"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to generate PDF report")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
@@ -435,4 +543,103 @@ async def get_student_report(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Failed to get student report")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ── GET /interview/report/{session_id}/visualization ─────────────────────
+
+@router.get(
+    "/report/{session_id}/visualization",
+    response_model=VisualizationReportResponse,
+    summary="Get visualization metrics (donut + radar) for an interview session",
+)
+async def get_visualization_report(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+) -> VisualizationReportResponse:
+    """Aggregate multi-question metrics for charts.
+
+    Deterministic: uses stored per-turn evaluation payloads.
+    """
+    try:
+        student_id = _get_user_id(current_user)
+        data = await InterviewService.get_visualization_report(
+            student_id=student_id,
+            session_id=session_id,
+            db=db,
+        )
+        return VisualizationReportResponse(**data)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to get visualization report")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ── GET /interview/report/pdf/{session_id} ─────────────────────────────
+
+@router.get(
+    "/report/pdf/{session_id}",
+    summary="Download interview report as PDF",
+)
+async def get_report_pdf(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Fetch session data, build a structured report, and return it as a downloadable PDF.
+    """
+    try:
+        student_id = _get_user_id(current_user)
+
+        # 1. Fetch session to verify ownership and existence
+        result = await db.execute(
+            select(InterviewSession).where(
+                InterviewSession.session_id == session_id,
+                InterviewSession.student_id == student_id
+            )
+        )
+        session = result.scalar_one_or_none()
+        if not session:
+            raise HTTPException(status_code=404, detail="Interview session not found.")
+
+        # 2. Fetch all turns (questions and answers) for this session
+        turns_result = await db.execute(
+            select(InterviewTurn)
+            .where(InterviewTurn.session_id == session_id)
+            .order_by(InterviewTurn.timestamp.asc())
+        )
+        turns = turns_result.scalars().all()
+
+        # 3. Prepare data for report_builder
+        # build_report expects a list of dicts with 'question', 'answer', and 'evaluation'
+        turn_dicts = []
+        for t in turns:
+            turn_dicts.append({
+                "question": t.question,
+                "answer": t.answer,
+                "evaluation": t.evaluation if t.evaluation else {}
+            })
+
+        # 4. Generate structured report data
+        report_dict = build_report(turn_dicts)
+
+        # 5. Generate PDF bytes using WeasyPrint
+        pdf_bytes = generate_report_pdf(report_dict)
+
+        # 6. Return as downloadable response
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=Interview_Report_{session_id.hex[:8]}.pdf"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to generate PDF report")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

@@ -14,77 +14,329 @@ Experience: {experience_years} years
 Skills: {skills}
 
 Return JSON:
-{{"skills": ["skill1","skill2"], "experience_level": "junior|mid|senior|lead", "domains": ["domain1"], "has_projects": true, "project_summary": "brief summary of projects"}}"""
+{{
+  "skills": ["skill1", "skill2"],
+  "experience_level": "junior|mid|senior|lead",
+  "domains": ["domain1"],
+  "has_projects": true,
+  "project_summary": "brief summary of projects"
+}}"""
 
 
 # ── Question Generator (Dynamic, Context-Aware, Resume-Aware) ─────────────
 
-QUESTION_GENERATION_PROMPT = """Generate one interview question. Return JSON only.
+PHASE_DESCRIPTIONS = {
+    "resume": "Focus on projects and tech stack from {rag_chunks}. Ask about technical choices and decisions.",
+    "core": "Focus on fundamentals: DBMS, OS, OOP. Ask conceptual questions.",
+    "problem_solving": "Focus on DSA basics, reasoning, and real-world scenarios.",
+    "behavioral": "Ask exactly one question about teamwork, conflict, or leadership.",
+}
 
-Job Description: {job_description}
-Student skills: {skill_summary}
-Last question asked: {last_question}
-Summary of last answer: {last_answer_summary}
-Student behavior: {behavior}
-Difficulty: {difficulty}
-Resume context: {resume_context}
+# ── Resume-Phase Prompt (dedicated — forces project-specific questions) ────
+RESUME_PHASE_QUESTION_PROMPT = """You are a senior technical interviewer. You MUST ask a question about the candidate's ACTUAL project.
 
+Projects:
+{project_summary}
+
+Context:
+{rag_chunks}
+
+CURRENT TOPIC: {topic}
+
+STRICT RULES:
+1. You MUST reference a SPECIFIC project, technology, or decision from the candidate's data above.
+2. Do NOT ask generic theory questions like "What is REST API?" or "Explain MVC".
+3. Ask about WHY they chose a technology, HOW they implemented something, or WHAT challenges they faced.
+4. Max 15 words, single intent, conversational tone.
+5. Examples of GOOD questions:
+   - "Why did you choose MongoDB for your e-commerce project?"
+   - "How did you handle authentication in your React app?"
+   - "What challenges did you face deploying your Flask API?"
+6. Examples of BAD questions (DO NOT generate these):
+   - "What is React?" (generic theory)
+   - "Explain how databases work" (not project-specific)
+   - "Tell me about your experience" (too vague)
+
+OUTPUT FORMAT (JSON only):
+{{
+  "question": "...",
+  "phase": "resume",
+  "topic": "{topic}",
+  "type": "primary"
+}}"""
+
+# ── Standard Prompt (for core, problem_solving, behavioral phases) ─────────
+QUESTION_GENERATION_PROMPT = """You are a senior technical interviewer conducting a structured interview.
+
+FLOW:
+Phases in order: resume, core, problem_solving, behavioral.
+
+RULES:
+1. RESUME PHASE: Use ONLY {rag_chunks}. Ask about project, tech stack, and decisions. Do NOT ask generic theory.
+2. CORE PHASE: Ask fundamentals from DBMS, OS, OOP.
+3. PROBLEM SOLVING: Ask DSA basics or scenarios.
+4. BEHAVIORAL: Ask ONLY 1 question about experience.
+5. ADAPTIVE: 
+   - weak answer -> change topic
+   - partial answer -> one follow-up
+   - strong answer -> deeper question
+6. QUALITY: Max 15 words, single intent, no repetition, no hallucination.
+7. TRANSITIONS: Use phrases like "Let's move to fundamentals" or "Now a problem-solving question."
+
+Current Phase: {phase}
+Topic: {topic}
+Intent: {type}
+
+OUTPUT FORMAT (JSON only):
+{{
+  "question": "...",
+  "phase": "{phase}",
+  "topic": "{topic}",
+  "type": "primary | follow-up"
+}}"""
+
+# ── Basic Practice Agent Prompt ──────────────────────────────────────────────
+BASIC_PRACTICE_QUESTION_GENERATION_PROMPT = """You are a strictly controlled interview question generator.
+
+You MUST generate the next question without causing system errors.
+
+---
+# 🎯 OBJECTIVE
+Generate ONE valid question that:
+* follows interview flow
+* does not repeat concepts
+* does not depend on unavailable variables
+
+---
+# 🧠 INPUT
+* mode: {mode}
+* question_number: {question_number}
+* used_concepts: {used_concepts}
+* last_answer: {last_answer}
+
+---
+# 🚨 SAFETY RULE (CRITICAL)
+DO NOT assume any variable exists unless explicitly provided.
+DO NOT use parameters like:
+* last_question
+* external memory not in input
+
+---
+# 🎯 BASIC PRACTICE FLOW
+Q1–Q2 → resume
+Q3–Q7 → core
+Q8–Q12 → DSA
+Q13–Q14 → behavioral
+Q15–Q20 → mixed
+
+---
+# 🚨 HARD FLOW CONTROL (MANDATORY)
+## Q1–Q2 → RESUME QUESTIONS ONLY
 Rules:
-1. Question must relate to the job description requirements
-2. Question should test skills relevant to the position
-3. Must NOT repeat the last question topic
-4. If behavior is "arrogant", ask a harder probing question
-5. If last answer was short or weak, ask a deeper follow-up on the same topic
-6. If last answer was detailed, ask the next logical technical question
-7. Use a human, professional, conversational tone — NOT robotic
-8. Clear, specific, answerable in 2-3 minutes
-9. CRITICAL: At least once in the interview, ask a question that explicitly references both the job description AND the student's resume/projects
+* MUST reference a real project (e.g., FarmXpert)
+* MUST ask about implementation
+* MUST NOT ask generic/system design questions
 
-Return JSON:
-{{"question": "question text", "topic": "specific topic", "difficulty": "easy|medium|hard"}}"""
+### ✅ VALID:
+* "How did you design the agent communication in FarmXpert?"
+* "How did you handle real-time sensor data in your project?"
+
+### ❌ INVALID:
+* "Design a scalable system"
+* "What is API?"
+* "Explain architecture"
+
+## Q3–Q7 → CORE SUBJECTS
+## Q8–Q12 → DSA
+## Q13–Q14 → BEHAVIORAL
+## Q15–Q20 → MIXED
+
+---
+# 🚨 CRITICAL RULE: PHASE LOCK
+You MUST NOT:
+* generate resume question if question_number > 2
+* generate core question if question_number <= 2
+
+---
+# 🚨 NO REPETITION
+* Never repeat concept
+* Never rephrase question
+
+---
+# 🚨 SKIP RULE
+If last_answer = "skip":
+* change topic completely
+* DO NOT ask follow-up
+
+---
+# 🚨 VALIDATION SIMPLIFICATION (VERY IMPORTANT)
+To avoid infinite rejection loop:
+* Allow only these checks:
+  ✔ concept not repeated
+  ✔ correct phase
+* IGNORE:
+  ❌ strict subtopic validation
+  ❌ over-restrictive filters
+
+---
+# 🎯 OUTPUT
+Return ONE clean question only in the following JSON format:
+```json
+{{
+  "question": "...",
+  "concept": "unique_concept",
+  "topic": "general",
+  "difficulty": "medium"
+}}
+```
+
+---
+# 🧠 FINAL RULE
+You are executing a FIXED interview flow, not generating random questions.
+"""
+
+# ── Strict Agent Unified Prompt ──────────────────────────────────────────────
+STRICT_QUESTION_GENERATION_PROMPT = """You are a STRICT role-based interview question generator.
+
+Your job is to generate ONE question with correct topic flow.
+
+---
+# 🎯 OBJECTIVE
+Generate a question that:
+* follows structured topic progression
+* introduces a NEW concept
+* changes topic after skip
+* avoids repetition
+
+---
+# 🧠 INPUT
+* mode: {mode}
+* question_number: {question_number}
+* used_concepts: {used_concepts}
+* used_topics: {used_topics}
+* last_answer: {last_answer}
+
+---
+# 🚨 CRITICAL RULES
+
+## 1. NO CONCEPT REPETITION
+If a concept is already used:
+→ DO NOT ask it again in any form
+
+### ❌ Example:
+Used: data consistency
+DO NOT ask:
+* consistency in distributed DB
+* ACID consistency
+* transaction consistency
+
+---
+## 2. TOPIC-BASED FLOW
+Questions MUST follow topic groups.
+
+### Example (Backend / Python):
+Topic order:
+1. APIs
+2. Authentication
+3. Database
+4. Concurrency
+5. System Design
+
+---
+## 3. SKIP RULE (VERY IMPORTANT)
+If last_answer = "skip" OR "no idea":
+→ CHANGE TOPIC completely
+
+### ❌ DO NOT:
+* ask deeper question on same topic
+
+### ✅ DO:
+Switch topic:
+DB → Concurrency
+Concurrency → APIs
+APIs → Security
+
+---
+## 4. DIFFICULTY FLOW
+* Q1–Q4 → easy
+* Q5–Q10 → medium
+* Q11–Q15 → hard
+
+---
+## 5. ONE CONCEPT ONLY
+Each question must test ONLY ONE idea.
+
+---
+## 6. NATURAL QUESTIONS
+Ask like real interviewer.
+
+---
+# 🚫 FORBIDDEN
+* repeating concept
+* rephrasing question
+* staying on same topic after skip
+* mixing random topics
+
+---
+# 🎯 OUTPUT
+Return ONLY:
+```json
+{{
+  "question": "...",
+  "concept": "...",
+  "topic": "..."
+}}
+```
+"""
+
 
 
 # ── Resume-Aware First Question (with projects) ─────────────────────────
 
-RESUME_PROJECT_QUESTION_PROMPT = """Generate the first interview question about the student's projects. Return JSON only.
+RESUME_PROJECT_QUESTION_PROMPT = """Generate a project-based interview question. Return JSON only.
 
 Job Description: {job_description}
 Student skills: {skill_summary}
 Project summary: {project_summary}
 Difficulty: {difficulty}
 
-Rules:
-1. Ask about a specific project from their resume that relates to the job description
-2. Ask about technologies used, challenges faced, or a real-world problem they solved
-3. Connect the project to job requirements when possible
-4. Tone must be human, professional, and friendly — like a real interviewer
-5. CRITICAL: Explicitly reference the job description and how their project experience aligns with it
-6. Example tone: "I see in your resume you worked on [project]. The job description emphasizes [requirement]. Can you explain how your experience on that project prepared you for this?"
+RULES:
+1. LENGTH: Max 18 words.
+2. SINGLE INTENT: Ask about one specific aspect of a project.
+3. STYLE: Conversational ("How did you...", "Why did you choose...").
+4. CONTENT: Explicitly reference a project from their resume: {project_summary}.
 
 Return JSON:
-{{"question": "question text", "topic": "specific topic", "difficulty": "easy|medium|hard"}}"""
+{{
+  "question": "question text",
+  "type": "primary",
+  "intent": "reasoning",
+  "topic": "projects",
+  "difficulty": "medium"
+}}"""
 
 
 # ── Resume-Aware First Question (NO projects) ───────────────────────────
 
-RESUME_NO_PROJECT_QUESTION_PROMPT = """Generate the first interview question for a student without projects. Return JSON only.
+RESUME_NO_PROJECT_QUESTION_PROMPT = """Generate a fundamental skill interview question. Return JSON only.
 
 Job Description: {job_description}
 Student skills: {skill_summary}
 Difficulty: {difficulty}
 
-The student's resume does NOT include any project details. Your first question should relate to the job description and test their fundamental understanding of required skills.
-
-Rules:
-1. Ask a fundamental question related to the job description
-2. Test basic understanding of required skills
-3. Be polite. Do NOT judge the student.
-4. Human, professional, conversational tone — NOT robotic
-5. CRITICAL: Explicitly reference the job description and how their skills align with what the role requires
-6. Example tone: "I see from your resume that you have experience with [skill]. The job description emphasizes [requirement]. Can you explain how you would apply [skill] to solve a typical problem in this role?"
+RULES:
+1. LENGTH: Max 18 words.
+2. SINGLE INTENT: Ask only one conceptual thing.
+3. STYLE: Conversational ("What does...", "How would you...").
 
 Return JSON:
-{{"question": "question text", "topic": "projects", "difficulty": "easy"}}"""
+{{
+  "question": "question text",
+  "type": "primary",
+  "intent": "concept",
+  "topic": "fundamentals",
+  "difficulty": "easy"
+}}"""
 
 
 # ── Answer Evaluation (with Behavior Classification) ─────────────────────
@@ -277,28 +529,28 @@ Job Description: {job_description}
 Student skills: {skill_summary}
 Last question asked: {last_question}
 Summary of last answer: {last_answer_summary}
-Student behavior: {behavior}
 Difficulty: {difficulty}
 
 RELEVANT CV CONTEXT (from candidate's actual resume/documents):
 {rag_context}
 
-Rules:
-1. Use the CV context to ask SPECIFIC questions about the candidate's actual experience
-2. Reference their real projects, skills, or experience from the CV context
-3. Must NOT repeat the last question topic
-4. If candidate mentioned a technology in their answer, ask a deeper follow-up about it
-5. If behavior is "arrogant", ask a harder probing question
-6. If last answer was weak, ask a deeper follow-up on the same topic
-7. If last answer was detailed, move to the next logical topic from their CV
-8. Use a human, professional, conversational tone — NOT robotic
-9. Clear, specific, answerable in 2-3 minutes
+CRITICAL RULES:
+1. LENGTH: Max 18 words.
+2. SINGLE INTENT: Ask only one thing from the CV context.
+3. STYLE: Conversational ("How did you...", "What was the...").
+4. CONTENT: Reference their real projects or experience from the CV context.
 
 Return JSON:
-{{"question": "question text", "topic": "specific topic", "difficulty": "easy|medium|hard"}}"""
+{{
+  "question": "question text",
+  "type": "primary",
+  "intent": "concept|reasoning",
+  "topic": "specific topic",
+  "difficulty": "easy|medium|hard"
+}}"""
 
 
-RAG_FOLLOWUP_PROMPT = """Generate a follow-up question based on the candidate's answer and related CV data. Return JSON only.
+RAG_FOLLOWUP_PROMPT = """Generate a human-like follow-up question. Return JSON only.
 
 Previous question: {last_question}
 Candidate's answer: {last_answer}
@@ -307,14 +559,21 @@ Difficulty: {difficulty}
 RELATED CONCEPTS FROM CANDIDATE'S CV:
 {followup_context}
 
-Rules:
-1. Ask a follow-up that connects the candidate's answer to related concepts from their CV
-2. Make the interview feel natural — like a real interviewer who read their resume
-3. Example: If they mentioned "React hooks", ask about useEffect or state management from their projects
-4. Tone: professional, conversational, human-like
+CRITICAL RULES:
+1. LENGTH: Max 18 words.
+2. SINGLE INTENT: Ask just one deeper thing.
+3. LOGIC: 
+   - If answer was weak: Ask clarification.
+   - If answer was strong: Ask trade-offs/why ("What are the trade-offs...", "Why did you...").
 
 Return JSON:
-{{"question": "question text", "topic": "specific topic", "difficulty": "easy|medium|hard"}}"""
+{{
+  "question": "question text",
+  "type": "follow-up",
+  "intent": "clarification|reasoning",
+  "topic": "specific topic",
+  "difficulty": "easy|medium|hard"
+}}"""
 
 
 # ── Weighted Scoring Evaluation ───────────────────────────────────────────

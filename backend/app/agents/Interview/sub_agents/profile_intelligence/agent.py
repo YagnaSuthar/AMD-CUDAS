@@ -23,112 +23,85 @@ logger = logging.getLogger(__name__)
 async def analyze_profile(
     student_id: UUID,
     db: AsyncSession,
-    llm: Any,
+    llm: Any,  # Kept for signature compatibility but not used
 ) -> Dict[str, Any]:
     """
-    Fetch the student's profile + skills from the DB, then invoke the LLM
-    to produce a structured profile analysis.
-    Also fetches from AuthUser for skills and resume_url.
+    Fetch stored profile intelligence from AuthUser.
+    NO LLM call during interview.
+    Returns deterministic, cached data extracted during resume upload.
 
     Returns
     -------
     dict   {"skills": [...], "experience_level": str, "domains": [...],
             "has_projects": bool, "project_summary": str}
     """
-    logger.info("ProfileIntelligenceAgent: analysing student %s", student_id)
+    logger.info("ProfileIntelligenceAgent: fetching stored profile for student %s", student_id)
 
-    # ── Fetch from AuthUser (primary source for skills/resume) ──────────
+    # ── Fetch from AuthUser (primary source for all profile data) ──────────
     auth_result = await db.execute(
         select(AuthUser).where(AuthUser.id == student_id)
     )
     auth_user: AuthUser | None = auth_result.scalar_one_or_none()
 
-    auth_skills: List[str] = []
-    resume_url: str = ""
-    if auth_user:
-        auth_skills = auth_user.skills or []
-        resume_url = auth_user.resume_url or ""
-
-    # ── Fetch StudentProfile from interview tables ──────────────────────
-    profile_result = await db.execute(
-        select(StudentProfile).where(StudentProfile.student_id == student_id)
-    )
-    profile: StudentProfile | None = profile_result.scalar_one_or_none()
-
-    # ── Fetch skills from interview Skill table ─────────────────────────
-    skills_result = await db.execute(
-        select(Skill).where(Skill.student_id == student_id)
-    )
-    skills: List[Skill] = list(skills_result.scalars().all())
-
-    # Merge all skill sources
-    all_skills = list(set(
-        auth_skills
-        + [s.skill_name for s in skills]
-    ))
-
-    if not all_skills and not profile:
-        logger.warning("No profile found for student %s — returning defaults", student_id)
+    if not auth_user:
+        logger.warning("AuthUser not found for student %s — returning defaults", student_id)
         return {
             "skills": [],
+            "projects": [],
             "experience_level": "junior",
             "domains": ["general"],
             "has_projects": False,
             "project_summary": "",
         }
 
-    # Build skills string for LLM
-    skills_str = ", ".join(all_skills) if all_skills else "None listed"
+    # Extract stored intelligence from AuthUser
+    skills = auth_user.skills or []
+    projects = auth_user.projects or []
+    project_summary = auth_user.project_summary or ""
+    resume_text = auth_user.resume_text or ""
 
-    resume_text = ""
-    portfolio_text = ""
+    # Determine experience level from resume text (simple heuristic)
     experience_years = 0
+    if resume_text:
+        import re
+        # Look for patterns like "5 years", "3+ years", etc.
+        year_matches = re.findall(r'(\d+)\+?\s*years?', resume_text.lower())
+        if year_matches:
+            try:
+                experience_years = max(int(m) for m in year_matches)
+            except ValueError:
+                pass
 
-    if profile:
-        resume_text = profile.resume_text or ""
-        portfolio_text = profile.portfolio_text or ""
-        experience_years = profile.experience_years
-
-    # ── Build prompt & call LLM ──────────────────────────────────────────
-    prompt = PROFILE_ANALYSIS_PROMPT.format(
-        resume_text=resume_text or "Not provided",
-        portfolio_text=portfolio_text or "Not provided",
-        experience_years=experience_years,
-        skills=skills_str,
+    experience_level = (
+        "senior" if experience_years >= 5
+        else "mid" if experience_years >= 2
+        else "junior"
     )
 
-    try:
-        response = await llm.ainvoke(prompt)
-        content: str = getattr(response, "content", str(response))
-        result = parse_json_response(content)
-        logger.info("ProfileIntelligenceAgent: analysis complete for %s", student_id)
+    # Determine domains from skills (simple mapping)
+    domains = set(["general"])
+    skill_lower = " ".join(skills).lower()
+    if any(k in skill_lower for k in ["python", "java", "javascript", "react", "node", "angular"]):
+        domains.add("software")
+    if any(k in skill_lower for k in ["ml", "machine learning", "tensorflow", "pytorch", "ai"]):
+        domains.add("ai/ml")
+    if any(k in skill_lower for k in ["aws", "azure", "gcp", "docker", "kubernetes"]):
+        domains.add("cloud")
+    if any(k in skill_lower for k in ["sql", "mongodb", "postgresql", "mysql"]):
+        domains.add("data")
 
-        # Merge LLM-extracted skills with DB skills
-        llm_skills = result.get("skills", [])
-        merged_skills = list(set(all_skills + llm_skills))
+    has_projects = bool(projects) or bool(project_summary)
 
-        has_projects = result.get("has_projects", bool(resume_text and "project" in resume_text.lower()))
-        project_summary = result.get("project_summary", "")
+    logger.info(
+        "ProfileIntelligenceAgent: retrieved stored profile for %s — %d skills, %d projects, level=%s",
+        student_id, len(skills), len(projects), experience_level
+    )
 
-        return {
-            "skills": merged_skills,
-            "experience_level": result.get("experience_level", "junior"),
-            "domains": result.get("domains", ["general"]),
-            "has_projects": has_projects,
-            "project_summary": project_summary,
-        }
-    except Exception as exc:
-        logger.error("ProfileIntelligenceAgent LLM error: %s", exc)
-        # Fallback: return DB data directly
-        has_projects = bool(resume_text and "project" in resume_text.lower())
-        return {
-            "skills": all_skills,
-            "experience_level": (
-                "senior" if experience_years >= 5
-                else "mid" if experience_years >= 2
-                else "junior"
-            ),
-            "domains": ["general"],
-            "has_projects": has_projects,
-            "project_summary": "",
-        }
+    return {
+        "skills": skills,
+        "projects": projects,
+        "experience_level": experience_level,
+        "domains": list(domains),
+        "has_projects": has_projects,
+        "project_summary": project_summary,
+    }

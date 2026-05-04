@@ -96,8 +96,17 @@ class AuthUser(Base):
     goal: Mapped[str | None] = mapped_column(Text, nullable=True)
     github_username: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
+    # Resume processing fields
+    resume_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resume_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
+    projects: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    project_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
     # Self-referential relationship for hierarchy

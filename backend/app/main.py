@@ -59,6 +59,23 @@ async def lifespan(app: FastAPI):
             """)
         )
 
+        # student_profiles
+        await conn.execute(
+            text("""
+                ALTER TABLE student_profiles
+                    ADD COLUMN IF NOT EXISTS has_projects BOOLEAN DEFAULT FALSE,
+                    ADD COLUMN IF NOT EXISTS project_summary TEXT;
+            """)
+        )
+
+        # interview_sessions
+        await conn.execute(
+            text("""
+                ALTER TABLE interview_sessions
+                    ADD COLUMN IF NOT EXISTS mode VARCHAR(50) DEFAULT 'basic';
+            """)
+        )
+
         # certificates
         await conn.execute(
             text("""

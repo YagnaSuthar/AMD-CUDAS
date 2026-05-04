@@ -436,66 +436,92 @@ async def upload_resume(
         _logger.warning("OCR extraction failed: %s", e)
         extracted_text = ""
 
-    # ── Step 3: Extract skills from text ──────────────────────────────────
+    # ── Step 3: Generate resume hash and compare ─────────────────────────────
+    import hashlib
+    new_hash = hashlib.sha256(extracted_text.encode()).hexdigest()
+    _logger.info("Generated resume hash (len=%d): %s", len(extracted_text), new_hash[:16])
+
+    # If hash unchanged, skip LLM processing
+    if current_user.resume_hash == new_hash:
+        _logger.info("Resume unchanged (hash match) — skipping profile extraction")
+        # Still update file URL in case it changed
+        current_user.resume_url = f"/certificates/{unique_name}"
+        await db.commit()
+        return MessageResponse(message="Resume uploaded successfully (content unchanged).")
+
+    # ── Step 4: Extract skills and projects from text (LLM Powered) ───────
     extracted_skills: list[str] = []
+    extracted_projects: list[str] = []
+    has_projects = False
+    project_summary = ""
+    
     try:
         if extracted_text:
-            text = extracted_text
-            m = re.search(
-                r"(?is)(?:^|\n)\s*(?:technical\s+)?skills\s*[:\-]?\s*(.+?)(?:\n\s*\n|\n[A-Z][A-Za-z \t]{2,}:|\n[A-Z][A-Z \t]{2,}\n|$)",
-                text,
-            )
-            skills_blob = m.group(1) if m else ""
-            if not skills_blob:
-                skills_blob = "\n".join(text.splitlines()[:60])
+            from app.core.llm import get_llm
+            llm = get_llm()
+            
+            extract_prompt = f"""Extract ONLY a list of professional technical skills, a list of project titles, and a brief project summary from this resume text.
+            
+            RESUME TEXT:
+            {extracted_text[:4000]}
+            
+            Return ONLY a JSON object with:
+            {{
+              "skills": ["skill1", "skill2"],
+              "projects": ["Project Title 1", "Project Title 2"],
+              "has_projects": true/false,
+              "project_summary": "2-3 sentences about their main projects"
+            }}
+            
+            RULES:
+            1. 'skills' must ONLY contain technical skills (languages, frameworks, tools, databases).
+            2. 'projects' must be short project titles (not descriptions).
+            3. DO NOT include: names, cities, states, countries, phone numbers, email addresses, or words like 'Contact', 'Education', 'Address', 'Profile'.
+            4. If a skill looks like a location (e.g., 'Ahmedabad', 'Gujarat', 'India'), EXCLUDE it.
+            5. If a skill looks like a person's name (e.g., 'Nirja Patel'), EXCLUDE it.
+            6. If you are unsure if something is a technical skill or project, EXCLUDE it.
+            """
+            
+            try:
+                response = await llm.ainvoke(extract_prompt)
+                content = getattr(response, "content", str(response))
+                import json as _json
+                # Clean JSON string (remove markdown fences)
+                if "```json" in content:
+                    content = content.split("```json")[1].split("```")[0].strip()
+                elif "```" in content:
+                    content = content.split("```")[1].split("```")[0].strip()
+                
+                res_data = _json.loads(content)
+                extracted_skills = res_data.get("skills", [])
+                extracted_projects = res_data.get("projects", [])
+                has_projects = res_data.get("has_projects", False)
+                project_summary = res_data.get("project_summary", "")
+                
+                _logger.info("LLM extracted %d skills, %d projects, has_projects=%s", len(extracted_skills), len(extracted_projects), has_projects)
+            except Exception as e:
+                _logger.warning("LLM extraction failed, using fallback: %s", e)
+                # Fallback to basic extraction if LLM fails
+                extracted_skills = []
+                extracted_projects = []
+    except Exception as e:
+        _logger.error("Skill extraction logic failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"Profile extraction failed: {str(e)}") from e
 
-            parts = re.split(r"[\n,;|/•\u2022\t]+", skills_blob)
-            cleaned: list[str] = []
-            for p in parts:
-                s = re.sub(r"\s+", " ", (p or "").strip())
-                if not s:
-                    continue
-                if len(s) < 2 or len(s) > 40:
-                    continue
-                if re.search(r"\d{4,}", s):
-                    continue
-                cleaned.append(s)
-
-            seen: set[str] = set()
-            for s in cleaned:
-                k = s.lower()
-                if k in seen:
-                    continue
-                seen.add(k)
-                extracted_skills.append(s)
-            extracted_skills = extracted_skills[:50]
-            _logger.info("Extracted %d skills from resume text", len(extracted_skills))
-    except Exception:
-        extracted_skills = []
-
-    # ── Step 4: Update user profile ───────────────────────────────────────
+    # ── Step 5: Overwrite user profile with extracted intelligence ───────────────
     current_user.resume_url = f"/certificates/{unique_name}"
+    current_user.resume_text = extracted_text
+    current_user.resume_hash = new_hash
+    # Overwrite (do not merge) to ensure clean data
+    current_user.skills = extracted_skills or []
+    current_user.projects = extracted_projects or []
+    current_user.project_summary = project_summary or ""
+    # updated_at will be auto-updated by onupdate
 
-    if extracted_skills:
-        existing = current_user.skills or []
-        seen = {str(x).strip().lower() for x in existing if str(x).strip()}
-        merged = list(existing)
-        for s in extracted_skills:
-            k = s.strip().lower()
-            if not k or k in seen:
-                continue
-            seen.add(k)
-            merged.append(s)
-        current_user.skills = merged
+    _logger.info("Overwrote user profile: %d skills, %d projects", len(extracted_skills), len(extracted_projects))
 
+    # Also update legacy StudentProfile for compatibility
     from app.models.interview import StudentProfile
-    from app.models.auth import AuthUser
-
-    user_result = await db.execute(select(AuthUser).where(AuthUser.id == current_user.id))
-    user_exists = user_result.scalar_one_or_none()
-    if user_exists is None:
-        raise HTTPException(status_code=404, detail="User not found in database")
-
     try:
         profile_result = await db.execute(
             select(StudentProfile).where(StudentProfile.student_id == current_user.id)
@@ -503,13 +529,19 @@ async def upload_resume(
         profile = profile_result.scalar_one_or_none()
         if profile:
             profile.resume_text = extracted_text
+            profile.has_projects = has_projects
+            profile.project_summary = project_summary
         else:
-            db.add(StudentProfile(student_id=current_user.id, resume_text=extracted_text))
+            db.add(StudentProfile(
+                student_id=current_user.id, 
+                resume_text=extracted_text,
+                has_projects=has_projects,
+                project_summary=project_summary
+            ))
     except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to update student profile: {str(e)}") from e
+        _logger.error("Failed to update legacy StudentProfile (non-fatal): %s", e)
 
-    # ── Step 5: RAG Pipeline — Chunk → Embed → Store in pgvector ──────────
+    # ── Step 6: RAG Pipeline — Chunk → Embed → Store in pgvector ──────────
     rag_msg = ""
     if extracted_text and len(extracted_text.strip()) > 50:
         try:

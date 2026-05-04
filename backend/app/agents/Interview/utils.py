@@ -10,6 +10,58 @@ from typing import Any, Dict
 logger = logging.getLogger(__name__)
 
 
+def estimate_tokens(text: str) -> int:
+    """Rough character-heuristic for token estimation."""
+    return len(str(text)) // 4
+
+
+class InterviewTracer:
+    """
+    Debugging and Observability tracer for the Interview system.
+    """
+    @staticmethod
+    def log_prompt(phase: str, topic: str, q_type: str, prompt: str):
+        debug_info = {
+            "phase": phase,
+            "topic": topic,
+            "type": q_type,
+            "prompt": (prompt[:500] + "...") if len(prompt) > 500 else prompt
+        }
+        print(f"\nPROMPT DEBUG:\n{json.dumps(debug_info, indent=2)}\n")
+
+    @staticmethod
+    def log_rag(query: str, top_k: int, results: list):
+        chunks = []
+        for r in results:
+            content = r.get("content", "")
+            chunks.append((content[:200] + "...") if len(content) > 200 else content)
+        
+        debug_info = {
+            "query": query,
+            "top_k": top_k,
+            "chunks": chunks
+        }
+        print(f"\nRAG DEBUG:\n{json.dumps(debug_info, indent=2)}\n")
+
+    @staticmethod
+    def log_token_usage(resume_tokens: int, jd_tokens: int, history_tokens: int, total_tokens: int):
+        debug_info = {
+            "resume_tokens": resume_tokens,
+            "jd_tokens": jd_tokens,
+            "history_tokens": history_tokens,
+            "total_tokens": total_tokens
+        }
+        print(f"\nTOKEN DEBUG:\n{json.dumps(debug_info, indent=2)}\n")
+
+    @staticmethod
+    def log_context_source(sources: list):
+        print(f"\nCONTEXT SOURCE: {sources}\n")
+
+    @staticmethod
+    def log_pipeline_step(step: int, name: str, result: Any):
+        print(f"STEP TRACE {step}: {name} -> {str(result)[:200]}")
+
+
 def parse_json_response(content: str) -> Dict[str, Any]:
     """
     Parse a JSON response from the LLM, handling:

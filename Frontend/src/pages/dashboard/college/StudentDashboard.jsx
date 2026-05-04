@@ -300,7 +300,7 @@ export default function StudentDashboard() {
                         <p>No AI interviews assigned yet. Check back later for new opportunities!</p>
                         <button 
                             className="btn btn-primary" 
-                            onClick={() => navigate('/dashboard/interview/live?mode=practice')}
+                            onClick={() => navigate('/dashboard/interview', { state: { openRules: true } })}
                             style={{ marginTop: '10px' }}
                         >
                             Practice AI Interview

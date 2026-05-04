@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 class StartInterviewRequest(BaseModel):
     """POST /interview/start — student_id extracted from JWT."""
     job_role: str = Field(..., min_length=1, max_length=255)
+    mode: str = Field(default="basic")
 
 
 class StartInterviewResponse(BaseModel):
@@ -64,7 +65,7 @@ class SubmitAnswerRequest(BaseModel):
     """POST /interview/answer"""
     session_id: uuid.UUID
     question_id: uuid.UUID
-    answer_text: str = Field(..., min_length=1)
+    answer_text: str = Field(default="")
     audio_path: Optional[str] = None
 
 
@@ -145,6 +146,31 @@ class SessionDetailResponse(BaseModel):
     overall_score: Optional[float] = None
     recommendation: Optional[str] = None
     questions: List[SessionQuestionAnswer]
+
+
+class InterviewScoreBreakdown(BaseModel):
+    technical: float = 0.0
+    communication: float = 0.0
+    behavior: float = 0.0
+
+
+class InterviewReportQuestionItem(BaseModel):
+    question: str
+    answer: str = ""
+    evaluation: dict = Field(default_factory=dict)
+
+
+class InterviewSessionReportResponse(BaseModel):
+    """GET /interview/{session_id}/report"""
+    session_id: uuid.UUID
+    status: str
+    final_score: float = 0.0  # 0-100
+    scores: InterviewScoreBreakdown = InterviewScoreBreakdown()
+    strengths: List[str] = []
+    weaknesses: List[str] = []
+    summary: str = ""
+    questions: List[InterviewReportQuestionItem] = []
+    pdf_url: str = ""
 
 
 # ── Proctoring / Detector Agent ───────────────────────────────────────────
@@ -258,6 +284,27 @@ class FeedbackOutput(BaseModel):
     recruiter_report: Optional[dict] = None
     # Proctoring integrity data from DetectorAgent
     proctoring_summary: Optional[dict] = None
+
+
+class VisualizationRadarOutput(BaseModel):
+    correctness: float = Field(ge=0.0, le=10.0)
+    communication: float = Field(ge=0.0, le=10.0)
+    depth: float = Field(ge=0.0, le=10.0)
+    dsa: float = Field(ge=0.0, le=10.0)
+    consistency: float = Field(ge=0.0, le=10.0)
+
+
+class VisualizationSummaryOutput(BaseModel):
+    strengths: List[str] = []
+    weaknesses: List[str] = []
+    improvements: List[str] = []
+
+
+class VisualizationReportResponse(BaseModel):
+    overall_score: float = Field(ge=0.0, le=10.0)
+    rating: str
+    radar: VisualizationRadarOutput
+    summary: VisualizationSummaryOutput
 
 
 # ── Rebuild forward refs so nested models resolve ────────────────────────
