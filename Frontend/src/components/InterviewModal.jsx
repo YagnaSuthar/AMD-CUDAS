@@ -28,6 +28,22 @@ const STATES = {
     ERROR: 'error',
 };
 
+const INTRO_TEMPLATE_WITH_NAME = (
+    "Hi {name}, welcome to the CUDAS AI Interview. " +
+    "Please try to explain your answers clearly, including why and how things work. " +
+    "Take your time, stay calm, and do your best."
+);
+
+const INTRO_TEMPLATE_NO_NAME = (
+    "Hi, welcome to the CUDAS AI Interview. " +
+    "Please try to explain your answers clearly, including why and how things work. " +
+    "Take your time, stay calm, and do your best."
+);
+
+const CLOSING_TEMPLATE = (
+    "Thank you for your responses. This concludes your interview."
+);
+
 // ── SVG Icons ───────────────────────────────────────────────────────────
 const MicIcon = () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -60,6 +76,8 @@ export default function InterviewModal({ onClose, pipeline = null }) {
 
     const recognitionRef = useRef(null);
     const silenceTimerRef = useRef(null);
+    const introSpokenRef = useRef(false);
+    const candidateNameRef = useRef(null);
     const userHasSpokenRef = useRef(false);
     const lastSpeechTsRef = useRef(null);
 
@@ -96,6 +114,10 @@ export default function InterviewModal({ onClose, pipeline = null }) {
         window.speechSynthesis.speak(utterance);
     }, []);
 
+    useEffect(() => {
+        if (sessionId) introSpokenRef.current = false;
+    }, [sessionId]);
+
     // ── Fetch config and start interview ─────────────────────────────
     useEffect(() => {
         const init = async () => {
@@ -121,6 +143,7 @@ export default function InterviewModal({ onClose, pipeline = null }) {
                 const data = res.data;
                 setSessionId(data.session_id);
                 setAgentText(data.greeting);
+                candidateNameRef.current = data.student_name || null;
                 setState(STATES.GREETING);
 
                 // Speak the greeting
@@ -150,21 +173,53 @@ export default function InterviewModal({ onClose, pipeline = null }) {
                 answer: answer,
             });
             const data = res.data;
-            setAgentText(data.agent_message);
-            speak(data.agent_message);
-
             switch (data.next_step) {
                 case 'confirm_start':
+                    setAgentText(data.agent_message);
+                    speak(data.agent_message);
                     setState(STATES.CONFIRM_START);
                     break;
                 case 'session_closed':
+                    setAgentText(data.agent_message);
+                    speak(data.agent_message);
                     setState(STATES.CLOSED);
                     break;
                 case 'first_question':
                     if (data.first_question) {
                         setCurrentQuestion(data.first_question);
                         setQuestionNumber(1);
-                        // After the agent message is spoken, show the question
+
+                        const extractNameFromGreeting = (greetingText) => {
+                            const t = String(greetingText || '').trim();
+                            if (!t) return null;
+                            const m = t.match(/^(hi|hello)\s+([^,!.]{1,40})[,!\.]/i);
+                            if (!m) return null;
+                            const name = (m[2] || '').trim();
+                            if (!name) return null;
+                            if (name.length > 40) return null;
+                            return name;
+                        };
+
+                        const candidateName = candidateNameRef.current || extractNameFromGreeting(data.agent_message);
+                        const introText = candidateName
+                            ? INTRO_TEMPLATE_WITH_NAME.replace('{name}', String(candidateName).trim())
+                            : INTRO_TEMPLATE_NO_NAME;
+
+                        if (!introSpokenRef.current) {
+                            introSpokenRef.current = true;
+                            setAgentText(introText);
+                            speak(introText, () => {
+                                setAgentText(data.agent_message);
+                                speak(data.agent_message, () => {
+                                    setAgentText(data.first_question.question);
+                                    setState(STATES.QUESTION);
+                                    speak(data.first_question.question);
+                                });
+                            });
+                            return; // Don't speak again below
+                        }
+
+                        setAgentText(data.agent_message);
                         speak(data.agent_message, () => {
                             setAgentText(data.first_question.question);
                             setState(STATES.QUESTION);
@@ -313,8 +368,11 @@ export default function InterviewModal({ onClose, pipeline = null }) {
 
             if (data.next_action === 'end') {
                 setAgentText(agentResponse + ' Let me prepare your final report...');
-                speak(agentResponse, async () => {
-                    await endInterview();
+                speak(agentResponse, () => {
+                    setAgentText(CLOSING_TEMPLATE);
+                    speak(CLOSING_TEMPLATE, async () => {
+                        await endInterview();
+                    });
                 });
             } else {
                 setAgentText(agentResponse);

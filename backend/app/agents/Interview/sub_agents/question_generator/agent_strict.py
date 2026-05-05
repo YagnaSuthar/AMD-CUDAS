@@ -45,11 +45,11 @@ ALLOWED_MODES = {
     "devops",
 }
 
-# Similarity guardrail: deliberately conservative. High overlap => reject.
-# Tightened to catch paraphrases as well.
-SEMANTIC_JACCARD_THRESHOLD = 0.55
-SEMANTIC_BIGRAM_JACCARD_THRESHOLD = 0.40
-SEMANTIC_SEQUENCE_RATIO_THRESHOLD = 0.86
+# Similarity guardrail: ultra-conservative. ANY paraphrase or similar meaning => reject.
+# Aggressive thresholds to ensure ZERO semantic repetition across all modes.
+SEMANTIC_JACCARD_THRESHOLD = 0.45
+SEMANTIC_BIGRAM_JACCARD_THRESHOLD = 0.32
+SEMANTIC_SEQUENCE_RATIO_THRESHOLD = 0.80
 
 # Minimal stopword list for semantic repetition checks (no external deps).
 _STOPWORDS = {
@@ -195,7 +195,7 @@ def _is_semantic_repeat(question: str, history: list[str]) -> bool:
         # 4) Extra strictness: if both token and sequence are moderately high, reject
         if q_norm and h_norm:
             ratio2 = difflib.SequenceMatcher(a=q_norm, b=h_norm).ratio()
-            if sim >= 0.42 and ratio2 >= 0.78:
+            if sim >= 0.35 and ratio2 >= 0.70:
                 return True
     return False
 
@@ -221,12 +221,16 @@ def _validate_question(
     used_concepts: list[str] | None = None,
 ) -> tuple[bool, str]:
     """Return (is_valid, reason)."""
+    # UNIVERSAL SEMANTIC REPEAT GUARD: applies to ALL modes
+    if _is_repeat(question, history):
+        logger.warning("QuestionGeneratorAgent: exact repeat rejected in mode=%s: %s", mode, question)
+        return False, "repeat"
+    if _is_semantic_repeat(question, [h for h in (history or []) if isinstance(h, str)]):
+        logger.warning("QuestionGeneratorAgent: semantic repeat rejected in mode=%s: %s", mode, question)
+        return False, "semantic_repeat"
+
     if mode == "basic":
-        # SIMPLIFIED VALIDATION FOR BASIC MODE (as requested by user)
-        if _is_repeat(question, history):
-            return False, "repeat"
-        if _is_semantic_repeat(question, [h for h in (history or []) if isinstance(h, str)]):
-            return False, "semantic_repeat"
+        # Additional basic-mode checks
         if used_concepts is not None:
             if not str(concept or "").strip():
                 pass # ignore missing concept error to prevent loop
@@ -238,10 +242,6 @@ def _validate_question(
         return False, "exceeds_15_questions"
     if mode != "basic" and _is_behavioral(question):
         return False, "behavioral_question"
-    if _is_repeat(question, history):
-        return False, "repeat"
-    if _is_semantic_repeat(question, [h for h in (history or []) if isinstance(h, str)]):
-        return False, "semantic_repeat"
     if _is_multi_part(question):
         return False, "multi_part"
     if _is_too_long(question):

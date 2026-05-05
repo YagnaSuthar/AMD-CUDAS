@@ -49,6 +49,22 @@ const SKIP_PATTERNS = [
   'pass',
 ];
 
+const INTRO_TEMPLATE_WITH_NAME = (
+  "Hi {name}, welcome to the CUDAS AI Interview. " +
+  "Please try to explain your answers clearly, including why and how things work. " +
+  "Take your time, stay calm, and do your best."
+);
+
+const INTRO_TEMPLATE_NO_NAME = (
+  "Hi, welcome to the CUDAS AI Interview. " +
+  "Please try to explain your answers clearly, including why and how things work. " +
+  "Take your time, stay calm, and do your best."
+);
+
+const CLOSING_TEMPLATE = (
+  "Thank you for your responses. This concludes your interview."
+);
+
 /* â”€â”€ SVG Icons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 const MicIcon   = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>;
@@ -126,8 +142,31 @@ export default function InterviewLive() {
   const autoListenRef   = useRef(false);
   const submitAnswerRef  = useRef(null);
   const hasStartedRef   = useRef(false);
+  const introSpokenRef  = useRef(false);
+  const candidateNameRef = useRef(null);
   const finalTranscriptRef = useRef('');         // accumulates final results across STT segments
   const isListeningRef     = useRef(false);      // tracks if we WANT to keep listening
+
+  const extractNameFromGreeting = useCallback((greetingText) => {
+    const t = String(greetingText || '').trim();
+    if (!t) return null;
+    const m = t.match(/^(hi|hello)\s+([^,!.]{1,40})[,!\.]/i);
+    if (!m) return null;
+    const name = (m[2] || '').trim();
+    if (!name) return null;
+    if (name.length > 40) return null;
+    return name;
+  }, []);
+
+  const buildIntroMessage = useCallback((candidateName) => {
+    const name = (candidateName || '').trim();
+    if (name) return INTRO_TEMPLATE_WITH_NAME.replace('{name}', name);
+    return INTRO_TEMPLATE_NO_NAME;
+  }, []);
+
+  useEffect(() => {
+    if (sessionId) introSpokenRef.current = false;
+  }, [sessionId]);
 
   /* â”€â”€ fullscreen is now handled by DashboardLayout.jsx â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
@@ -637,7 +676,10 @@ export default function InterviewLive() {
         setInterviewStarted(false);
       } else if (d.next_action === 'end') {
         setAgentText((d.agent_response || '') + ' Preparing your report...');
-        speak(d.agent_response, () => endInterview());
+        speak(d.agent_response, () => {
+          setAgentText(CLOSING_TEMPLATE);
+          speak(CLOSING_TEMPLATE, () => endInterview());
+        });
       } else {
         setAgentText(d.agent_response);
         speak(d.agent_response, () => {
@@ -735,10 +777,16 @@ export default function InterviewLive() {
     try {
       const r = await api.post('/ai/interview/greet', { session_id: sessionId, answer: ans });
       const d = r.data;
-      setAgentText(d.agent_message);
-      speak(d.agent_message);
-      if (d.next_step === 'confirm_start') setState(STATES.CONFIRM_START);
-      else if (d.next_step === 'session_closed') setState(STATES.CLOSED);
+      if (d.next_step === 'confirm_start') {
+        setAgentText(d.agent_message);
+        speak(d.agent_message);
+        setState(STATES.CONFIRM_START);
+      }
+      else if (d.next_step === 'session_closed') {
+        setAgentText(d.agent_message);
+        speak(d.agent_message);
+        setState(STATES.CLOSED);
+      }
       else if (d.next_step === 'first_question' && d.first_question) {
         const firstQid = d.first_question.question_id || d.first_question.questionId || d.first_question.id;
         if (!firstQid) {
@@ -756,12 +804,33 @@ export default function InterviewLive() {
         setDifficulty(d.first_question.difficulty || 'medium');
         setTranscript('');
         setLiveTranscript('');
+
+        const candidateName = candidateNameRef.current || extractNameFromGreeting(agentText || d.agent_message);
+        const introText = buildIntroMessage(candidateName);
+
+        if (!introSpokenRef.current) {
+          introSpokenRef.current = true;
+          setAgentText(introText);
+          speak(introText, () => {
+            setAgentText(d.agent_message);
+            speak(d.agent_message, () => {
+              setAgentText(d.first_question.question);
+              setState(STATES.QUESTION);
+              speak(d.first_question.question, () => {
+                autoListenRef.current = true;   // arm auto-listen after TTS ends
+              });
+            });
+          });
+          return;
+        }
+
+        setAgentText(d.agent_message);
         speak(d.agent_message, () => {
           setAgentText(d.first_question.question);
           setState(STATES.QUESTION);
           speak(d.first_question.question, () => {
-              autoListenRef.current = true;   // arm auto-listen after TTS ends
-            });
+            autoListenRef.current = true;   // arm auto-listen after TTS ends
+          });
         });
         return;
       }
@@ -769,7 +838,7 @@ export default function InterviewLive() {
       setError(formatApiError(e, 'Error'));
       setState(STATES.ERROR);
     }
-  }, [sessionId, speak, formatApiError]);
+  }, [sessionId, speak, formatApiError, extractNameFromGreeting, agentText, buildIntroMessage]);
 
   /* â”€â”€ Effects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   useEffect(() => {
@@ -813,6 +882,7 @@ export default function InterviewLive() {
         });
         setSessionId(r.data.session_id);
         setAgentText(r.data.greeting);
+        candidateNameRef.current = r.data.student_name || null;
         setState(STATES.GREETING);
         // We do not auto-speak here due to browser gesture requirements; the user can read the text and click 'Yes' to proceed.
       } catch (e) { setError(formatApiError(e, 'Failed to start')); setState(STATES.ERROR); }
