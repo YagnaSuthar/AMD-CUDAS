@@ -1,0 +1,242 @@
+[
+  {
+    "question": "A man can complete a work in 10 days. Another man can complete it in 20 days. How many days will they take together?",
+    "options": ["5 days", "6.67 days", "8 days", "10 days"],
+    "correct_answer": "6.67 days",
+    "explanation": "Work rate = 1/10 + 1/20 = 3/20. Time = 20/3 ≈ 6.67 days.",
+    "category": "time_and_work",
+    "difficulty": "easy"
+  },
+  {
+    "question": "If the cost price of an item is ₹500 and it is sold at a profit of 20%, what is the selling price?",
+    "options": ["₹550", "₹600", "₹650", "₹700"],
+    "correct_answer": "₹600",
+    "explanation": "SP = CP + 20% of CP = 500 + 100 = 600.",
+    "category": "profit_and_loss",
+    "difficulty": "easy"
+  },
+  {
+    "question": "A train travels 120 km in 2 hours. What is its speed?",
+    "options": ["40 km/h", "50 km/h", "60 km/h", "70 km/h"],
+    "correct_answer": "60 km/h",
+    "explanation": "Speed = Distance/Time = 120/2 = 60 km/h.",
+    "category": "time_speed_distance",
+    "difficulty": "easy"
+  },
+  {
+    "question": "What is 25% of 480?",
+    "options": ["100", "110", "120", "130"],
+    "correct_answer": "120",
+    "explanation": "25% of 480 = 480 × 0.25 = 120.",
+    "category": "percentage",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Find the missing number in the series: 2, 6, 12, 20, ?",
+    "options": ["28", "30", "32", "34"],
+    "correct_answer": "30",
+    "explanation": "Pattern: +4, +6, +8, +10 → next = 20 + 10 = 30.",
+    "category": "number_series",
+    "difficulty": "easy"
+  },
+  {
+    "question": "If A:B = 2:3 and B:C = 4:5, find A:C.",
+    "options": ["8:15", "2:5", "4:15", "8:5"],
+    "correct_answer": "8:15",
+    "explanation": "A:B:C = 2:3 and 4:5 → B common → A:C = 8:15.",
+    "category": "ratio",
+    "difficulty": "medium"
+  },
+  {
+    "question": "A can do a work in 15 days, B in 10 days. How long together?",
+    "options": ["5 days", "6 days", "7 days", "8 days"],
+    "correct_answer": "6 days",
+    "explanation": "1/15 + 1/10 = 1/6 → total time = 6 days.",
+    "category": "time_and_work",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Find the next term: 3, 9, 27, ?",
+    "options": ["54", "72", "81", "90"],
+    "correct_answer": "81",
+    "explanation": "Multiply by 3 each time.",
+    "category": "number_series",
+    "difficulty": "easy"
+  },
+  {
+    "question": "If selling price is ₹1200 and cost price is ₹1000, profit percentage?",
+    "options": ["10%", "15%", "20%", "25%"],
+    "correct_answer": "20%",
+    "explanation": "Profit = 200 → 200/1000 × 100 = 20%.",
+    "category": "profit_and_loss",
+    "difficulty": "easy"
+  },
+  {
+    "question": "A person walks 5 km in 1 hour. How long for 15 km?",
+    "options": ["2 hours", "3 hours", "4 hours", "5 hours"],
+    "correct_answer": "3 hours",
+    "explanation": "Speed constant → 15/5 = 3 hours.",
+    "category": "time_speed_distance",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Find the odd one out: 2, 3, 5, 7, 9, 11",
+    "options": ["3", "5", "9", "11"],
+    "correct_answer": "9",
+    "explanation": "9 is not prime.",
+    "category": "logical_reasoning",
+    "difficulty": "easy"
+  },
+  {
+    "question": "If 30% of a number is 90, what is the number?",
+    "options": ["200", "250", "300", "350"],
+    "correct_answer": "300",
+    "explanation": "0.3x = 90 → x = 300.",
+    "category": "percentage",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Find the next: 1, 4, 9, 16, ?",
+    "options": ["20", "24", "25", "30"],
+    "correct_answer": "25",
+    "explanation": "Perfect squares.",
+    "category": "number_series",
+    "difficulty": "easy"
+  },
+  {
+    "question": "A shopkeeper gives 10% discount on ₹500. What is final price?",
+    "options": ["₹400", "₹450", "₹480", "₹500"],
+    "correct_answer": "₹450",
+    "explanation": "10% of 500 = 50 → 500 - 50 = 450.",
+    "category": "profit_and_loss",
+    "difficulty": "easy"
+  },
+  {
+    "question": "If a car travels 150 km in 3 hours, speed?",
+    "options": ["40 km/h", "45 km/h", "50 km/h", "55 km/h"],
+    "correct_answer": "50 km/h",
+    "explanation": "150/3 = 50 km/h.",
+    "category": "time_speed_distance",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Find the missing number: 5, 10, 20, 40, ?",
+    "options": ["60", "70", "80", "90"],
+    "correct_answer": "80",
+    "explanation": "Multiply by 2.",
+    "category": "number_series",
+    "difficulty": "easy"
+  },
+  {
+    "question": "If A is brother of B and B is sister of C, relation of A and C?",
+    "options": ["Brother", "Sister", "Cousin", "Cannot determine"],
+    "correct_answer": "Brother",
+    "explanation": "A is male sibling → brother of C.",
+    "category": "logical_reasoning",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Find 15% of 200",
+    "options": ["20", "25", "30", "35"],
+    "correct_answer": "30",
+    "explanation": "0.15 × 200 = 30.",
+    "category": "percentage",
+    "difficulty": "easy"
+  },
+  {
+    "question": "A can finish work in 8 days, B in 12 days. Together?",
+    "options": ["4.8 days", "5 days", "6 days", "7 days"],
+    "correct_answer": "4.8 days",
+    "explanation": "1/8 + 1/12 = 5/24 → time = 24/5 = 4.8 days.",
+    "category": "time_and_work",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Find next: 2, 5, 10, 17, ?",
+    "options": ["24", "26", "28", "30"],
+    "correct_answer": "26",
+    "explanation": "+3, +5, +7, +9 pattern.",
+    "category": "number_series",
+    "difficulty": "medium"
+  },
+  {
+    "question": "What is synonym of 'Rapid'?",
+    "options": ["Slow", "Fast", "Weak", "Late"],
+    "correct_answer": "Fast",
+    "explanation": "Rapid means fast.",
+    "category": "verbal",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Find missing: 7, 14, 28, 56, ?",
+    "options": ["84", "96", "112", "120"],
+    "correct_answer": "112",
+    "explanation": "Multiply by 2.",
+    "category": "number_series",
+    "difficulty": "easy"
+  },
+  {
+    "question": "If CP = 800, SP = 1000, profit %?",
+    "options": ["20%", "25%", "30%", "35%"],
+    "correct_answer": "25%",
+    "explanation": "Profit = 200 → 200/800 ×100 = 25%.",
+    "category": "profit_and_loss",
+    "difficulty": "easy"
+  },
+  {
+    "question": "If 40% of x = 200, find x",
+    "options": ["400", "450", "500", "600"],
+    "correct_answer": "500",
+    "explanation": "0.4x = 200 → x = 500.",
+    "category": "percentage",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Find next: 11, 13, 17, 19, ?",
+    "options": ["21", "23", "25", "27"],
+    "correct_answer": "23",
+    "explanation": "Prime numbers.",
+    "category": "number_series",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Opposite of 'Expand'?",
+    "options": ["Grow", "Increase", "Contract", "Stretch"],
+    "correct_answer": "Contract",
+    "explanation": "Expand opposite is contract.",
+    "category": "verbal",
+    "difficulty": "easy"
+  },
+  {
+    "question": "If speed = 80 km/h, distance in 2 hours?",
+    "options": ["120", "140", "160", "180"],
+    "correct_answer": "160",
+    "explanation": "Distance = speed × time = 80×2.",
+    "category": "time_speed_distance",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Find odd: 4, 9, 16, 20, 25",
+    "options": ["9", "16", "20", "25"],
+    "correct_answer": "20",
+    "explanation": "20 is not a perfect square.",
+    "category": "logical_reasoning",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Find next: 1, 1, 2, 3, 5, ?",
+    "options": ["6", "7", "8", "9"],
+    "correct_answer": "8",
+    "explanation": "Fibonacci sequence.",
+    "category": "number_series",
+    "difficulty": "easy"
+  },
+  {
+    "question": "If A completes in 6 days, B in 3 days, together?",
+    "options": ["1.5 days", "2 days", "2.5 days", "3 days"],
+    "correct_answer": "2 days",
+    "explanation": "1/6 + 1/3 = 1/2 → 2 days.",
+    "category": "time_and_work",
+    "difficulty": "easy"
+  }
+]

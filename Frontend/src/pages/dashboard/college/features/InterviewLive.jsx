@@ -533,12 +533,12 @@ export default function InterviewLive() {
       // Best-effort: even if the end call fails, try fetching any already-generated report.
       try {
         await fetchReport();
-      } catch {
-        setError(e.response?.data?.detail || 'Failed');
-        setState(STATES.ERROR);
+      } finally {
+        // Always transition to report screen so user can download whatever is available.
+        setState(STATES.REPORT);
       }
     }
-  }, [sessionId, stopRecording, clearTimers, fetchStudentReport]);
+  }, [sessionId, stopRecording, clearTimers, fetchStudentReport, fetchReport]);
 
   const isBasicMode = roleParam === 'basic';
 

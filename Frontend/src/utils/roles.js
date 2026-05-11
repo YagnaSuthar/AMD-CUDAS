@@ -79,6 +79,7 @@ export const SIDEBAR_ROUTES = {
         { path: '/dashboard/career-guidance', label: 'Career Guidance', icon: FiTarget },
         { path: '/dashboard/jobs', label: 'Jobs', icon: FiBriefcase },
         { path: '/dashboard/interview', label: 'AI Interview', icon: FiBriefcase },
+        { path: '/dashboard/aptitude', label: 'Aptitude Practice', icon: FiBarChart2 },
         { path: '/dashboard/notifications', label: 'Notifications', icon: FiBell },
         { path: '/dashboard/leaderboard', label: 'Leaderboard', icon: FiTrendingUp },
         { path: '/dashboard/profile', label: 'My Profile', icon: FiSettings },

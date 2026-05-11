@@ -33,6 +33,7 @@ import Round2Meeting from './pages/dashboard/college/features/Round2Meeting';
 import InterviewLive from './pages/dashboard/college/features/InterviewLive';
 import AssignSubjects from './pages/dashboard/college/features/AssignSubjects';
 import CollegeMessages from './pages/dashboard/college/features/CollegeMessages';
+import AptitudePractice from './pages/dashboard/college/features/aptitude/AptitudePractice';
 
 function App() {
   return (
@@ -65,6 +66,7 @@ function App() {
               <Route path="profile" element={<Profile />} />
               <Route path="skills" element={<Skills />} />
               <Route path="interview" element={<AIInterview />} />
+              <Route path="aptitude" element={<AptitudePractice />} />
               <Route path="timetable" element={<TimetableManagement />} />
               <Route path="marks" element={<MarksManagement />} />
               <Route path="certificates" element={<CertificateManagement />} />

@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.api.router import api_router
-from app.core.database import engine, Base
+from app.core.database import engine, Base, async_session_factory
 
 # ── Router Imports ────────────────────────────────────────────────────────
 from app.routers.auth import router as auth_router
@@ -32,18 +32,20 @@ from app.routers.exam import router as exam_router
 from app.routers.subject import router as subject_router
 from app.routers.mentor import router as mentor_router
 from app.api.ai.agents.interview.router import router as ai_interview_router
+from app.api.ai.agents.aptitude.router import router as ai_aptitude_router
 
 # Import all models so they are registered with Base.metadata
 import app.models  # noqa: F401
+import app.api.ai.agents.aptitude.models  # noqa: F401
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
 
-        # ✅ STEP 1: CREATE TABLES FIRST
+        # STEP 1: CREATE TABLES FIRST
         await conn.run_sync(Base.metadata.create_all)
 
-        # ✅ STEP 2: THEN RUN ALTERS
+        # STEP 2: THEN RUN ALTERS
 
         # auth_users
         await conn.execute(
@@ -172,6 +174,34 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"Warning: {e}")
 
+        # ── Aptitude sessions: question sequence column ──
+        await conn.execute(
+            text("""
+                ALTER TABLE aptitude_sessions
+                    ADD COLUMN IF NOT EXISTS question_sequence JSONB DEFAULT '[]'::jsonb;
+            """)
+        )
+
+    # Seed aptitude questions (best-effort; only if DB table is empty)
+    try:
+        from app.api.ai.agents.aptitude.service import seed_questions_if_empty
+
+        json_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "api",
+            "ai",
+            "agents",
+            "aptitude",
+            "aptitude_questions.json",
+        )
+
+        async with async_session_factory() as session:
+            inserted = await seed_questions_if_empty(db=session, json_path=json_path)
+            if inserted:
+                await session.commit()
+    except Exception as exc:
+        print(f"Warning: Aptitude seeding skipped due to error: {exc}")
+
     yield
 
 
@@ -211,6 +241,7 @@ app.include_router(pipeline_router)
 app.include_router(recruiter_router)
 app.include_router(messages_router)
 app.include_router(ai_interview_router, prefix="/ai/interview", tags=["AI Interview"])
+app.include_router(ai_aptitude_router, prefix="/ai/aptitude", tags=["AI Aptitude"])
 app.include_router(rag_router)
 app.include_router(verification_router)
 app.include_router(projects_router)
