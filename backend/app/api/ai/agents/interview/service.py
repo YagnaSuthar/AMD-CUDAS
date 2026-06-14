@@ -382,6 +382,7 @@ class InterviewService:
     ) -> SubmitAnswerResponse:
         """Submit an answer via InterviewOrchestrator (state-driven)."""
 
+        logger.info("[DEBUG] Received answer length: %d", len(answer_text))
         print("ANSWER API CALLED")
         print("SETTING STATE TO EVALUATING")
         print("CALLING ORCHESTRATOR STEP")

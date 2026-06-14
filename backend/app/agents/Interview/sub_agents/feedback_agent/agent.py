@@ -1,7 +1,7 @@
 """
-Deterministic Feedback & Report Agent.
-Generates structured reports solely from stored evaluation data.
-NO LLM CALLS.
+Deterministic Feedback & Report Agent (Upgraded with LLM refinement).
+Generates structured reports from stored evaluation data, then refines
+insights using an LLM while preserving deterministic scoring and metrics.
 """
 
 import logging
@@ -18,6 +18,7 @@ from app.models.interview import (
     InterviewTurn,
 )
 from app.agents.Interview.report.report_builder import build_report
+from .prompt import build_feedback_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,71 @@ async def generate_report(
 
     # 3. Use deterministic builder
     report_dict = build_report(turn_dicts)
+
+    # 3.5. LLM Refinement Step
+    if llm:
+        try:
+            logger.info("FeedbackAgent: Refining report insights via LLM.")
+            raw_json = json.dumps(report_dict, default=str)
+            overall_score = report_dict.get("summary", {}).get("overall_score", 0.0)
+            tier = report_dict.get("hiring_readiness", {}).get("tier", "Developing")
+            prompt = build_feedback_prompt(raw_json, overall_score, tier)
+            
+            response = await llm.ainvoke(prompt)
+            content = getattr(response, "content", str(response))
+            
+            if "```" in content:
+                import re
+                m = re.search(r"```(?:\w*)\s*\n?(.*?)\n?\s*```", content, re.DOTALL)
+                if m:
+                    content = m.group(1).strip()
+            
+            first = content.find("{")
+            last = content.rfind("}")
+            if first != -1 and last != -1:
+                content = content[first:last+1]
+                
+            refined_data = json.loads(content)
+            
+            # Apply refined insights
+            if "executive_summary" in refined_data:
+                report_dict["executive_summary"] = refined_data["executive_summary"]
+            if "interviewer_remarks" in refined_data:
+                report_dict["interviewer_remarks"] = refined_data["interviewer_remarks"]
+            if "strengths" in refined_data and isinstance(refined_data["strengths"], list):
+                report_dict["strengths"] = refined_data["strengths"]
+                
+            if "growth_areas" in refined_data and isinstance(refined_data["growth_areas"], list):
+                report_dict["weaknesses"] = [ga.get("topic", "") for ga in refined_data["growth_areas"]]
+
+            if "learning_roadmap" in refined_data and isinstance(refined_data["learning_roadmap"], list):
+                report_dict["improvement_roadmap"] = refined_data["learning_roadmap"]
+                
+            if "hiring_readiness_explanation" in refined_data:
+                hr_exp = refined_data["hiring_readiness_explanation"]
+                if "hiring_readiness" in report_dict:
+                    report_dict["hiring_readiness"]["reason"] = hr_exp.get("reason", "")
+                    report_dict["hiring_readiness"]["next_milestone"] = hr_exp.get("next_milestone", "")
+                    # For legacy compatibility
+                    report_dict["hiring_readiness"]["recommendation_text"] = hr_exp.get("reason", "")
+
+            if "recommendations" in refined_data and isinstance(refined_data["recommendations"], list):
+                report_dict["improvement_plan"] = refined_data["recommendations"]
+
+            if "questions" in refined_data and isinstance(refined_data["questions"], list):
+                ref_q_map = {rq.get("question_text", ""): rq for rq in refined_data["questions"]}
+                for q in report_dict.get("questions", []):
+                    q_text = q.get("question", "")
+                    if q_text in ref_q_map:
+                        rq = ref_q_map[q_text]
+                        if "key_strength" in rq:
+                            q["key_strength"] = rq["key_strength"]
+                        if "improvement_opportunity" in rq:
+                            q["improvement_opportunity"] = rq["improvement_opportunity"]
+                            
+            logger.info("FeedbackAgent: Successfully refined report via LLM.")
+        except Exception as e:
+            logger.error("FeedbackAgent: LLM refinement failed, falling back to deterministic report. Error: %s", e)
 
     # 4. Deterministic scoring from stored turns (source of truth)
     # Rule: report overall_score must equal average of per-turn scores.

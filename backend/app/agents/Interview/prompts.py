@@ -185,6 +185,7 @@ Return ONE clean question only in the following JSON format:
 {{
   "question": "...",
   "concept": "unique_concept",
+  "secondary_concept": "secondary_concept_if_any",
   "topic": "general",
   "difficulty": "medium"
 }}
@@ -284,6 +285,7 @@ Return ONLY:
 {{
   "question": "...",
   "concept": "...",
+  "secondary_concept": "...",
   "topic": "..."
 }}
 ```

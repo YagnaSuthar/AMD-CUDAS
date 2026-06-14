@@ -40,6 +40,8 @@ SKIP_PATTERNS = [
     r"\blet'?s\s+move\s+on\b",
     r"\bmove\s+(?:on|to\s+next)\b",
     r"\bi'?ll\s+skip\b",
+    r"\bmaybe\b",
+    r"\bi\s+think\b",
 ]
 
 _SKIP_RE = re.compile("|".join(SKIP_PATTERNS), re.IGNORECASE)
@@ -95,16 +97,13 @@ def classify_answer_type(answer: str) -> str:
     if not text:
         return "skip"
 
-    word_count = len(text.split())
+    # Step 1: Remove known skip/refusal phrases
+    cleaned_text = _SKIP_RE.sub("", text).strip()
+    cleaned_text_no_punct = re.sub(r'[^\w\s]', '', cleaned_text).strip()
 
-    # Check for skip/refusal phrases
-    if _SKIP_RE.search(text):
-        if word_count < 25:
-            return "no_knowledge"
-
-    # Very short answers with no real content
-    if word_count < 3:
-        return "IRRELEVANT"
+    # Step 2: Analyze remaining content
+    if not cleaned_text_no_punct:
+        return "no_knowledge"
 
     return "VALID"
 
@@ -238,6 +237,7 @@ async def evaluate_answer(
       - next_difficulty (str)
       - clarity, depth, confidence, technical_score_int (int 0-10) for backward compat
     """
+    logger.info("[DEBUG] Evaluated Answer Length: %d", len(answer))
     answer = _normalize_stt_answer(answer)
     answer_type = classify_answer_type(answer)
     logger.info("AnswerEvaluatorAgent: answer_type=%s", answer_type)

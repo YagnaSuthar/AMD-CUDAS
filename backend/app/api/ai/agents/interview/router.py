@@ -5,6 +5,7 @@ Updated with greeting handshake, interview history, and session detail.
 """
 
 import logging
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
@@ -306,8 +307,24 @@ async def get_session_report_pdf(
         # 4. Generate structured report data
         report_dict = build_report(turn_dicts)
 
-        # 5. Generate PDF bytes using WeasyPrint
-        pdf_bytes = generate_report_pdf(report_dict)
+        # Calculate duration in minutes if end_time and start_time are available
+        duration_minutes = "—"
+        if session.end_time and session.start_time:
+            duration_minutes = str(int(round((session.end_time - session.start_time).total_seconds() / 60)))
+        elif session.start_time:
+            now = datetime.now(session.start_time.tzinfo) if session.start_time.tzinfo else datetime.utcnow()
+            duration_minutes = str(int(round((now - session.start_time).total_seconds() / 60)))
+
+        session_meta = {
+            "candidate_name": _get_user_name(current_user),
+            "job_role": session.job_role,
+            "interview_date": session.start_time.strftime("%B %d, %Y") if session.start_time else datetime.now().strftime("%B %d, %Y"),
+            "duration_minutes": duration_minutes,
+            "total_questions": len(turns),
+        }
+
+        # 5. Generate PDF bytes using ReportLab
+        pdf_bytes = generate_report_pdf(report_dict, session_meta)
 
         # 6. Return as downloadable response
         return Response(
@@ -626,8 +643,24 @@ async def get_report_pdf(
         # 4. Generate structured report data
         report_dict = build_report(turn_dicts)
 
-        # 5. Generate PDF bytes using WeasyPrint
-        pdf_bytes = generate_report_pdf(report_dict)
+        # Calculate duration in minutes if end_time and start_time are available
+        duration_minutes = "—"
+        if session.end_time and session.start_time:
+            duration_minutes = str(int(round((session.end_time - session.start_time).total_seconds() / 60)))
+        elif session.start_time:
+            now = datetime.now(session.start_time.tzinfo) if session.start_time.tzinfo else datetime.utcnow()
+            duration_minutes = str(int(round((now - session.start_time).total_seconds() / 60)))
+
+        session_meta = {
+            "candidate_name": _get_user_name(current_user),
+            "job_role": session.job_role,
+            "interview_date": session.start_time.strftime("%B %d, %Y") if session.start_time else datetime.now().strftime("%B %d, %Y"),
+            "duration_minutes": duration_minutes,
+            "total_questions": len(turns),
+        }
+
+        # 5. Generate PDF bytes using ReportLab
+        pdf_bytes = generate_report_pdf(report_dict, session_meta)
 
         # 6. Return as downloadable response
         return Response(

@@ -16,15 +16,31 @@ logger = logging.getLogger(__name__)
 
 @lru_cache(maxsize=1)
 def _get_embedding_model():
-    """Lazy-load the HuggingFace embedding model (cached singleton)."""
+    """Load the HuggingFace embedding model once and cache it (singleton)."""
     from langchain_huggingface import HuggingFaceEmbeddings
 
-    logger.info("Loading embedding model: %s", settings.EMBEDDING_MODEL)
-    return HuggingFaceEmbeddings(
+    logger.info("[RAG] Loading embedding model: %s", settings.EMBEDDING_MODEL)
+    model = HuggingFaceEmbeddings(
         model_name=settings.EMBEDDING_MODEL,
         model_kwargs={"device": "cpu"},
         encode_kwargs={"normalize_embeddings": True},
     )
+    logger.info("[RAG] Embedding model loaded and cached")
+    return model
+
+
+def warm_up_embedding_model() -> None:
+    """Eagerly initialize the embedding model at server startup.
+
+    Call this once from the FastAPI lifespan handler so the model is
+    ready in memory before the first interview request arrives.
+    Subsequent calls are no-ops because ``_get_embedding_model`` is
+    decorated with ``@lru_cache``.
+    """
+    if _get_embedding_model.cache_info().currsize > 0:
+        logger.info("[RAG] Reusing embedding model (already loaded)")
+    else:
+        _get_embedding_model()  # triggers the actual load + cache
 
 
 class EmbeddingService:
@@ -35,6 +51,8 @@ class EmbeddingService:
 
     @property
     def model(self):
+        if _get_embedding_model.cache_info().currsize > 0:
+            logger.debug("[RAG] Reusing embedding model")
         return _get_embedding_model()
 
     def embed_text(self, text: str) -> list[float]:

@@ -33,7 +33,16 @@ import Round2Meeting from './pages/dashboard/college/features/Round2Meeting';
 import InterviewLive from './pages/dashboard/college/features/InterviewLive';
 import AssignSubjects from './pages/dashboard/college/features/AssignSubjects';
 import CollegeMessages from './pages/dashboard/college/features/CollegeMessages';
+import { lazy, Suspense } from 'react';
 import AptitudePractice from './pages/dashboard/college/features/aptitude/AptitudePractice';
+
+// Lazy loaded Admin Aptitude pages
+const AptitudeQuestions = lazy(() => import('./pages/dashboard/college/features/aptitude/admin/AptitudeQuestions'));
+const AptitudeQuestionForm = lazy(() => import('./pages/dashboard/college/features/aptitude/admin/AptitudeQuestionForm'));
+const AptitudeImports = lazy(() => import('./pages/dashboard/college/features/aptitude/admin/AptitudeImports'));
+const AptitudeImportReview = lazy(() => import('./pages/dashboard/college/features/aptitude/admin/AptitudeImportReview'));
+const AptitudeTaxonomy = lazy(() => import('./pages/dashboard/college/features/aptitude/admin/AptitudeTaxonomy'));
+const AptitudeStatistics = lazy(() => import('./pages/dashboard/college/features/aptitude/admin/AptitudeStatistics'));
 
 function App() {
   return (
@@ -80,6 +89,45 @@ function App() {
               <Route path="career-guidance" element={<CareerGuidance />} />
               <Route path="college-messages" element={<CollegeMessages />} />
               <Route path="departments" element={<Dashboard departments />} />
+
+              {/* Admin Aptitude Management Routes */}
+              <Route element={<ProtectedRoute allowedRoles={['CUDAS_ADMIN']} />}>
+                <Route path="admin/aptitude/questions" element={
+                  <Suspense fallback={<div style={{ padding: '24px' }}>Loading Questions...</div>}>
+                    <AptitudeQuestions />
+                  </Suspense>
+                } />
+                <Route path="admin/aptitude/questions/new" element={
+                  <Suspense fallback={<div style={{ padding: '24px' }}>Loading Form...</div>}>
+                    <AptitudeQuestionForm />
+                  </Suspense>
+                } />
+                <Route path="admin/aptitude/questions/:id" element={
+                  <Suspense fallback={<div style={{ padding: '24px' }}>Loading Question...</div>}>
+                    <AptitudeQuestionForm />
+                  </Suspense>
+                } />
+                <Route path="admin/aptitude/imports" element={
+                  <Suspense fallback={<div style={{ padding: '24px' }}>Loading Imports...</div>}>
+                    <AptitudeImports />
+                  </Suspense>
+                } />
+                <Route path="admin/aptitude/imports/:jobId" element={
+                  <Suspense fallback={<div style={{ padding: '24px' }}>Loading Review...</div>}>
+                    <AptitudeImportReview />
+                  </Suspense>
+                } />
+                <Route path="admin/aptitude/taxonomy" element={
+                  <Suspense fallback={<div style={{ padding: '24px' }}>Loading Taxonomy...</div>}>
+                    <AptitudeTaxonomy />
+                  </Suspense>
+                } />
+                <Route path="admin/aptitude/statistics" element={
+                  <Suspense fallback={<div style={{ padding: '24px' }}>Loading Statistics...</div>}>
+                    <AptitudeStatistics />
+                  </Suspense>
+                } />
+              </Route>
             </Route>
           </Route>
 

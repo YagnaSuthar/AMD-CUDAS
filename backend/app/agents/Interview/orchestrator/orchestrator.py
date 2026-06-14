@@ -453,10 +453,13 @@ class InterviewOrchestrator:
                         if isinstance(qm, dict):
                             st = (qm.get("subtopic") or "").strip()
                             c = (qm.get("concept") or "").strip()
+                            sc = (qm.get("secondary_concept") or "").strip()
                             if st and st not in used_subtopics:
                                 used_subtopics.append(st)
                             if c and c not in used_concepts:
                                 used_concepts.append(c)
+                            if sc and sc not in used_concepts:
+                                used_concepts.append(sc)
 
                     phase_plan = self._phase_topics.get(self._current_phase, [])
                     available_subtopics = [x.get("topic") for x in phase_plan if isinstance(x, dict) and x.get("topic")]
@@ -516,6 +519,7 @@ class InterviewOrchestrator:
                             "question_number": self._question_count,
                             "subtopic": (question_data.get("subtopic") or "") if isinstance(question_data, dict) else "",
                             "concept": (question_data.get("concept") or "") if isinstance(question_data, dict) else "",
+                            "secondary_concept": (question_data.get("secondary_concept") or "") if isinstance(question_data, dict) else "",
                         }
                     },
                     phase=self._current_phase,
@@ -674,10 +678,13 @@ class InterviewOrchestrator:
                                 if isinstance(qm, dict):
                                     st = (qm.get("subtopic") or "").strip()
                                     c = (qm.get("concept") or "").strip()
+                                    sc = (qm.get("secondary_concept") or "").strip()
                                     if st and st not in used_subtopics:
                                         used_subtopics.append(st)
                                     if c and c not in used_concepts:
                                         used_concepts.append(c)
+                                    if sc and sc not in used_concepts:
+                                        used_concepts.append(sc)
 
                             phase_plan = self._phase_topics.get(self._current_phase, [])
                             available_subtopics = [x.get("topic") for x in phase_plan if isinstance(x, dict) and x.get("topic")]
@@ -755,6 +762,7 @@ class InterviewOrchestrator:
                             "question_number": self._question_count,
                             "subtopic": (question_data.get("subtopic") or "") if isinstance(question_data, dict) else "",
                             "concept": (question_data.get("concept") or "") if isinstance(question_data, dict) else "",
+                            "secondary_concept": (question_data.get("secondary_concept") or "") if isinstance(question_data, dict) else "",
                         }
                     },
                     phase=self._current_phase,
@@ -800,7 +808,7 @@ class InterviewOrchestrator:
         # ── EVALUATING (answer received → evaluate → memory → response) ──
         if self.state == InterviewState.EVALUATING:
             try:
-                processed_answer = _soft_summarize_for_processing(last_answer or "")
+                processed_answer = (last_answer or "").strip()
 
                 eval_data = None
                 try:
@@ -843,6 +851,7 @@ class InterviewOrchestrator:
                 # Determine clean answer — Rule 6: no "None" answers
                 clean_answer = (last_answer or "").strip()
                 stored_answer = clean_answer if clean_answer else "Skipped"
+                logger.info("[DEBUG] DB Save Answer Length: %d", len(stored_answer))
 
                 # Store answer and evaluation in current turn
                 try:

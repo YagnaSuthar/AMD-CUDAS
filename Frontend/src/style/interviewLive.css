@@ -959,3 +959,85 @@
   box-shadow: none !important;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   AWAITING QUESTION — dedicated waiting screen shown when intro finishes
+   before Question #1 has arrived from the backend.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@keyframes awaitingDot {
+  0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
+  40%           { transform: scale(1);   opacity: 1;   }
+}
+
+@keyframes awaitingMsgFade {
+  0%   { opacity: 0; transform: translateY(6px); }
+  15%  { opacity: 1; transform: translateY(0);   }
+  85%  { opacity: 1; transform: translateY(0);   }
+  100% { opacity: 0; transform: translateY(-6px); }
+}
+
+/* Status block */
+.meet-awaiting-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  animation: fadeIn 0.5s ease;
+}
+
+/* "Preparing your first question…" headline */
+.meet-awaiting-label {
+  font-family: var(--font-heading, 'Orbitron', sans-serif);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  background: var(--gradient-primary, linear-gradient(135deg, #00bcd4, #2c63bd));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Rotating sub-message */
+.meet-awaiting-msg {
+  font-size: 0.9rem;
+  color: #99a;
+  letter-spacing: 0.3px;
+  min-height: 1.4em;
+  animation: awaitingMsgFade 2.8s ease infinite;
+  text-align: center;
+}
+
+/* Three bouncing dots */
+.meet-awaiting-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.meet-awaiting-dots span {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-secondary, #00bcd4);
+}
+
+.meet-awaiting-dots span:nth-child(1) { animation: awaitingDot 1.4s 0s    ease-in-out infinite; }
+.meet-awaiting-dots span:nth-child(2) { animation: awaitingDot 1.4s 0.2s  ease-in-out infinite; }
+.meet-awaiting-dots span:nth-child(3) { animation: awaitingDot 1.4s 0.4s  ease-in-out infinite; }
+
+/* 15-second timeout notice */
+.meet-awaiting-timeout {
+  max-width: 480px;
+  padding: 14px 22px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: #f59e0b;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  text-align: center;
+  animation: fadeSlideIn 0.45s ease;
+}

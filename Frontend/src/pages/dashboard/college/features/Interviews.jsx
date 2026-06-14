@@ -977,11 +977,9 @@ export default function Interviews() {
                                                                                 <div style={{ margin: '0 0 8px 0', fontWeight: 700 }}>
                                                                                     {questionText || 'Question not available.'}
                                                                                 </div>
-                                                                                <div style={{ color: 'var(--color-text-secondary)', marginBottom: 8 }}>
+                                                                                <div style={{ color: 'var(--color-text-secondary)', marginBottom: 8, maxHeight: '150px', overflowY: 'auto' }}>
                                                                                     <strong>Answer:</strong>{' '}
-                                                                                    {answerText
-                                                                                        ? (answerText.length > 220 ? answerText.slice(0, 220) + '...' : answerText)
-                                                                                        : 'Answer not available.'}
+                                                                                    {answerText || 'Answer not available.'}
                                                                                 </div>
                                                                                 {mistakes.length > 0 && (
                                                                                     <div style={{ marginBottom: 10 }}>
@@ -1135,8 +1133,8 @@ export default function Interviews() {
                                                                 <div style={{ marginTop: '10px', fontSize: '0.9rem', lineHeight: 1.6 }}>
                                                                     <p style={{ margin: '0 0 8px 0', fontWeight: 600 }}>{ev.question}</p>
                                                                     {ev.answer && (
-                                                                        <p style={{ margin: '0 0 8px 0', color: 'var(--color-text-secondary)' }}>
-                                                                            <strong>Answer:</strong> {ev.answer.length > 200 ? ev.answer.slice(0, 200) + '...' : ev.answer}
+                                                                        <p style={{ margin: '0 0 8px 0', color: 'var(--color-text-secondary)', maxHeight: '150px', overflowY: 'auto' }}>
+                                                                            <strong>Answer:</strong> {ev.answer}
                                                                         </p>
                                                                     )}
                                                                     <p style={{ margin: '0 0 4px 0' }}><strong>Correctness:</strong> {ev.correctness}/10</p>

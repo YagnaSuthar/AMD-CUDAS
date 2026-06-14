@@ -33,10 +33,14 @@ from app.routers.subject import router as subject_router
 from app.routers.mentor import router as mentor_router
 from app.api.ai.agents.interview.router import router as ai_interview_router
 from app.api.ai.agents.aptitude.router import router as ai_aptitude_router
+from app.routers.aptitude_admin import admin_router as aptitude_admin_router, public_taxonomy_router
 
 # Import all models so they are registered with Base.metadata
 import app.models  # noqa: F401
 import app.api.ai.agents.aptitude.models  # noqa: F401
+
+# Embedding model warm-up
+from app.services.embedding_service import warm_up_embedding_model  # noqa: E402
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -182,6 +186,54 @@ async def lifespan(app: FastAPI):
             """)
         )
 
+        # ── Aptitude questions: admin management columns ──
+        await conn.execute(
+            text("""
+                ALTER TABLE aptitude_questions
+                    ADD COLUMN IF NOT EXISTS domain VARCHAR(64),
+                    ADD COLUMN IF NOT EXISTS subcategory VARCHAR(64),
+                    ADD COLUMN IF NOT EXISTS status VARCHAR(16) DEFAULT 'draft',
+                    ADD COLUMN IF NOT EXISTS created_by UUID,
+                    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
+                    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(),
+                    ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ,
+                    ADD COLUMN IF NOT EXISTS approved_by UUID,
+                    ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE,
+                    ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb,
+                    ADD COLUMN IF NOT EXISTS expected_time_seconds INTEGER,
+                    ADD COLUMN IF NOT EXISTS normalized_question_hash VARCHAR(64),
+                    ADD COLUMN IF NOT EXISTS times_used INTEGER DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS times_correct INTEGER DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS times_wrong INTEGER DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE,
+                    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+            """)
+        )
+
+        # Backfill status & active flags for existing questions
+        await conn.execute(
+            text("""
+                UPDATE aptitude_questions
+                SET status = 'approved'
+                WHERE status IS NULL OR status = 'draft';
+            """)
+        )
+
+        # Backfill hashes for existing questions that don't have a hash
+        res = await conn.execute(
+            text("SELECT id, question FROM aptitude_questions WHERE normalized_question_hash IS NULL")
+        )
+        to_update = res.all()
+        if to_update:
+            from app.services.aptitude_validator import normalize_question_text, generate_question_hash
+            for q_id, q_text in to_update:
+                norm = normalize_question_text(q_text)
+                q_hash = generate_question_hash(norm)
+                await conn.execute(
+                    text("UPDATE aptitude_questions SET normalized_question_hash = :hash WHERE id = :id"),
+                    {"hash": q_hash, "id": q_id}
+                )
+
     # Seed aptitude questions (best-effort; only if DB table is empty)
     try:
         from app.api.ai.agents.aptitude.service import seed_questions_if_empty
@@ -201,6 +253,21 @@ async def lifespan(app: FastAPI):
                 await session.commit()
     except Exception as exc:
         print(f"Warning: Aptitude seeding skipped due to error: {exc}")
+
+    # ── Warm up the embedding model once at startup ──────────────────────
+    # The model is heavy (~90 MB). Loading it here ensures it is ready in
+    # memory before the first interview request and never reloaded again.
+    try:
+        import logging as _logging
+        _log = _logging.getLogger(__name__)
+        _log.info("[RAG] Pre-loading embedding model at server startup…")
+        warm_up_embedding_model()
+        _log.info("[RAG] Embedding model warm-up complete")
+    except Exception as exc:
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "[RAG] Embedding model warm-up failed (will load on first request): %s", exc
+        )
 
     yield
 
@@ -232,6 +299,8 @@ app.mount("/certificates", StaticFiles(directory=CERT_DIR), name="certificates")
 app.include_router(api_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(aptitude_admin_router)
+app.include_router(public_taxonomy_router)
 app.include_router(college_router)
 app.include_router(company_router)
 app.include_router(csv_router)

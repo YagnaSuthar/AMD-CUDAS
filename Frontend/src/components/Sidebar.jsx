@@ -62,34 +62,61 @@ export default function Sidebar({ isOpen, onClose }) {
 
                 <nav className="sidebar-nav">
                     <div className="sidebar-section-title">Main Menu</div>
-                    {routes.map((route, idx) => (
-                        <NavLink
-                            key={idx}
-                            to={route.path}
-                            className={({ isActive }) =>
-                                `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`
-                            }
-                            onClick={onClose}
-                            end={route.path === '/dashboard'}
-                        >
-                            <span className="sidebar-link-icon">
-                                <route.icon />
-                            </span>
-                            {route.label}
-                            {/* Student notification badge */}
-                            {user.role === 'STUDENT' && route.path === '/dashboard/notifications' && unreadCount > 0 && (
-                                <span className="sidebar-badge">
-                                    {unreadCount}
+                    {routes.map((route, idx) => {
+                        if (route.group) {
+                            return (
+                                <div key={idx} className="sidebar-group" style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <div className="sidebar-section-title" style={{ marginTop: '16px', marginBottom: '6px' }}>
+                                        {route.group}
+                                    </div>
+                                    {route.children.map((child, cIdx) => (
+                                        <NavLink
+                                            key={cIdx}
+                                            to={child.path}
+                                            className={({ isActive }) =>
+                                                `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`
+                                            }
+                                            onClick={onClose}
+                                            style={{ paddingLeft: '20px' }}
+                                        >
+                                            <span className="sidebar-link-icon">
+                                                <child.icon />
+                                            </span>
+                                            {child.label}
+                                        </NavLink>
+                                    ))}
+                                </div>
+                            );
+                        }
+                        return (
+                            <NavLink
+                                key={idx}
+                                to={route.path}
+                                className={({ isActive }) =>
+                                    `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`
+                                }
+                                onClick={onClose}
+                                end={route.path === '/dashboard'}
+                            >
+                                <span className="sidebar-link-icon">
+                                    <route.icon />
                                 </span>
-                            )}
-                            {/* College role messages badge */}
-                            {['COLLEGE_PRINCIPAL', 'HOD', 'FACULTY'].includes(user.role) && route.path === '/dashboard/college-messages' && unreadCount > 0 && (
-                                <span className="sidebar-badge">
-                                    {unreadCount}
-                                </span>
-                            )}
-                        </NavLink>
-                    ))}
+                                {route.label}
+                                {/* Student notification badge */}
+                                {user.role === 'STUDENT' && route.path === '/dashboard/notifications' && unreadCount > 0 && (
+                                    <span className="sidebar-badge">
+                                        {unreadCount}
+                                    </span>
+                                )}
+                                {/* College role messages badge */}
+                                {['COLLEGE_PRINCIPAL', 'HOD', 'FACULTY'].includes(user.role) && route.path === '/dashboard/college-messages' && unreadCount > 0 && (
+                                    <span className="sidebar-badge">
+                                        {unreadCount}
+                                    </span>
+                                )}
+                            </NavLink>
+                        );
+                    })}
                 </nav>
 
                 <div className="sidebar-footer">

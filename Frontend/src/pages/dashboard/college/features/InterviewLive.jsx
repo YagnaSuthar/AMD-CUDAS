@@ -29,6 +29,7 @@ const STATES = {
   RULES: 'rules',
   GREETING: 'greeting',
   CONFIRM_START: 'confirm_start',
+  AWAITING_QUESTION: 'awaiting_question',   // intro done, Q#1 not yet ready
   QUESTION: 'question',
   LISTENING: 'listening',
   EVALUATING: 'evaluating',
@@ -37,6 +38,16 @@ const STATES = {
   CLOSED: 'closed',
   ERROR: 'error',
 };
+
+const WAITING_MESSAGES = [
+  'Analyzing resume…',
+  'Reviewing project experience…',
+  'Building interview context…',
+  'Generating personalized question…',
+  'Almost ready…',
+];
+const WAITING_ROTATE_MS = 2800;   // rotate message every 2.8 s
+const WAITING_TIMEOUT_MS = 15000; // show extended-wait notice after 15 s
 
 const SOFT_PAUSE = 10;
 const HARD_PAUSE = 15;
@@ -110,7 +121,15 @@ export default function InterviewLive() {
   const [studentReport, setStudentReport] = useState(null);
   const [reportTab, setReportTab]     = useState('student');
   const [error, setError]             = useState('');
+
+  // ── Waiting-for-question screen ────────────────────────────────────────
+  const [waitingMsgIdx, setWaitingMsgIdx]   = useState(0);
+  const [waitingTimedOut, setWaitingTimedOut] = useState(false);
+  const waitingRotateRef  = useRef(null);   // interval id
+  const waitingTimeoutRef = useRef(null);   // timeout id
+  const waitingPollRef    = useRef(null);   // rAF / interval for Q arrival
   const [difficulty, setDifficulty]   = useState('medium');
+
   const [runningScore, setRunningScore] = useState(0);
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [showTabWarning, setShowTabWarning] = useState(false);
@@ -144,6 +163,8 @@ export default function InterviewLive() {
   const hasStartedRef   = useRef(false);
   const introSpokenRef  = useRef(false);
   const candidateNameRef = useRef(null);
+  const introSpeechCompletedRef = useRef(false);
+  const firstQuestionResponseRef = useRef(null);
   const finalTranscriptRef = useRef('');         // accumulates final results across STT segments
   const isListeningRef     = useRef(false);      // tracks if we WANT to keep listening
 
@@ -165,7 +186,11 @@ export default function InterviewLive() {
   }, []);
 
   useEffect(() => {
-    if (sessionId) introSpokenRef.current = false;
+    if (sessionId) {
+      introSpokenRef.current = false;
+      introSpeechCompletedRef.current = false;
+      firstQuestionResponseRef.current = null;
+    }
   }, [sessionId]);
 
   /* â”€â”€ fullscreen is now handled by DashboardLayout.jsx â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -636,6 +661,7 @@ export default function InterviewLive() {
 
     const normalizedTxt = (txt ?? '').toString();
     const displayTxt = normalizedTxt.trim() ? normalizedTxt : '[No response]';
+    console.log("[DEBUG] Transcript Length Before Submission:", normalizedTxt.length);
 
     const questionId = currentQuestion.question_id || currentQuestion.questionId || currentQuestion.id;
     if (!questionId) {
@@ -771,9 +797,123 @@ export default function InterviewLive() {
     }
   }, [isSpeaking, startRecording, stopRecording, state, isRecording, setSpeechHint]);
 
-  /* â”€â”€ greeting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  // ── Stop all waiting-screen timers ─────────────────────────────────────
+  const stopWaitingTimers = useCallback(() => {
+    if (waitingRotateRef.current)  { clearInterval(waitingRotateRef.current);  waitingRotateRef.current  = null; }
+    if (waitingTimeoutRef.current) { clearTimeout(waitingTimeoutRef.current);  waitingTimeoutRef.current = null; }
+    if (waitingPollRef.current)    { clearInterval(waitingPollRef.current);     waitingPollRef.current    = null; }
+  }, []);
+
+  const onIntroAndQuestionReady = useCallback((d) => {
+    stopWaitingTimers();
+    const firstQid = d.first_question.question_id || d.first_question.questionId || d.first_question.id;
+    if (!firstQid) {
+      setError('Received first question without an id. Please restart the interview.');
+      setState(STATES.ERROR);
+      return;
+    }
+    setCurrentQuestion(d.first_question);
+    setQuestionNumber(1);
+    setQuestionCount(1);
+    setGlobalTimeLeft(20 * 60);
+    setElapsedTime(0);
+    setInterviewStarted(true);
+    setSessionTurns([{ q: d.first_question.question, a: null }]);
+    setDifficulty(d.first_question.difficulty || 'medium');
+    setTranscript('');
+    setLiveTranscript('');
+
+    setAgentText(d.agent_message);
+    speak(d.agent_message, () => {
+      setAgentText(d.first_question.question);
+      setState(STATES.QUESTION);
+      speak(d.first_question.question, () => {
+        autoListenRef.current = true;   // arm auto-listen after TTS ends
+      });
+    });
+  }, [speak, stopWaitingTimers]);
+
+  // ── Enter AWAITING_QUESTION state ──────────────────────────────────────
+  // Called when intro finishes but Q#1 hasn't arrived yet.
+  // Starts: rotating messages, 15s timeout notice, and a poll that fires
+  // onIntroAndQuestionReady the instant the response lands.
+  const startAwaitingQuestion = useCallback(() => {
+    setState(STATES.AWAITING_QUESTION);
+    setWaitingMsgIdx(0);
+    setWaitingTimedOut(false);
+
+    // Rotate status messages
+    let idx = 0;
+    waitingRotateRef.current = setInterval(() => {
+      idx = (idx + 1) % WAITING_MESSAGES.length;
+      setWaitingMsgIdx(idx);
+    }, WAITING_ROTATE_MS);
+
+    // Extended-wait notice after 15 s
+    waitingTimeoutRef.current = setTimeout(() => {
+      setWaitingTimedOut(true);
+    }, WAITING_TIMEOUT_MS);
+
+    // Poll every 250 ms – fires onIntroAndQuestionReady the moment Q arrives
+    waitingPollRef.current = setInterval(() => {
+      if (firstQuestionResponseRef.current) {
+        const d = firstQuestionResponseRef.current;
+        firstQuestionResponseRef.current = null; // consume
+        clearInterval(waitingPollRef.current);
+        waitingPollRef.current = null;
+        onIntroAndQuestionReady(d);
+      }
+    }, 250);
+  }, [onIntroAndQuestionReady]);
+
+  /* ——— greeting —————————————————————————————————————————————————————————— */
   const handleGreeting = useCallback(async (ans) => {
     if (!sessionId) return;
+
+    if (state === STATES.CONFIRM_START && ans === 'yes') {
+      const candidateName = candidateNameRef.current || extractNameFromGreeting(agentText);
+      const introText = buildIntroMessage(candidateName);
+      setAgentText(introText);
+      introSpokenRef.current = true;
+      introSpeechCompletedRef.current = false;
+      firstQuestionResponseRef.current = null;
+
+      speak(introText, () => {
+        introSpeechCompletedRef.current = true;
+        if (firstQuestionResponseRef.current) {
+          // Question arrived while intro was still speaking — proceed immediately.
+          const d = firstQuestionResponseRef.current;
+          firstQuestionResponseRef.current = null;
+          onIntroAndQuestionReady(d);
+        } else {
+          // Question not ready yet — show the dedicated waiting screen.
+          startAwaitingQuestion();
+        }
+      });
+
+      // Start backend Question #1 generation in parallel
+      (async () => {
+        try {
+          const r = await api.post('/ai/interview/greet', { session_id: sessionId, answer: ans });
+          const d = r.data;
+          if (introSpeechCompletedRef.current) {
+            // Intro already finished and we're in AWAITING_QUESTION — the poll
+            // will pick this up within 250 ms.
+            firstQuestionResponseRef.current = d;
+          } else {
+            // Intro still speaking — store for the onEnd callback above.
+            firstQuestionResponseRef.current = d;
+          }
+        } catch (e) {
+          stopWaitingTimers();
+          setError(formatApiError(e, 'Error starting interview'));
+          setState(STATES.ERROR);
+        }
+      })();
+
+      return;
+    }
+
     try {
       const r = await api.post('/ai/interview/greet', { session_id: sessionId, answer: ans });
       const d = r.data;
@@ -788,23 +928,6 @@ export default function InterviewLive() {
         setState(STATES.CLOSED);
       }
       else if (d.next_step === 'first_question' && d.first_question) {
-        const firstQid = d.first_question.question_id || d.first_question.questionId || d.first_question.id;
-        if (!firstQid) {
-          setError('Received first question without an id. Please restart the interview.');
-          setState(STATES.ERROR);
-          return;
-        }
-        setCurrentQuestion(d.first_question);
-        setQuestionNumber(1);
-        setQuestionCount(1);
-        setGlobalTimeLeft(20 * 60);
-        setElapsedTime(0);
-        setInterviewStarted(true);
-        setSessionTurns([{ q: d.first_question.question, a: null }]);
-        setDifficulty(d.first_question.difficulty || 'medium');
-        setTranscript('');
-        setLiveTranscript('');
-
         const candidateName = candidateNameRef.current || extractNameFromGreeting(agentText || d.agent_message);
         const introText = buildIntroMessage(candidateName);
 
@@ -812,33 +935,19 @@ export default function InterviewLive() {
           introSpokenRef.current = true;
           setAgentText(introText);
           speak(introText, () => {
-            setAgentText(d.agent_message);
-            speak(d.agent_message, () => {
-              setAgentText(d.first_question.question);
-              setState(STATES.QUESTION);
-              speak(d.first_question.question, () => {
-                autoListenRef.current = true;   // arm auto-listen after TTS ends
-              });
-            });
+            onIntroAndQuestionReady(d);
           });
           return;
         }
 
-        setAgentText(d.agent_message);
-        speak(d.agent_message, () => {
-          setAgentText(d.first_question.question);
-          setState(STATES.QUESTION);
-          speak(d.first_question.question, () => {
-            autoListenRef.current = true;   // arm auto-listen after TTS ends
-          });
-        });
+        onIntroAndQuestionReady(d);
         return;
       }
     } catch (e) {
       setError(formatApiError(e, 'Error'));
       setState(STATES.ERROR);
     }
-  }, [sessionId, speak, formatApiError, extractNameFromGreeting, agentText, buildIntroMessage]);
+  }, [sessionId, speak, formatApiError, extractNameFromGreeting, agentText, buildIntroMessage, state, onIntroAndQuestionReady, startAwaitingQuestion, stopWaitingTimers]);
 
   /* â”€â”€ Effects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   useEffect(() => {
@@ -912,6 +1021,7 @@ export default function InterviewLive() {
   const tCls = timeLeft <= 5 ? 'danger' : timeLeft <= 10 ? 'warn' : '';
 
   const isActive = [STATES.QUESTION, STATES.LISTENING, STATES.EVALUATING].includes(state);
+  const isAwaiting = state === STATES.AWAITING_QUESTION;
 
   const minutes = Math.floor(globalTimeLeft / 60);
   const seconds = globalTimeLeft % 60;
@@ -960,7 +1070,6 @@ export default function InterviewLive() {
             <span className={`meet-badge meet-diff ${difficulty}`}>{difficulty}</span>
             <span className="meet-badge">{isBasicMode ? formattedTime : `⏱ ${formattedElapsed}`}</span>
           </>}
-          {runningScore > 0 && <span className="meet-badge">{(runningScore * 100).toFixed(0)}% ({(runningScore * 10).toFixed(1)}/10)</span>}
         </div>
         <div className="meet-topbar-right">
           {tabSwitchCount > 0 && <span className="meet-badge" style={{ color: '#f59e0b' }}>⚠️ {tabSwitchCount}</span>}
@@ -981,7 +1090,7 @@ export default function InterviewLive() {
         }}>
 
           {/* ── VIDEO GRID ── */}
-          <div className={`meet-grid ${(!isActive && state !== STATES.EVALUATING && state !== STATES.GREETING && state !== STATES.CONFIRM_START && state !== STATES.RULES) ? 'solo' : ''}`}>
+          <div className={`meet-grid ${(!isActive && !isAwaiting && state !== STATES.EVALUATING && state !== STATES.GREETING && state !== STATES.CONFIRM_START && state !== STATES.RULES) ? 'solo' : ''}`}>
 
         {/* === AI TILE === */}
         <div className="meet-tile">
@@ -1047,6 +1156,36 @@ export default function InterviewLive() {
               </div>
               {state === STATES.EVALUATING && (
                 <><div className="meet-spinner" /><p className="meet-loading-text">Analyzing your response…</p></>
+              )}
+            </div>
+          )}
+
+          {/* ── AWAITING QUESTION ── */}
+          {isAwaiting && (
+            <div className="meet-state-center">
+              <div className="meet-ai-area">
+                <div className="meet-avatar-wrap">
+                  <div className="meet-avatar-ring speaking" />
+                  <div className="meet-avatar-circle speaking">AI</div>
+                </div>
+                <div className="meet-waveform">
+                  {[...Array(9)].map((_, i) => <div key={i} className="meet-waveform-bar" />)}
+                </div>
+              </div>
+
+              <div className="meet-awaiting-status">
+                <div className="meet-awaiting-label">Preparing your first question…</div>
+                <div className="meet-awaiting-msg">{WAITING_MESSAGES[waitingMsgIdx]}</div>
+                <div className="meet-awaiting-dots">
+                  <span /><span /><span />
+                </div>
+              </div>
+
+              {waitingTimedOut && (
+                <div className="meet-awaiting-timeout">
+                  Question generation is taking longer than expected.
+                  Please wait while we prepare your personalized interview question.
+                </div>
               )}
             </div>
           )}
@@ -1118,7 +1257,7 @@ export default function InterviewLive() {
         </div>
 
         {/* === STUDENT TILE (Camera always on) === */}
-        {(isActive || state === STATES.GREETING || state === STATES.CONFIRM_START) && (
+        {(isActive || isAwaiting || state === STATES.GREETING || state === STATES.CONFIRM_START) && (
           <div className="meet-tile">
             {cameraOn ? (
               <>

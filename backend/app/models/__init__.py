@@ -75,3 +75,11 @@ from app.models.roadmap import (  # noqa: F401
 from app.models.exam import (  # noqa: F401
     Exam,
 )
+from app.api.ai.agents.aptitude.models import (  # noqa: F401
+    AptitudeQuestion,
+    QuestionImportJob,
+    QuestionImportItem,
+    AptitudeSession,
+    AptitudeAttempt,
+)
+

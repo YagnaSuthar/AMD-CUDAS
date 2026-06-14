@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.ai.agents.aptitude.models import AptitudeAttempt, AptitudeQuestion, AptitudeSession
+from app.services.aptitude_validator import normalize_question_text, generate_question_hash
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +84,11 @@ class AptitudeService:
             targets[diff] += 1
             rem -= 1
 
-        base_where = []
+        base_where = [
+            AptitudeQuestion.is_deleted == False,
+            AptitudeQuestion.status == "approved",
+            AptitudeQuestion.is_active == True,
+        ]
         if category:
             base_where.append(AptitudeQuestion.category == category)
 
@@ -264,7 +269,11 @@ class AptitudeService:
                 return ["hard", "medium", "easy"]
             return ["medium", "easy", "hard"]
 
-        base_where = []
+        base_where = [
+            AptitudeQuestion.is_deleted == False,
+            AptitudeQuestion.status == "approved",
+            AptitudeQuestion.is_active == True,
+        ]
         if category:
             base_where.append(AptitudeQuestion.category == category)
         if used_ids:
@@ -377,6 +386,16 @@ class AptitudeService:
         is_correct = normalized_selected == str(q.correct_answer).strip()
         if is_correct:
             sess.score = int(sess.score or 0) + 1
+
+        # Increment question usage statistics
+        try:
+            q.increment_usage()
+            if is_correct:
+                q.increment_correct()
+            else:
+                q.increment_wrong()
+        except Exception as stats_err:
+            logger.warning("Failed to increment stats: %s", stats_err)
 
         attempt = AptitudeAttempt(
             session_id=session_id,
@@ -501,6 +520,9 @@ async def seed_questions_if_empty(*, db: AsyncSession, json_path: str) -> int:
                 skipped_existing += 1
                 continue
 
+            norm = normalize_question_text(question_text)
+            q_hash = generate_question_hash(norm)
+
             q = AptitudeQuestion(
                 question=question_text,
                 options=item.get("options", []),
@@ -509,6 +531,14 @@ async def seed_questions_if_empty(*, db: AsyncSession, json_path: str) -> int:
                 difficulty=str(item.get("difficulty", "easy")).strip() or "easy",
                 source=str(item.get("source", "curated")).strip() or "curated",
                 explanation=str(item.get("explanation", "")).strip() or None,
+                domain=str(item.get("domain", "quantitative")).strip() or "quantitative",
+                subcategory=str(item.get("subcategory", "")).strip() or None,
+                status="approved",  # Seeded questions are approved immediately
+                normalized_question_hash=q_hash,
+                is_active=True,
+                is_deleted=False,
+                tags=item.get("tags") or [],
+                expected_time_seconds=item.get("expected_time_seconds") or 60,
             )
             _validate_question_record(q)
             db.add(q)

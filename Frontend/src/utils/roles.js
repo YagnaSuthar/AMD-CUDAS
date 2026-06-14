@@ -40,6 +40,16 @@ export const SIDEBAR_ROUTES = {
         { path: '/dashboard/colleges', label: 'Manage Colleges', icon: FiCheckSquare },
         { path: '/dashboard/companies', label: 'Manage Companies', icon: FiBriefcase },
         { path: '/dashboard/analytics', label: 'Analytics', icon: FiBarChart2 },
+        {
+            group: 'Aptitude Management',
+            icon: FiLayers,
+            children: [
+                { path: '/dashboard/admin/aptitude/questions', label: 'Questions', icon: FiFileText },
+                { path: '/dashboard/admin/aptitude/imports', label: 'Imports', icon: FiUpload },
+                { path: '/dashboard/admin/aptitude/taxonomy', label: 'Taxonomy', icon: FiLayers },
+                { path: '/dashboard/admin/aptitude/statistics', label: 'Statistics', icon: FiTrendingUp },
+            ]
+        }
     ],
     COLLEGE_PRINCIPAL: [
         { path: '/dashboard', label: 'Dashboard', icon: FiHome },

@@ -4,7 +4,9 @@ from typing import Any, Dict, List
 
 
 _DEFAULT_EVALUATION: Dict[str, Any] = {
+    "is_factual": False,
     "correctness": 0,
+    "completeness": 0,
     "concept_depth": 0,
     "communication": 0,
     "confidence": 0,
@@ -73,7 +75,9 @@ def validate_evaluation(data: Any) -> Dict[str, Any]:
     if not isinstance(data, dict):
         return dict(_DEFAULT_EVALUATION)
 
+    is_factual = bool(data.get("is_factual", False))
     correctness = _clamp_int(data.get("correctness"), default=_DEFAULT_EVALUATION["correctness"])
+    completeness = _clamp_int(data.get("completeness"), default=_DEFAULT_EVALUATION["completeness"])
     concept_depth = _clamp_int(data.get("concept_depth"), default=_DEFAULT_EVALUATION["concept_depth"])
     communication = _clamp_int(data.get("communication"), default=_DEFAULT_EVALUATION["communication"])
     confidence = _clamp_int(data.get("confidence"), default=_DEFAULT_EVALUATION["confidence"])
@@ -82,6 +86,20 @@ def validate_evaluation(data: Any) -> Dict[str, Any]:
     mistakes = _as_limited_str_list(data.get("mistakes"), max_items=8)
     missing_points = _as_limited_str_list(data.get("missing_points"), max_items=8)
     misconceptions = _as_limited_str_list(data.get("misconceptions"), max_items=6)
+
+    # 6. Consistency Constraints
+    # Enforce:
+    # If correctness <= 3
+    # Then:
+    # concept_depth <= 3
+    # completeness <= 3
+    # communication <= 5
+    # confidence <= 5
+    if correctness <= 3:
+        concept_depth = min(concept_depth, 3)
+        completeness = min(completeness, 3)
+        communication = min(communication, 5)
+        confidence = min(confidence, 5)
 
     # Deterministic constraint: confidence shouldn't exceed correctness too much.
     confidence = min(confidence, correctness + 2)
@@ -101,7 +119,9 @@ def validate_evaluation(data: Any) -> Dict[str, Any]:
         final_feedback = final_feedback[:1200]
 
     return {
+        "is_factual": is_factual,
         "correctness": correctness,
+        "completeness": completeness,
         "concept_depth": concept_depth,
         "communication": communication,
         "confidence": confidence,
