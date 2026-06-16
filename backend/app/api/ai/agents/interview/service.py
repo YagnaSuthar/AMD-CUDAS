@@ -12,6 +12,7 @@ Updated with:
 - Context-aware follow-up questions
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
@@ -79,6 +80,12 @@ from app.services.pipeline_service import attach_session_to_pipeline, mark_pipel
 from app.core.modes import normalize_interview_mode
 
 logger = logging.getLogger(__name__)
+
+# ── In-memory report status tracker ────────────────────────────────────────
+# Tracks report generation status per session_id without requiring DB schema changes.
+# Values: "PROCESSING" | "READY" | "FAILED"
+# Entries are cleaned up after read or on server restart (acceptable for single-instance).
+report_status_tracker: dict[str, str] = {}
 
 
 def _clamp_0_10(val: float) -> float:
@@ -473,7 +480,7 @@ class InterviewService:
                 )
             )
             resume_turns = int(resume_count_result.scalar() or 0)
-            if getattr(orchestrator, "_has_projects", False) and resume_turns < 2:
+            if getattr(orchestrator, "_has_projects", False) and resume_turns < 6:
                 orchestrator._current_phase = "resume"
                 orchestrator._questions_in_phase = resume_turns
 
@@ -593,8 +600,11 @@ class InterviewService:
         db: AsyncSession,
         ended_reason: str = "normal",
     ) -> EndInterviewResponse:
-        """End the interview session and generate the final report."""
-        llm = get_llm()
+        """End the interview session and launch report generation as a background task.
+
+        Returns immediately so the frontend can redirect to the report page
+        while report generation happens asynchronously.
+        """
 
         # Update session status
         sess_result = await db.execute(
@@ -608,7 +618,6 @@ class InterviewService:
             raise ValueError(f"Session {session_id} not found")
 
         # Mark completion vs early termination using the existing enum.
-        # We map early termination to CANCELLED to avoid invalid enum writes.
         if ended_reason != "normal":
             session.status = SessionStatus.CANCELLED
         else:
@@ -624,7 +633,6 @@ class InterviewService:
         session.total_questions = q_count_result.scalar() or 0
 
         # Finalization: ensure every stored turn has answer + evaluation before report.
-        # This guarantees early termination still produces a complete partial report.
         try:
             turns_result = await db.execute(
                 select(InterviewTurn)
@@ -649,54 +657,87 @@ class InterviewService:
         except Exception as exc:
             logger.exception("end_interview: finalization validation failed (non-fatal)")
 
-        # Commit: ensure session + any turn fixes are durable BEFORE generating report.
+        # Commit: ensure session + any turn fixes are durable BEFORE launching bg task.
         await db.commit()
 
-        # Generate report
-        logger.info("end_interview: generating report for session_id=%s", session_id)
-        report_data = await generate_report(
-            session_id=session_id,
-            db=db,
-            llm=llm,
-            ended_reason=ended_reason,
-        )
-        logger.info("end_interview: report generated for session_id=%s, data=%s", session_id, report_data)
+        # Mark status as PROCESSING and launch background report generation
+        sid_str = str(session_id)
+        report_status_tracker[sid_str] = "PROCESSING"
+        logger.info("end_interview: launching background report generation for session_id=%s", session_id)
 
-        # Get proctoring summary from DetectorAgent
-        try:
-            from app.agents.Interview.sub_agents.detector_agent.agent import DetectorAgent
-            detector = DetectorAgent(db)
-            proctor_summary = await detector.get_proctoring_summary(session_id)
-            report_data["proctoring_summary"] = proctor_summary
-            logger.info("end_interview: proctoring summary for session_id=%s — integrity=%.2f, violations=%d",
-                       session_id, proctor_summary.get("integrity_score", 1.0), proctor_summary.get("total_violations", 0))
-        except Exception as exc:
-            logger.warning("Proctoring summary failed (non-fatal): %s", exc)
-
-        await db.flush()
-        logger.info("end_interview: flushed DB for session_id=%s", session_id)
-
-        logger.info("end_interview: calling mark_pipeline_ai_completed for session_id=%s", session_id)
-
-        try:
-            await mark_pipeline_ai_completed(db=db, session_id=session_id)
-            logger.info("end_interview: mark_pipeline_ai_completed returned for session_id=%s", session_id)
-        except Exception as exc:
-            logger.warning("mark_pipeline_ai_completed failed (non-fatal): %s", exc)
-
-        # Commit all changes — ensure report + session status persist
-        await db.commit()
-        logger.info(
-            "end_interview: committed session_id=%s as %s",
-            session_id,
-            "CANCELLED" if ended_reason != "normal" else "COMPLETED",
+        asyncio.create_task(
+            InterviewService._generate_report_background(
+                session_id=session_id,
+                ended_reason=ended_reason,
+            )
         )
 
         return EndInterviewResponse(
             session_id=session_id,
             status="terminated" if ended_reason != "normal" else "completed",
-            report=FeedbackOutput(**report_data),
+            report=FeedbackOutput(
+                final_score=0.0,
+                strengths=[],
+                weaknesses=[],
+                recommendation="Report is being generated...",
+            ),
         )
+
+    @staticmethod
+    async def _generate_report_background(
+        session_id: UUID,
+        ended_reason: str = "normal",
+    ) -> None:
+        """Background task: generate report, proctoring summary, and mark pipeline.
+
+        Uses its own DB session to avoid lifetime issues with the request session.
+        """
+        from app.core.database import async_session_factory
+
+        sid_str = str(session_id)
+        try:
+            async with async_session_factory() as db:
+                llm = get_llm()
+
+                logger.info("_generate_report_background: generating report for session_id=%s", session_id)
+                report_data = await generate_report(
+                    session_id=session_id,
+                    db=db,
+                    llm=llm,
+                    ended_reason=ended_reason,
+                )
+                logger.info("_generate_report_background: report generated for session_id=%s", session_id)
+
+                # Get proctoring summary from DetectorAgent
+                try:
+                    from app.agents.Interview.sub_agents.detector_agent.agent import DetectorAgent
+                    detector = DetectorAgent(db)
+                    proctor_summary = await detector.get_proctoring_summary(session_id)
+                    report_data["proctoring_summary"] = proctor_summary
+                    logger.info(
+                        "_generate_report_background: proctoring summary for session_id=%s — integrity=%.2f, violations=%d",
+                        session_id,
+                        proctor_summary.get("integrity_score", 1.0),
+                        proctor_summary.get("total_violations", 0),
+                    )
+                except Exception as exc:
+                    logger.warning("Proctoring summary failed (non-fatal): %s", exc)
+
+                await db.flush()
+
+                try:
+                    await mark_pipeline_ai_completed(db=db, session_id=session_id)
+                    logger.info("_generate_report_background: mark_pipeline_ai_completed for session_id=%s", session_id)
+                except Exception as exc:
+                    logger.warning("mark_pipeline_ai_completed failed (non-fatal): %s", exc)
+
+                await db.commit()
+                report_status_tracker[sid_str] = "READY"
+                logger.info("_generate_report_background: completed for session_id=%s", session_id)
+
+        except Exception as exc:
+            logger.exception("_generate_report_background: FAILED for session_id=%s", session_id)
+            report_status_tracker[sid_str] = "FAILED"
 
     # ── GET /interview/report/{session_id} ────────────────────────────────
 
@@ -707,6 +748,32 @@ class InterviewService:
     ) -> InterviewReportResponse:
         """Fetch the saved report for a completed interview session."""
         logger.info("get_report called for session_id=%s", session_id)
+        sid_str = str(session_id)
+
+        # Check in-memory status first
+        mem_status = report_status_tracker.get(sid_str)
+        if mem_status in ("PENDING", "PROCESSING"):
+            return InterviewReportResponse(
+                session_id=session_id,
+                final_score=0.0,
+                communication_score=0.0,
+                strengths=[],
+                weaknesses=[],
+                behavior_summary="",
+                recommendation="Report is being generated...",
+                status=mem_status,
+            )
+        elif mem_status == "FAILED":
+            return InterviewReportResponse(
+                session_id=session_id,
+                final_score=0.0,
+                communication_score=0.0,
+                strengths=[],
+                weaknesses=[],
+                behavior_summary="",
+                recommendation="Report generation failed.",
+                status="FAILED",
+            )
 
         result = await db.execute(
             select(InterviewReport).where(
@@ -716,6 +783,24 @@ class InterviewService:
         report = result.scalar_one_or_none()
         logger.info("report query result: %s", report)
         if report is None:
+            # If session is completed/cancelled, but no report and not tracked in memory,
+            # it might still be generating.
+            sess_result = await db.execute(
+                select(InterviewSession).where(InterviewSession.session_id == session_id)
+            )
+            session = sess_result.scalar_one_or_none()
+            if session and session.status in (SessionStatus.COMPLETED, SessionStatus.CANCELLED):
+                return InterviewReportResponse(
+                    session_id=session_id,
+                    final_score=0.0,
+                    communication_score=0.0,
+                    strengths=[],
+                    weaknesses=[],
+                    behavior_summary="",
+                    recommendation="Report is being generated...",
+                    status="PROCESSING",
+                )
+
             logger.warning("No report found for session %s; creating fallback report", session_id)
 
             # Fallback: compute average from InterviewTurn evaluations
@@ -764,6 +849,9 @@ class InterviewService:
         session = sess_result.scalar_one_or_none()
         logger.info("session query result: %s", session)
 
+        # Report exists — clean up tracker
+        report_status_tracker.pop(sid_str, None)
+
         return InterviewReportResponse(
             session_id=session_id,
             final_score=report.final_score,
@@ -771,6 +859,7 @@ class InterviewService:
             strengths=list(report.strengths) if report.strengths else [],
             weaknesses=list(report.weaknesses) if report.weaknesses else [],
             recommendation=report.recommendation,
+            status="READY"
         )
 
     # ── GET /interview/config ─────────────────────────────────────────────
@@ -1240,15 +1329,43 @@ class InterviewService:
         session_id: UUID,
         db: AsyncSession,
     ) -> dict:
-        """Fetch the student-facing report for a completed interview."""
+        """Fetch the student-facing report for a completed interview.
+
+        If the report is still being generated in the background, returns
+        {"status": "processing"} so the frontend can show a loading skeleton
+        and poll again.
+        """
         import json as _json
+
+        sid_str = str(session_id)
+
+        # Check in-memory status first
+        mem_status = report_status_tracker.get(sid_str)
+        if mem_status == "PROCESSING":
+            return {"status": "processing", "session_id": sid_str}
 
         result = await db.execute(
             select(InterviewReport).where(InterviewReport.session_id == session_id)
         )
         report = result.scalar_one_or_none()
+
         if report is None:
+            # If in-memory says FAILED, tell the frontend
+            if mem_status == "FAILED":
+                return {"status": "failed", "session_id": sid_str}
+            # No in-memory record and no DB report — might still be processing
+            # (e.g. server restarted). Check if session is completed.
+            sess_result = await db.execute(
+                select(InterviewSession).where(InterviewSession.session_id == session_id)
+            )
+            session = sess_result.scalar_one_or_none()
+            if session and session.status in (SessionStatus.COMPLETED, SessionStatus.CANCELLED):
+                # Session ended but no report — likely still generating or failed
+                return {"status": "processing", "session_id": sid_str}
             raise ValueError(f"No report found for session {session_id}")
+
+        # Report exists — clean up in-memory tracker
+        report_status_tracker.pop(sid_str, None)
 
         # Try to parse stored student_report JSON
         student_data = {}
@@ -1259,7 +1376,8 @@ class InterviewService:
                 student_data = {}
 
         base = {
-            "session_id": str(session_id),
+            "status": "ready",
+            "session_id": sid_str,
             "final_score": report.final_score,
             "strengths": student_data.get("strengths", list(report.strengths) if report.strengths else []),
             "weaknesses": student_data.get("areas_to_improve", list(report.weaknesses) if report.weaknesses else []),

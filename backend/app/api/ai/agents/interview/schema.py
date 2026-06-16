@@ -95,12 +95,13 @@ class EndInterviewResponse(BaseModel):
 class InterviewReportResponse(BaseModel):
     """GET /interview/report/{session_id}"""
     session_id: uuid.UUID
-    final_score: float
+    final_score: float = 0.0
     communication_score: float = 0.0
-    strengths: List[str]
-    weaknesses: List[str]
+    strengths: List[str] = Field(default_factory=list)
+    weaknesses: List[str] = Field(default_factory=list)
     behavior_summary: str = ""
-    recommendation: str
+    recommendation: str = ""
+    status: str = "READY"
 
 
 class InterviewConfigResponse(BaseModel):

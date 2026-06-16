@@ -102,17 +102,14 @@ You MUST generate the next question without causing system errors.
 
 ---
 # 🎯 OBJECTIVE
-Generate ONE valid question that:
-* follows interview flow
-* does not repeat concepts
-* does not depend on unavailable variables
+Generate ONE valid question about: {target_topic}
 
 ---
 # 🧠 INPUT
 * mode: {mode}
 * question_number: {question_number}
-* used_concepts: {used_concepts}
 * last_answer: {last_answer}
+* used_topics: {used_topics}
 
 ---
 # 🚨 SAFETY RULE (CRITICAL)
@@ -123,39 +120,18 @@ DO NOT use parameters like:
 
 ---
 # 🎯 BASIC PRACTICE FLOW
-Q1–Q2 → resume
-Q3–Q7 → core
-Q8–Q12 → DSA
-Q13–Q14 → behavioral
-Q15–Q20 → mixed
+Q1–Q6 → resume (project-specific questions)
+Q7–Q11 → core
+Q12–Q14 → DSA / advanced
+Q15 → mixed
 
 ---
 # 🚨 HARD FLOW CONTROL (MANDATORY)
-## Q1–Q2 → RESUME QUESTIONS ONLY
+## Q1–Q6 → RESUME QUESTIONS ONLY
 Rules:
 * MUST reference a real project (e.g., FarmXpert)
 * MUST ask about implementation
 * MUST NOT ask generic/system design questions
-
-### ✅ VALID:
-* "How did you design the agent communication in FarmXpert?"
-* "How did you handle real-time sensor data in your project?"
-
-### ❌ INVALID:
-* "Design a scalable system"
-* "What is API?"
-* "Explain architecture"
-
-## Q3–Q7 → CORE SUBJECTS
-## Q8–Q12 → DSA
-## Q13–Q14 → BEHAVIORAL
-## Q15–Q20 → MIXED
-
----
-# 🚨 CRITICAL RULE: PHASE LOCK
-You MUST NOT:
-* generate resume question if question_number > 2
-* generate core question if question_number <= 2
 
 ---
 # 🚨 NO REPETITION
@@ -169,16 +145,6 @@ If last_answer = "skip":
 * DO NOT ask follow-up
 
 ---
-# 🚨 VALIDATION SIMPLIFICATION (VERY IMPORTANT)
-To avoid infinite rejection loop:
-* Allow only these checks:
-  ✔ concept not repeated
-  ✔ correct phase
-* IGNORE:
-  ❌ strict subtopic validation
-  ❌ over-restrictive filters
-
----
 # 🎯 OUTPUT
 Return ONE clean question only in the following JSON format:
 ```json
@@ -186,7 +152,7 @@ Return ONE clean question only in the following JSON format:
   "question": "...",
   "concept": "unique_concept",
   "secondary_concept": "secondary_concept_if_any",
-  "topic": "general",
+  "topic": "{target_topic}",
   "difficulty": "medium"
 }}
 ```
@@ -196,6 +162,30 @@ Return ONE clean question only in the following JSON format:
 You are executing a FIXED interview flow, not generating random questions.
 """
 
+# ── Deterministic concept → question conversion (LLM does NOT pick topic) ────
+
+DETERMINISTIC_CONCEPT_QUESTION_PROMPT = """You are a senior technical interviewer reviewing a candidate's actual work.
+
+INPUT:
+Topic: {topic}
+Concept: {concept}
+Candidate's Project Context: {rag_context}
+
+Generate exactly ONE interview question about the provided concept.
+
+Rules:
+* You MUST ground the question in the candidate's actual projects and technologies from the Project Context above.
+* Reference specific project names, technologies, or decisions from the context.
+* Ask WHY they chose something, HOW they implemented it, or WHAT challenges they faced.
+* Do NOT ask generic theory like "What is REST?" or "Explain MVC".
+* Maximum 25 words.
+* Conversational tone ("How did you...", "Why did you choose...", "What was your approach to...").
+* No greetings.
+* No explanations.
+* No follow-up text.
+* Return question only."""
+
+
 # ── Strict Agent Unified Prompt ──────────────────────────────────────────────
 STRICT_QUESTION_GENERATION_PROMPT = """You are a STRICT role-based interview question generator.
 
@@ -203,80 +193,45 @@ Your job is to generate ONE question with correct topic flow.
 
 ---
 # 🎯 OBJECTIVE
-Generate a question that:
-* follows structured topic progression
-* introduces a NEW concept
-* changes topic after skip
-* avoids repetition
+Generate ONE interview question about: {target_topic}
 
 ---
 # 🧠 INPUT
 * mode: {mode}
 * question_number: {question_number}
-* used_concepts: {used_concepts}
-* used_topics: {used_topics}
 * last_answer: {last_answer}
+* used_topics: {used_topics}
 
 ---
 # 🚨 CRITICAL RULES
 
-## 1. NO CONCEPT REPETITION
-If a concept is already used:
-→ DO NOT ask it again in any form
-
-### ❌ Example:
-Used: data consistency
-DO NOT ask:
-* consistency in distributed DB
-* ACID consistency
-* transaction consistency
+## 1. TOPIC-BASED FLOW
+Questions MUST follow the target topic.
+* Target Topic: {target_topic}
 
 ---
-## 2. TOPIC-BASED FLOW
-Questions MUST follow topic groups.
-
-### Example (Backend / Python):
-Topic order:
-1. APIs
-2. Authentication
-3. Database
-4. Concurrency
-5. System Design
-
----
-## 3. SKIP RULE (VERY IMPORTANT)
+## 2. SKIP RULE (VERY IMPORTANT)
 If last_answer = "skip" OR "no idea":
-→ CHANGE TOPIC completely
-
-### ❌ DO NOT:
-* ask deeper question on same topic
-
-### ✅ DO:
-Switch topic:
-DB → Concurrency
-Concurrency → APIs
-APIs → Security
+→ Ask about a different concept or subtopic under {target_topic}.
 
 ---
-## 4. DIFFICULTY FLOW
+## 3. DIFFICULTY FLOW
 * Q1–Q4 → easy
 * Q5–Q10 → medium
 * Q11–Q15 → hard
 
 ---
-## 5. ONE CONCEPT ONLY
+## 4. ONE CONCEPT ONLY
 Each question must test ONLY ONE idea.
 
 ---
-## 6. NATURAL QUESTIONS
+## 5. NATURAL QUESTIONS
 Ask like real interviewer.
 
 ---
 # 🚫 FORBIDDEN
-* repeating concept
-* rephrasing question
-* staying on same topic after skip
-* mixing random topics
+* Do NOT ask generic overview questions.
+* Do NOT ask behavioral questions.
 
 ---
 # 🎯 OUTPUT
@@ -286,7 +241,7 @@ Return ONLY:
   "question": "...",
   "concept": "...",
   "secondary_concept": "...",
-  "topic": "..."
+  "topic": "{target_topic}"
 }}
 ```
 """

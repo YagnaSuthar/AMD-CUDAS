@@ -18,6 +18,15 @@ from app.agents.Interview.prompts import (
     RESUME_PHASE_QUESTION_PROMPT,
     STRICT_QUESTION_GENERATION_PROMPT,
     BASIC_PRACTICE_QUESTION_GENERATION_PROMPT,
+    DETERMINISTIC_CONCEPT_QUESTION_PROMPT,
+)
+from app.agents.Interview.sub_agents.question_generator.topic_selector import (
+    select_topic_and_concept,
+    select_rag_chunk,
+    should_use_deterministic_pipeline,
+    format_concept_label,
+    concept_is_used,
+    selection_debug_info,
 )
 from app.services.embedding_service import EmbeddingService
 from app.agents.Interview.utils import parse_json_response, InterviewTracer, estimate_tokens
@@ -25,7 +34,8 @@ from app.agents.Interview.utils import parse_json_response, InterviewTracer, est
 logger = logging.getLogger(__name__)
 
 # ── Strict Rules Constants ────────────────────────────────────────────────
-MAX_QUESTION_WORDS = 18
+MAX_QUESTION_WORDS = 30
+DETERMINISTIC_MAX_WORDS = 25
 FORBIDDEN_PHRASES = [" and ", "undefined", "null", "none context"]
 FORBIDDEN_BEHAVIORAL_KEYWORDS = ["team", "conflict", "describe a time", "tell me about", "how did you handle"]
 FORBIDDEN_CONCEPTS = ["behavioral", "teamwork", "communication", "leadership"]
@@ -62,14 +72,20 @@ _STOPWORDS = {
 
 # ── Question Counting Helpers ─────────────────────────────────────────────
 def _question_number_by_phase(question_number: int) -> str:
-    """Map 1–15 to phase buckets."""
-    if 1 <= question_number <= 2:
+    """Map 1–15 to phase buckets.
+    
+    Q1-Q6:  resume   — project overview, architecture, tech stack, API, DB, challenges
+    Q7-Q11: core     — CS fundamentals (DBMS, OS, OOP)
+    Q12-Q14: advanced — system design / optimization
+    Q15:    dsa_scenario — algorithms / reasoning
+    """
+    if 1 <= question_number <= 6:
         return "resume"
-    if 3 <= question_number <= 7:
+    if 7 <= question_number <= 11:
         return "core"
-    if 8 <= question_number <= 12:
+    if 12 <= question_number <= 14:
         return "advanced"
-    if 13 <= question_number <= 15:
+    if question_number == 15:
         return "dsa_scenario"
     return "core"
 
@@ -103,7 +119,7 @@ def _is_behavioral(question: str) -> bool:
     return (has_behavioral or has_concept) and not has_tech
 
 def _is_multi_part(question: str) -> bool:
-    return " and " in question.lower() or question.count("?") > 1
+    return question.count("?") > 1
 
 
 def _is_too_long(question: str) -> bool:
@@ -271,41 +287,30 @@ def _validate_question(
     used_concepts: list[str] | None = None,
 ) -> tuple[bool, str]:
     """Return (is_valid, reason)."""
-    # ── LAYER 1: EXACT DUPLICATE CHECK ───────────────────
-    if check_exact_duplicate(question, history):
-        logger.debug("REJECTED: reason=EXACT_DUPLICATE, question='%s', concept='%s'", question, concept)
-        return False, "EXACT_DUPLICATE"
+    # 1. Empty question check
+    if not question or not question.strip():
+        return False, "empty"
 
-    # ── LAYER 2: CONCEPT DUPLICATE CHECK ───────────────────
-    if used_concepts is not None:
-        if check_concept_duplicate(concept, secondary_concept, used_concepts):
-            logger.debug("REJECTED: reason=CONCEPT_DUPLICATE, question='%s', concept='%s'", question, concept)
-            return False, "CONCEPT_DUPLICATE"
+    # 2. Ends with question mark
+    if not question.strip().endswith("?"):
+        return False, "no_question_mark"
 
-    # ── LAYER 3: SEMANTIC SIMILARITY CHECK ───────────────────
-    is_sem_dup, max_sim, matched_q = check_semantic_similarity(question, history, threshold=0.78)
-    if is_sem_dup:
-        logger.debug("REJECTED: reason=SEMANTIC_DUPLICATE, question='%s', concept='%s' (similar to '%s', score=%.3f)", 
-                     question, concept, matched_q, max_sim)
-        return False, "SEMANTIC_DUPLICATE"
+    # 3. Minimum length (3 words)
+    words = question.strip().split()
+    if len(words) < 3:
+        return False, "too_short"
 
-    if mode != "basic" and question_number > 15:
-        return False, "exceeds_15_questions"
-    if mode != "basic" and _is_behavioral(question):
-        return False, "behavioral_question"
-    if _is_multi_part(question):
-        return False, "multi_part"
-    if _is_too_long(question):
+    # 4. Maximum length
+    if len(words) > MAX_QUESTION_WORDS:
         return False, "too_long"
-    if _contains_invalid_context(question):
-        return False, "invalid_context"
 
-    if unused_subtopics is not None:
-        # Must pick ONLY from unused subtopics
-        if not str(subtopic or "").strip():
-            return False, "missing_subtopic"
-        if _normalize_label(subtopic) not in {_normalize_label(x) for x in unused_subtopics}:
-            return False, "subtopic_reused_or_invalid"
+    # 5. Multi-part detection: count("?") > 1
+    if question.count("?") > 1:
+        return False, "multi_part"
+
+    # 6. Exact duplicate check
+    if check_exact_duplicate(question, history):
+        return False, "exact_duplicate"
 
     return True, "ok"
 
@@ -667,6 +672,151 @@ def _sanitize_question_text(
     return q
 
 
+def _extract_question_from_llm_content(content: str) -> str:
+    """Parse plain-text or JSON LLM output into a single question string."""
+    text = (content or "").strip()
+    if not text:
+        return ""
+    if text.startswith("{"):
+        try:
+            parsed = parse_json_response(text)
+            q = (parsed.get("question") or "").strip()
+            if q:
+                return q
+        except Exception:
+            pass
+    # Plain text — take first line, strip wrapping quotes
+    line = text.splitlines()[0].strip()
+    return line.strip('"\'').strip()
+
+
+async def _generate_deterministic_question(
+    *,
+    llm: Any,
+    question_number: int,
+    question_history: list,
+    used_topics: list | None,
+    used_concepts: list | None,
+    rag_context: str,
+    resume_project_summary: str,
+    resume_has_projects: bool,
+    mode: str,
+    phase_bucket: str,
+    strict_difficulty: str,
+    strict_intent: str,
+) -> Dict[str, Any]:
+    """
+    Deterministic pipeline: backend picks topic+concept, LLM only phrases the question.
+    """
+    used_topics = used_topics or []
+    used_concepts = used_concepts or []
+    topic, concept = select_topic_and_concept(question_number, used_topics, used_concepts)
+
+    logger.info(
+        "Deterministic selection: q=%d topic=%s concept=%s %s",
+        question_number,
+        topic,
+        concept,
+        selection_debug_info(question_number, topic, concept, used_topics, used_concepts),
+    )
+
+    max_attempts = 4
+    attempt = 0
+    rejected_question = None
+
+    while attempt < max_attempts:
+        if attempt > 0:
+            topic, concept = select_topic_and_concept(
+                question_number + attempt,
+                used_topics,
+                used_concepts,
+            )
+
+        if concept_is_used(concept, used_concepts):
+            attempt += 1
+            continue
+
+        rag_chunk = select_rag_chunk(rag_context or resume_project_summary, topic, concept)
+        concept_label = format_concept_label(concept)
+        topic_label = format_concept_label(topic)
+
+        prompt = DETERMINISTIC_CONCEPT_QUESTION_PROMPT.format(
+            topic=topic_label,
+            concept=concept_label,
+            rag_context=rag_chunk or "No additional context.",
+        )
+        if rejected_question:
+            prompt += f'\n\nDo NOT repeat this question: "{rejected_question}"'
+
+        InterviewTracer.log_token_usage(
+            resume_tokens=estimate_tokens(rag_chunk or ""),
+            jd_tokens=0,
+            history_tokens=0,
+            total_tokens=estimate_tokens(prompt),
+        )
+        InterviewTracer.log_prompt(phase_bucket, topic, concept, prompt)
+
+        try:
+            response = await llm.ainvoke(prompt)
+            content: str = getattr(response, "content", str(response))
+            question = _extract_question_from_llm_content(content)
+
+            if len(question.split()) > DETERMINISTIC_MAX_WORDS and "." in question:
+                question = question.split(".")[0].strip()
+
+            if not question.endswith("?"):
+                question = question.rstrip(" .") + "?"
+
+            is_valid, reason = _validate_question(
+                question,
+                mode,
+                question_number,
+                question_history,
+                subtopic=topic,
+                concept=concept,
+            )
+
+            if is_valid and len(question.split()) <= DETERMINISTIC_MAX_WORDS:
+                question = _sanitize_question_text(
+                    question,
+                    mode=mode,
+                    resume_has_projects=bool(resume_has_projects),
+                    resume_project_summary=resume_project_summary or "",
+                )
+                logger.info(
+                    "ACCEPTED (deterministic): q=%d topic=%s concept=%s question='%s'",
+                    question_number, topic, concept, question,
+                )
+                print(f"[PLAN] phase={phase_bucket} topic={topic} concept={concept} q={question_number}")
+                print(f"[PLAN] question='{question}'")
+                return {
+                    "question": question,
+                    "topic": topic,
+                    "subtopic": topic,
+                    "concept": concept,
+                    "secondary_concept": "",
+                    "phase": phase_bucket,
+                    "type": strict_intent,
+                    "difficulty": strict_difficulty,
+                    "intent": strict_intent,
+                }
+
+            logger.warning(
+                "Deterministic validation failed (attempt %d/%d concept=%s reason=%s): %s",
+                attempt + 1, max_attempts, concept, reason, question,
+            )
+            rejected_question = question
+            used_concepts = list(used_concepts) + [concept]
+            attempt += 1
+
+        except Exception as exc:
+            logger.error("Deterministic LLM error: %s", exc)
+            attempt += 1
+
+    logger.warning("Deterministic pipeline exhausted retries; falling through to legacy generator.")
+    return {}
+
+
 async def generate_question_strict(
     *,
     llm: Any,
@@ -695,6 +845,7 @@ async def generate_question_strict(
     available_subtopics: list | None = None,
     used_subtopics: list | None = None,
     used_concepts: list | None = None,
+    used_topics: list | None = None,
     elapsed_time: int = 0,
     **kwargs,
 ) -> Dict[str, Any]:
@@ -720,6 +871,7 @@ async def generate_question_strict(
     question_history = question_history or []
     topic_history = topic_history or []
     used_concepts = used_concepts or []
+    used_topics = used_topics or topic_history or []
     effective_skills = skill_summary or context
 
     unused_subtopics = _compute_unused_subtopics(available_subtopics, used_subtopics) if available_subtopics is not None else None
@@ -733,6 +885,29 @@ async def generate_question_strict(
         phase_bucket = phase
         strict_difficulty = difficulty
         strict_intent = current_intent
+
+    # ── Deterministic topic/concept pipeline (project-based Q1–Q6) ─────────
+    if should_use_deterministic_pipeline(
+        resume_has_projects=bool(resume_has_projects),
+        question_number=question_number,
+        mode=mode,
+    ):
+        deterministic = await _generate_deterministic_question(
+            llm=llm,
+            question_number=question_number,
+            question_history=question_history,
+            used_topics=used_topics,
+            used_concepts=used_concepts,
+            rag_context=rag_context,
+            resume_project_summary=resume_project_summary,
+            resume_has_projects=bool(resume_has_projects),
+            mode=mode,
+            phase_bucket=phase_bucket,
+            strict_difficulty=strict_difficulty,
+            strict_intent=strict_intent,
+        )
+        if deterministic.get("question"):
+            return deterministic
 
     # Adaptive logic: if answer is weak/skip, force topic change (skip handling)
     if answer_quality in {"weak", "skip"} or last_answer.lower() in {"skip", "no idea"}:
@@ -764,15 +939,16 @@ async def generate_question_strict(
             mode=mode,
             question_number=question_number,
             last_answer=answer_quality or "None",
-            used_concepts=json.dumps(used_concepts[-20:]) if used_concepts else "[]",
+            target_topic=current_topic,
+            used_topics=json.dumps([str(x) for x in topic_history[-10:]]) if topic_history else "[]"
         )
     else:
         prompt = STRICT_QUESTION_GENERATION_PROMPT.format(
             mode=mode,
             question_number=question_number,
-            used_concepts=json.dumps(used_concepts[-20:]) if used_concepts else "[]",
-            used_topics=json.dumps([str(x) for x in topic_history[-10:]]) if topic_history else "[]",
-            last_answer=answer_quality or "None"
+            last_answer=answer_quality or "None",
+            target_topic=current_topic,
+            used_topics=json.dumps([str(x) for x in topic_history[-10:]]) if topic_history else "[]"
         )
 
         # Job-specific relevance control (language-only; does not change flow/count/eval/schema)
@@ -832,15 +1008,12 @@ async def generate_question_strict(
     InterviewTracer.log_pipeline_step(4, "rag", bool(rag_chunks))
     InterviewTracer.log_pipeline_step(5, "prompt", "Generated (see PROMPT DEBUG)")
 
-    max_attempts = 10
+    max_attempts = 2
     attempt = 0
     target_topic = current_topic
-    
-    # Track which topics we have attempted during this generation call to avoid loops
-    attempted_topics = {target_topic}
-    last_error = ""
+    rejected_question = None
 
-    while True:
+    while attempt < max_attempts:
         try:
             # Format target topic in prompt dynamically
             if phase == "resume":
@@ -855,18 +1028,19 @@ async def generate_question_strict(
                     mode=mode,
                     question_number=question_number,
                     last_answer=answer_quality or "None",
-                    used_concepts=json.dumps(used_concepts[-20:]) if used_concepts else "[]",
+                    target_topic=target_topic,
+                    used_topics=json.dumps([str(x) for x in topic_history[-10:]]) if topic_history else "[]"
                 )
             else:
                 current_prompt = STRICT_QUESTION_GENERATION_PROMPT.format(
                     mode=mode,
                     question_number=question_number,
-                    used_concepts=json.dumps(used_concepts[-20:]) if used_concepts else "[]",
-                    used_topics=json.dumps([str(x) for x in topic_history[-10:]]) if topic_history else "[]",
-                    last_answer=answer_quality or "None"
+                    last_answer=answer_quality or "None",
+                    target_topic=target_topic,
+                    used_topics=json.dumps([str(x) for x in topic_history[-10:]]) if topic_history else "[]"
                 )
                 
-                # Append role filters and subtopics
+                # Append role filters
                 project_name = _extract_first_project_name(resume_project_summary) if question_number == 1 else ""
                 if resume_has_projects and question_number == 1 and project_name:
                     current_prompt += "\n\nSTRICT RULES (JOB-SPECIFIC):"
@@ -902,10 +1076,9 @@ async def generate_question_strict(
                     current_prompt += "\n- Focus on React, Node APIs, MongoDB, authentication, and fullstack data flow."
                     current_prompt += "\n- Avoid OS theory and unrelated domains."
 
-            if unused_subtopics is not None:
-                # Find an unused subtopic that isn't the exhausted target_topic
-                valid_unused = [t for t in unused_subtopics if t == target_topic or t not in attempted_topics]
-                current_prompt += f"\n- You MUST pick subtopic ONLY from this unused list: {', '.join(valid_unused) if valid_unused else 'NONE'}"
+            if attempt > 0 and rejected_question:
+                # Add the smart retry instruction containing ONLY the immediately rejected question
+                current_prompt += f"\n\n🚨 RETRY INSTRUCTION: Do NOT generate: \"{rejected_question}\"\nGenerate a different interview question about the same topic: {target_topic}."
 
             current_prompt += "\n\nOUTPUT JSON MUST INCLUDE: question, concept, secondary_concept, difficulty. Use natural language; avoid robotic phrases like 'idea' or 'concept' in the question itself."
 
@@ -924,25 +1097,31 @@ async def generate_question_strict(
             concept = str(concept_raw or "").strip()
             secondary_concept = str(secondary_concept_raw or "").strip()
 
-            if not subtopic and unused_subtopics:
+            if not subtopic:
                 subtopic = target_topic
             if not concept:
                 concept = f"{target_topic}_q{question_number}"
 
-            # Validate generated question
+            if check_concept_duplicate(concept, secondary_concept, used_concepts):
+                logger.warning(
+                    "QuestionGeneratorAgent: concept duplicate rejected (attempt %d/%d concept=%s)",
+                    attempt + 1, max_attempts, concept,
+                )
+                rejected_question = question
+                attempt += 1
+                continue
+
+            # Validate generated question using simplified validation
             is_valid, reason = _validate_question(
                 question,
                 mode,
                 question_number,
                 question_history,
                 subtopic=subtopic,
-                unused_subtopics=unused_subtopics,
                 concept=concept,
-                secondary_concept=secondary_concept,
-                used_concepts=used_concepts,
             )
 
-            if is_valid:
+            if is_valid or (attempt >= 1 and question.strip()):
                 # Apply language sanitization
                 question = _sanitize_question_text(
                     question,
@@ -991,38 +1170,136 @@ async def generate_question_strict(
                 }
             else:
                 logger.warning(
-                    "QuestionGeneratorAgent: validation failed (attempt %d/10 topic=%s reason=%s): %s",
-                    attempt + 1, target_topic, reason, question,
+                    "QuestionGeneratorAgent: validation failed (attempt %d/%d topic=%s reason=%s): %s",
+                    attempt + 1, max_attempts, target_topic, reason, question,
                 )
+                rejected_question = question
                 attempt += 1
-                if attempt >= max_attempts:
-                    # Switch target topic/concept from unused pool
-                    if unused_subtopics:
-                        alt_topics = [t for t in unused_subtopics if t not in attempted_topics]
-                        if alt_topics:
-                            target_topic = alt_topics[0]
-                            attempted_topics.add(target_topic)
-                            attempt = 0
-                            logger.info("Switched to alternative subtopic: '%s'", target_topic)
-                            continue
-                    
-                    # If we exhausted all options, break to fallback pool
-                    break
 
         except Exception as exc:
             logger.error("QuestionGeneratorAgent LLM error: %s", exc)
-            last_error = str(exc)
             attempt += 1
-            if attempt >= max_attempts:
-                if unused_subtopics:
-                    alt_topics = [t for t in unused_subtopics if t not in attempted_topics]
-                    if alt_topics:
-                        target_topic = alt_topics[0]
-                        attempted_topics.add(target_topic)
-                        attempt = 0
-                        logger.info("Switched to alternative subtopic on error: '%s'", target_topic)
-                        continue
-                break
+
+    # ── PART 5: Switch Topic -> Generate Once -> Return ─────────────────
+    logger.info("All 3 attempts failed. Switching topic to find an unused topic.")
+    alt_topic = None
+    if unused_subtopics:
+        alt_topics = [t for t in unused_subtopics if t != current_topic]
+        if alt_topics:
+            alt_topic = alt_topics[0]
+    if not alt_topic and available_subtopics:
+        alt_topics = [t for t in available_subtopics if t != current_topic]
+        if alt_topics:
+            alt_topic = alt_topics[0]
+    if not alt_topic:
+        alt_topic = "general"
+
+    logger.info("Selected alternative topic: '%s'. Generating once.", alt_topic)
+    try:
+        if phase == "resume":
+            current_prompt = RESUME_PHASE_QUESTION_PROMPT.format(
+                rag_chunks=rag_chunks,
+                skill_summary=skill_summary or "Not listed",
+                project_summary=resume_project_summary or "No summary available",
+                topic=alt_topic
+            )
+        elif mode == "basic":
+            current_prompt = BASIC_PRACTICE_QUESTION_GENERATION_PROMPT.format(
+                mode=mode,
+                question_number=question_number,
+                last_answer=answer_quality or "None",
+                target_topic=alt_topic,
+                used_topics=json.dumps([str(x) for x in topic_history[-10:]]) if topic_history else "[]"
+            )
+        else:
+            current_prompt = STRICT_QUESTION_GENERATION_PROMPT.format(
+                mode=mode,
+                question_number=question_number,
+                last_answer=answer_quality or "None",
+                target_topic=alt_topic,
+                used_topics=json.dumps([str(x) for x in topic_history[-10:]]) if topic_history else "[]"
+            )
+            # Append role filters
+            project_name = _extract_first_project_name(resume_project_summary) if question_number == 1 else ""
+            if resume_has_projects and question_number == 1 and project_name:
+                current_prompt += "\n\nSTRICT RULES (JOB-SPECIFIC):"
+                current_prompt += "\n- Q1 MUST be project-based and role-relevant."
+                current_prompt += f"\n- Use the project name '{project_name}' in the question."
+                current_prompt += "\n- Ask about a specific implementation decision, challenge, or trade-off from that project."
+                current_prompt += "\n- Do NOT ask generic 'overview' questions unless you reference a concrete technical detail."
+            else:
+                current_prompt += "\n\nSTRICT RULES (JOB-SPECIFIC):"
+                if resume_has_projects and question_number == 1 and not project_name:
+                    current_prompt += "\n- Resume projects exist, but no valid project title is available to reference."
+                    current_prompt += "\n- DO NOT mention resume projects or ask project-based questions."
+                    current_prompt += "\n- Ask a skill-based question strictly aligned to the selected role."
+                elif not resume_has_projects:
+                    current_prompt += "\n- No relevant resume projects exist for this mode."
+                    current_prompt += "\n- DO NOT mention resume projects or ask project-based questions."
+                    current_prompt += "\n- Ask a skill-based question strictly aligned to the selected role."
+
+            if mode == "data_analyst":
+                current_prompt += "\n\nROLE FILTER: Data Analyst"
+                current_prompt += "\n- ONLY ask about data cleaning, SQL, EDA, visualization, statistics, pandas/Excel, or business insights."
+                current_prompt += "\n- DO NOT ask about APIs, caching, system design, or backend architecture."
+            elif mode == "ml_ai":
+                current_prompt += "\n\nROLE FILTER: ML/AI"
+                current_prompt += "\n- ONLY ask about preprocessing, models, evaluation, overfitting, and tuning."
+                current_prompt += "\n- DO NOT ask about DBMS, OS, APIs, or backend systems."
+            elif mode == "cloud":
+                current_prompt += "\n\nROLE FILTER: Cloud"
+                current_prompt += "\n- ONLY ask about deployment, IAM, networking, monitoring, reliability, and cost optimization."
+                current_prompt += "\n- DO NOT ask frontend or ML theory questions."
+            elif mode == "mern":
+                current_prompt += "\n\nROLE FILTER: MERN"
+                current_prompt += "\n- Focus on React, Node APIs, MongoDB, authentication, and fullstack data flow."
+                current_prompt += "\n- Avoid OS theory and unrelated domains."
+
+        current_prompt += "\n\nOUTPUT JSON MUST INCLUDE: question, concept, secondary_concept, difficulty. Use natural language; avoid robotic phrases like 'idea' or 'concept' in the question itself."
+
+        response = await llm.ainvoke(current_prompt)
+        content: str = getattr(response, "content", str(response))
+        result = parse_json_response(content)
+
+        question = (result.get("question", "")).strip()
+        subtopic_raw = result.get("subtopic") or result.get("topic")
+        concept_raw = result.get("concept")
+        secondary_concept_raw = result.get("secondary_concept") or ""
+        
+        subtopic = str(subtopic_raw or "").strip() or alt_topic
+        concept = str(concept_raw or "").strip() or f"{alt_topic}_fallback"
+        secondary_concept = str(secondary_concept_raw or "").strip()
+
+        # Apply language sanitization
+        question = _sanitize_question_text(
+            question,
+            mode=mode,
+            resume_has_projects=bool(resume_has_projects),
+            resume_project_summary=resume_project_summary or "",
+        )
+        if len(question.split()) > MAX_QUESTION_WORDS and "." in question:
+            question = question.split(".")[0].strip()
+        question = _sanitize_question_text(
+            question,
+            mode=mode,
+            resume_has_projects=bool(resume_has_projects),
+            resume_project_summary=resume_project_summary,
+        )
+
+        logger.info("ACCEPTED (FALLBACK GENERATION ONCE): question='%s', concept='%s'", question, concept)
+        return {
+            "question": question,
+            "topic": result.get("topic") or alt_topic,
+            "subtopic": subtopic,
+            "concept": concept,
+            "secondary_concept": secondary_concept,
+            "phase": result.get("phase", phase_bucket),
+            "type": result.get("type", strict_intent),
+            "difficulty": strict_difficulty,
+            "intent": strict_intent,
+        }
+    except Exception as exc:
+        logger.error("Failed to generate question on alternative topic: %s", exc)
 
     # ── FALLBACK POOL MECHANISM ──────────────────────────────────────────
     logger.warning("All LLM generation attempts failed or returned duplicates. Selecting from FALLBACK_POOL.")
@@ -1037,18 +1314,6 @@ async def generate_question_strict(
         # Check exact duplicate
         if check_exact_duplicate(fq, question_history):
             logger.debug("FALLBACK REJECTED: reason=EXACT_DUPLICATE, question='%s', concept='%s'", fq, fc)
-            continue
-            
-        # Check concept duplicate
-        if used_concepts is not None and check_concept_duplicate(fc, "", used_concepts):
-            logger.debug("FALLBACK REJECTED: reason=CONCEPT_DUPLICATE, question='%s', concept='%s'", fq, fc)
-            continue
-            
-        # Check semantic duplicate
-        is_sem_dup, max_sim, matched_q = check_semantic_similarity(fq, question_history, threshold=0.78)
-        if is_sem_dup:
-            logger.debug("FALLBACK REJECTED: reason=SEMANTIC_DUPLICATE, question='%s', concept='%s' (similar to '%s', score=%.3f)", 
-                         fq, fc, matched_q, max_sim)
             continue
             
         # Found a valid fallback question!

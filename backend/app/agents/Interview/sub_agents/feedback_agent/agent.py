@@ -55,16 +55,19 @@ async def generate_report(
     # 3. Use deterministic builder
     report_dict = build_report(turn_dicts)
 
-    # 3.5. LLM Refinement Step
+    # 3.5. LLM Refinement Step (optional, non-blocking with timeout)
     if llm:
         try:
+            import asyncio as _asyncio
+
             logger.info("FeedbackAgent: Refining report insights via LLM.")
             raw_json = json.dumps(report_dict, default=str)
             overall_score = report_dict.get("summary", {}).get("overall_score", 0.0)
             tier = report_dict.get("hiring_readiness", {}).get("tier", "Developing")
             prompt = build_feedback_prompt(raw_json, overall_score, tier)
             
-            response = await llm.ainvoke(prompt)
+            # Timeout after 2.0 seconds — fall back to deterministic report on slow LLM
+            response = await _asyncio.wait_for(llm.ainvoke(prompt), timeout=2.0)
             content = getattr(response, "content", str(response))
             
             if "```" in content:
@@ -118,7 +121,7 @@ async def generate_report(
                             
             logger.info("FeedbackAgent: Successfully refined report via LLM.")
         except Exception as e:
-            logger.error("FeedbackAgent: LLM refinement failed, falling back to deterministic report. Error: %s", e)
+            logger.warning("FeedbackAgent: LLM refinement failed, falling back to deterministic report. Error: %s", e)
 
     # 4. Deterministic scoring from stored turns (source of truth)
     # Rule: report overall_score must equal average of per-turn scores.

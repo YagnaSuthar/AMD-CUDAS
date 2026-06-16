@@ -26,7 +26,12 @@ from app.agents.Interview.prompts import (
 )
 from app.agents.Interview.sub_agents.profile_intelligence.agent import analyze_profile
 from app.agents.Interview.sub_agents.question_generator.agent import generate_question
-from app.agents.Interview.sub_agents.question_generator.agent_strict import generate_question_strict
+from app.agents.Interview.sub_agents.question_generator.agent_strict import generate_question_strict, _extract_first_project_name
+from app.agents.Interview.sub_agents.question_generator.topic_selector import (
+    select_topic_and_concept,
+    get_rag_query_for_selection,
+    should_use_deterministic_pipeline,
+)
 from app.agents.Interview.sub_agents.answer_evaluator.agent import evaluate_answer
 from app.agents.Interview.sub_agents.memory_agent.agent import update_memory
 from app.agents.Interview.sub_agents.feedback_agent.agent import generate_report
@@ -321,6 +326,47 @@ class InterviewOrchestrator:
 
         lines = [ln.strip() for ln in summary.splitlines() if ln.strip()]
         return any(any(n in ln.lower() for n in needles) for ln in lines)
+
+    def _extract_turn_history_metadata(self, turns) -> tuple[list, list, list]:
+        """Return (question_history, used_topics, used_concepts) from prior turns."""
+        question_history = []
+        used_topics = []
+        used_concepts = []
+        used_subtopics = []
+        for t in turns:
+            if t.question:
+                question_history.append(t.question)
+            ev = t.evaluation if isinstance(t.evaluation, dict) else {}
+            qm = ev.get("question_meta") if isinstance(ev, dict) else None
+            if isinstance(qm, dict):
+                topic = (qm.get("topic") or "").strip()
+                st = (qm.get("subtopic") or topic or "").strip()
+                c = (qm.get("concept") or "").strip()
+                sc = (qm.get("secondary_concept") or "").strip()
+                if topic and topic not in used_topics:
+                    used_topics.append(topic)
+                if st and st not in used_subtopics:
+                    used_subtopics.append(st)
+                if c and c not in used_concepts:
+                    used_concepts.append(c)
+                if sc and sc not in used_concepts:
+                    used_concepts.append(sc)
+        return question_history, used_topics, used_concepts, used_subtopics
+
+    def _rag_query_for_question(self, question_number: int, project_summary: str) -> str:
+        """Build a focused RAG query from deterministic topic/concept when applicable."""
+        if should_use_deterministic_pipeline(
+            resume_has_projects=self._has_relevant_projects,
+            question_number=question_number,
+            mode=self._mode,
+        ):
+            topic, concept = select_topic_and_concept(
+                question_number,
+                self._previous_topics,
+                [],
+            )
+            return get_rag_query_for_selection(topic, concept, project_summary)
+        return f"{project_summary} project architecture tech stack"
         
     def _get_next_topic(self) -> tuple[str, str]:
         """Strict topic fetch mechanism based on current phase and un-used topics."""
@@ -412,8 +458,14 @@ class InterviewOrchestrator:
                 
                 # Fetch RAG context if in resume phase
                 rag_context = ""
-                if self._current_phase == "resume":
-                    rag_query = f"{filtered_project_summary or self._project_summary} project architecture tech stack"
+                if self._current_phase == "resume" or (
+                    self._has_relevant_projects
+                    and (self._question_count + 1) <= 6
+                ):
+                    rag_query = self._rag_query_for_question(
+                        self._question_count + 1,
+                        filtered_project_summary or self._project_summary,
+                    )
                     rag_context = await get_interview_context(
                         self.student_id, rag_query, self.db
                     )
@@ -444,22 +496,9 @@ class InterviewOrchestrator:
                             .order_by(InterviewTurn.timestamp.asc())
                         )
                     ).scalars().all()
-                    question_history = [t.question for t in turns_for_history if t.question]
-                    used_subtopics = []
-                    used_concepts = []
-                    for t in turns_for_history:
-                        ev = t.evaluation if isinstance(t.evaluation, dict) else {}
-                        qm = ev.get("question_meta") if isinstance(ev, dict) else None
-                        if isinstance(qm, dict):
-                            st = (qm.get("subtopic") or "").strip()
-                            c = (qm.get("concept") or "").strip()
-                            sc = (qm.get("secondary_concept") or "").strip()
-                            if st and st not in used_subtopics:
-                                used_subtopics.append(st)
-                            if c and c not in used_concepts:
-                                used_concepts.append(c)
-                            if sc and sc not in used_concepts:
-                                used_concepts.append(sc)
+                    question_history, used_topics, used_concepts, used_subtopics = (
+                        self._extract_turn_history_metadata(turns_for_history)
+                    )
 
                     phase_plan = self._phase_topics.get(self._current_phase, [])
                     available_subtopics = [x.get("topic") for x in phase_plan if isinstance(x, dict) and x.get("topic")]
@@ -471,6 +510,7 @@ class InterviewOrchestrator:
                         "answer_quality": self._last_evaluation.get("answer_classification", "") if self._last_evaluation else "",
                         "available_subtopics": available_subtopics,
                         "used_subtopics": used_subtopics,
+                        "used_topics": used_topics,
                         "used_concepts": used_concepts,
                         "elapsed_time": elapsed_time,
                     }
@@ -517,6 +557,7 @@ class InterviewOrchestrator:
                     evaluation={
                         "question_meta": {
                             "question_number": self._question_count,
+                            "topic": (question_data.get("topic") or "") if isinstance(question_data, dict) else "",
                             "subtopic": (question_data.get("subtopic") or "") if isinstance(question_data, dict) else "",
                             "concept": (question_data.get("concept") or "") if isinstance(question_data, dict) else "",
                             "secondary_concept": (question_data.get("secondary_concept") or "") if isinstance(question_data, dict) else "",
@@ -551,6 +592,15 @@ class InterviewOrchestrator:
                     "question": self._last_question,
                     "question_id": str(self._current_turn.turn_id),
                 }
+
+                # Print PLAN diagnostics for transparency
+                print(f"\n[PLAN] phase={self._current_phase}")
+                print(f"[PLAN] topic={question_data.get('topic') or self._current_topic}")
+                project_name = ""
+                if self._has_relevant_projects:
+                    project_name = _extract_first_project_name(filtered_project_summary or self._project_summary)
+                print(f"[PLAN] project={project_name or 'None'}")
+                print(f"[PLAN] Reason For Transition=Deterministic plan progression\n")
 
                 return {
                     "next_agent": "question_generator",
@@ -616,8 +666,14 @@ class InterviewOrchestrator:
                     # Fetch RAG or Follow-up context
                     rag_context = ""
                     followup_context = ""
-                    if self._current_phase == "resume":
-                        rag_query = f"projects {self._current_topic} {self._project_summary}"
+                    next_q_num = self._question_count + 1
+                    if self._current_phase == "resume" or (
+                        self._has_relevant_projects and next_q_num <= 6
+                    ):
+                        rag_query = self._rag_query_for_question(
+                            next_q_num,
+                            self._filter_resume_project_summary(self._project_summary) or self._project_summary,
+                        )
                         rag_context = await get_interview_context(
                             self.student_id, rag_query, self.db
                         )
@@ -639,8 +695,13 @@ class InterviewOrchestrator:
                             self._current_intent = next_intent
                             rag_context = ""
                             followup_context = ""
-                            if self._current_phase == "resume":
-                                rag_query = f"projects {self._current_topic} {self._project_summary}"
+                            if self._current_phase == "resume" or (
+                                self._has_relevant_projects and (self._question_count + 1) <= 6
+                            ):
+                                rag_query = self._rag_query_for_question(
+                                    self._question_count + 1,
+                                    self._filter_resume_project_summary(self._project_summary) or self._project_summary,
+                                )
                                 rag_context = await get_interview_context(
                                     self.student_id, rag_query, self.db
                                 )
@@ -669,22 +730,9 @@ class InterviewOrchestrator:
                                     .order_by(InterviewTurn.timestamp.asc())
                                 )
                             ).scalars().all()
-                            question_history = [t.question for t in turns_for_history if t.question]
-                            used_subtopics = []
-                            used_concepts = []
-                            for t in turns_for_history:
-                                ev = t.evaluation if isinstance(t.evaluation, dict) else {}
-                                qm = ev.get("question_meta") if isinstance(ev, dict) else None
-                                if isinstance(qm, dict):
-                                    st = (qm.get("subtopic") or "").strip()
-                                    c = (qm.get("concept") or "").strip()
-                                    sc = (qm.get("secondary_concept") or "").strip()
-                                    if st and st not in used_subtopics:
-                                        used_subtopics.append(st)
-                                    if c and c not in used_concepts:
-                                        used_concepts.append(c)
-                                    if sc and sc not in used_concepts:
-                                        used_concepts.append(sc)
+                            question_history, used_topics, used_concepts, used_subtopics = (
+                                self._extract_turn_history_metadata(turns_for_history)
+                            )
 
                             phase_plan = self._phase_topics.get(self._current_phase, [])
                             available_subtopics = [x.get("topic") for x in phase_plan if isinstance(x, dict) and x.get("topic")]
@@ -696,6 +744,7 @@ class InterviewOrchestrator:
                                 "answer_quality": self._last_evaluation.get("answer_classification", "") if self._last_evaluation else "",
                                 "available_subtopics": available_subtopics,
                                 "used_subtopics": used_subtopics,
+                                "used_topics": used_topics,
                                 "used_concepts": used_concepts,
                                 "elapsed_time": elapsed_time,
                             }
@@ -760,6 +809,7 @@ class InterviewOrchestrator:
                     evaluation={
                         "question_meta": {
                             "question_number": self._question_count,
+                            "topic": (question_data.get("topic") or "") if isinstance(question_data, dict) else "",
                             "subtopic": (question_data.get("subtopic") or "") if isinstance(question_data, dict) else "",
                             "concept": (question_data.get("concept") or "") if isinstance(question_data, dict) else "",
                             "secondary_concept": (question_data.get("secondary_concept") or "") if isinstance(question_data, dict) else "",
@@ -794,6 +844,19 @@ class InterviewOrchestrator:
                     "question": self._last_question,
                     "question_id": str(self._current_turn.turn_id),
                 }
+
+                # Print PLAN diagnostics for transparency
+                print(f"\n[PLAN] phase={self._current_phase}")
+                print(f"[PLAN] topic={question_data.get('topic') or self._current_topic}")
+                project_name = ""
+                if self._has_relevant_projects:
+                    project_name = _extract_first_project_name(self._filter_resume_project_summary(self._project_summary) or self._project_summary)
+                print(f"[PLAN] project={project_name or 'None'}")
+                if self._question_count <= 6:
+                    reason = "Deterministic plan progression"
+                else:
+                    reason = f"Phase transition to {self._current_phase}"
+                print(f"[PLAN] Reason For Transition={reason}\n")
 
                 return {
                     "next_agent": "question_generator",
@@ -1003,7 +1066,7 @@ class InterviewOrchestrator:
 
                 # Enforce strict phase transition rules (basic mode only)
                 if self._is_time_based:
-                    if self._current_phase == "resume" and self._questions_in_phase >= 2:
+                    if self._current_phase == "resume" and self._questions_in_phase >= 6:
                         self._move_to_next_phase()
                     elif self._current_phase == "core" and self._questions_in_phase >= 5:
                         self._move_to_next_phase()
@@ -1011,8 +1074,8 @@ class InterviewOrchestrator:
                         self._move_to_next_phase()
                     elif self._current_phase == "behavioral" and self._questions_in_phase >= 2:
                         self._move_to_next_phase()
-                    elif self._current_phase == "mixed" and self._questions_in_phase >= 6:
-                        # Q15-Q20 (6 questions)
+                    elif self._current_phase == "mixed" and self._questions_in_phase >= (8 if not self._has_relevant_projects else 2):
+                        # Q19-Q20 (2 questions with project) or Q13-Q20 (8 questions without project)
                         return await self._end_interview()
                     
                 InterviewTracer.log_pipeline_step(2, "phase", self._current_phase)

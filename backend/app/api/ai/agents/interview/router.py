@@ -550,7 +550,11 @@ async def get_student_report(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    """Fetch the student-specific report with encouragement and learning resources."""
+    """Fetch the student-specific report with encouragement and learning resources.
+
+    Returns {"status": "processing"} while the report is being generated,
+    or {"status": "ready", ...data} when complete.
+    """
     try:
         return await InterviewService.get_student_report(
             session_id=session_id,
