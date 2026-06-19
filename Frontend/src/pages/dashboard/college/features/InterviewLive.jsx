@@ -383,11 +383,13 @@ export default function InterviewLive() {
   }, [stopAudioAnalysis]);
 
   const submitFromCurrentTranscript = useCallback(() => {
-    // Combine final accumulated transcript with any current interim transcript displayed.
-    const accumulated = (transcript || '').trim();
+    // Merge both refs synchronously so no recognized speech is lost at submission time.
+    // finalTranscriptRef holds all finalized sentences; liveTranscriptRef holds the
+    // active interim segment that has not yet been finalized by the browser engine.
+    const accumulated = `${finalTranscriptRef.current} ${liveTranscriptRef.current}`.trim();
     if (!accumulated) return null;
     return accumulated;
-  }, [transcript]);
+  }, []);
 
   /* â”€â”€ end / recording â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const runSilenceMonitor = useCallback(() => {
@@ -549,8 +551,12 @@ export default function InterviewLive() {
         if (finalDelta.trim()) {
           finalTranscriptRef.current = `${finalTranscriptRef.current} ${finalDelta}`.trim();
           console.log('[DIAG] Raw final delta persisted', { finalDelta: finalDelta.trim(), timestamp: Date.now() });
-          setLiveTranscript('');
-          liveTranscriptRef.current = '';
+          // Preserve interimDelta if it is non-empty: it was emitted in the same
+          // recognition tick and represents speech still in progress. Clearing it
+          // here was the root cause of words disappearing mid-sentence.
+          const remainingInterim = interimDelta.trim();
+          setLiveTranscript(remainingInterim);
+          liveTranscriptRef.current = remainingInterim;
         }
 
         const currentTranscript = (finalTranscriptRef.current || '').trim();
@@ -596,6 +602,11 @@ export default function InterviewLive() {
             liveTranscriptRef.current = '';
             setLiveTranscript('');
           }
+          // Abort any stale recognizer that is not the one that just ended.
+          // This prevents a second live instance from running alongside the new one.
+          if (recognitionRef.current && recognitionRef.current !== r) {
+            try { recognitionRef.current.abort(); } catch {}
+          }
           try {
             const newR = createRecognition();
             recognitionRef.current = newR;
@@ -603,9 +614,13 @@ export default function InterviewLive() {
             newR.start();
           } catch (err) {
             console.log('[DIAG] Recognition Start FAILED on restart', { error: String(err), timestamp: Date.now() });
-            isRecordingRef.current = false;
-            setIsRecording(false);
-            isListeningRef.current = false;
+            // Only permanently stop listening for InvalidStateError (browser not ready).
+            // For any other transient error let the next onend cycle retry naturally.
+            if (err instanceof DOMException && err.name === 'InvalidStateError') {
+              isRecordingRef.current = false;
+              setIsRecording(false);
+              isListeningRef.current = false;
+            }
           }
         } else {
           isRecordingRef.current = false;
@@ -1428,7 +1443,7 @@ export default function InterviewLive() {
       {/* ── TRANSCRIPT OVERLAY ── */}
       {isActive && state !== STATES.EVALUATING && (
         <div className={`meet-transcript ${isRecording ? 'active' : ''}`}>
-          {(liveTranscript || transcript) || <span className="meet-transcript-ph">Your answer will appear here…</span>}
+          {transcript || <span className="meet-transcript-ph">Your answer will appear here…</span>}
         </div>
       )}
 
@@ -1458,7 +1473,8 @@ export default function InterviewLive() {
           <button
             className="meet-ctrl-btn submit-answer"
             onClick={() => {
-              const accumulated = (finalTranscriptRef.current || '').trim() || (transcript || '').trim();
+              // Merge both refs so active interim words are never discarded on manual submit.
+              const accumulated = `${finalTranscriptRef.current} ${liveTranscriptRef.current}`.trim();
               stopRecording();
               submitAnswer(accumulated || '');
             }}
