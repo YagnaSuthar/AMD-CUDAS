@@ -852,6 +852,23 @@ class InterviewService:
         # Report exists — clean up tracker
         report_status_tracker.pop(sid_str, None)
 
+        proctoring_summary = None
+        if hasattr(report, "student_report") and report.student_report:
+            try:
+                import json as _json
+                student_data = _json.loads(report.student_report) if isinstance(report.student_report, str) else report.student_report
+                proctoring_summary = student_data.get("proctoring_summary")
+            except Exception:
+                pass
+
+        if proctoring_summary is None:
+            try:
+                from app.agents.Interview.sub_agents.detector_agent.agent import DetectorAgent
+                detector = DetectorAgent(db)
+                proctoring_summary = await detector.get_proctoring_summary(session_id)
+            except Exception:
+                pass
+
         return InterviewReportResponse(
             session_id=session_id,
             final_score=report.final_score,
@@ -859,7 +876,8 @@ class InterviewService:
             strengths=list(report.strengths) if report.strengths else [],
             weaknesses=list(report.weaknesses) if report.weaknesses else [],
             recommendation=report.recommendation,
-            status="READY"
+            status="READY",
+            proctoring_summary=proctoring_summary,
         )
 
     # ── GET /interview/config ─────────────────────────────────────────────
@@ -989,8 +1007,11 @@ class InterviewService:
     ) -> InterviewSessionReportResponse:
         """Build a full report view for history (works for partial/failed sessions)."""
 
+        from sqlalchemy.orm import selectinload
         sess_result = await db.execute(
-            select(InterviewSession).where(
+            select(InterviewSession)
+            .options(selectinload(InterviewSession.violations))
+            .where(
                 InterviewSession.session_id == session_id,
                 InterviewSession.student_id == student_id,
             )
@@ -998,6 +1019,29 @@ class InterviewService:
         session = sess_result.scalar_one_or_none()
         if not session:
             raise ValueError("Session not found or access denied")
+
+        # Get report if it exists to retrieve proctoring_summary
+        rpt_result = await db.execute(
+            select(InterviewReport).where(InterviewReport.session_id == session_id)
+        )
+        report = rpt_result.scalar_one_or_none()
+
+        proctoring_summary = None
+        if report and hasattr(report, "student_report") and report.student_report:
+            try:
+                import json as _json
+                student_data = _json.loads(report.student_report) if isinstance(report.student_report, str) else report.student_report
+                proctoring_summary = student_data.get("proctoring_summary")
+            except Exception:
+                pass
+
+        if proctoring_summary is None:
+            try:
+                from app.agents.Interview.sub_agents.detector_agent.agent import DetectorAgent
+                detector = DetectorAgent(db)
+                proctoring_summary = await detector.get_proctoring_summary(session_id)
+            except Exception:
+                pass
 
         turns_result = await db.execute(
             select(InterviewTurn)
@@ -1020,13 +1064,20 @@ class InterviewService:
 
         turn_dicts = []
         for t in turns:
+            ev = t.evaluation if t.evaluation else {}
+            qm = ev.get("question_meta", {}) if isinstance(ev, dict) else {}
             turn_dicts.append({
                 "question": t.question or "",
                 "answer": t.answer or "",
-                "evaluation": t.evaluation if t.evaluation else {},
+                "evaluation": ev,
+                "topic": qm.get("topic") or qm.get("concept") or t.phase or "Technical",
+                "concept": qm.get("concept") or "",
+                "difficulty": qm.get("difficulty") or t.difficulty or "medium",
+                "phase": qm.get("phase") or t.phase or "core_technical",
+                "project": qm.get("project") or "",
             })
 
-        report_dict = build_report(turn_dicts)
+        report_dict = build_report(turn_dicts, session.proctoring_violations)
         summary_obj = report_dict.get("summary") if isinstance(report_dict, dict) else {}
         if not isinstance(summary_obj, dict):
             summary_obj = {}
@@ -1079,6 +1130,7 @@ class InterviewService:
             summary=summary_text,
             questions=questions,
             pdf_url=f"/ai/interview/{session_id}/download",
+            proctoring_summary=proctoring_summary,
         )
 
     @staticmethod
@@ -1320,6 +1372,16 @@ class InterviewService:
         if "evaluations" in recruiter_data:
             base["evaluations"] = recruiter_data["evaluations"]
 
+        if "proctoring_summary" in recruiter_data:
+            base["proctoring_summary"] = recruiter_data["proctoring_summary"]
+        else:
+            try:
+                from app.agents.Interview.sub_agents.detector_agent.agent import DetectorAgent
+                detector = DetectorAgent(db)
+                base["proctoring_summary"] = await detector.get_proctoring_summary(session_id)
+            except Exception:
+                base["proctoring_summary"] = None
+
         return base
 
     # ── GET /interview/report/{session_id}/student ────────────────────
@@ -1391,5 +1453,15 @@ class InterviewService:
             base["critical_issues"] = student_data["critical_issues"]
         if "evaluations" in student_data:
             base["evaluations"] = student_data["evaluations"]
+
+        if "proctoring_summary" in student_data:
+            base["proctoring_summary"] = student_data["proctoring_summary"]
+        else:
+            try:
+                from app.agents.Interview.sub_agents.detector_agent.agent import DetectorAgent
+                detector = DetectorAgent(db)
+                base["proctoring_summary"] = await detector.get_proctoring_summary(session_id)
+            except Exception:
+                base["proctoring_summary"] = None
 
         return base

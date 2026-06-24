@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FiVideo, FiMic, FiMicOff, FiVideoOff, FiArrowLeft, FiClock } from 'react-icons/fi';
 import api from '../../../../utils/api';
@@ -163,7 +163,7 @@ export default function Round2Meeting() {
                 {scheduledAt && (
                     <div style={{ marginTop: '12px', fontSize: '0.85rem', opacity: 0.8 }}>
                         <FiClock size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                        {scheduledAt.toLocaleDateString()} â€¢ {scheduledAt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        {scheduledAt.toLocaleDateString()} • {scheduledAt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                     </div>
                 )}
             </div>
@@ -203,7 +203,7 @@ export default function Round2Meeting() {
                                     Interviewer not joined yet
                                 </div>
                                 <div style={{ marginTop: '8px', opacity: 0.78, fontSize: '1rem', lineHeight: 1.5 }}>
-                                    Please wait â€” the interviewer will join soon.
+                                    Please wait — the interviewer will join soon.
                                 </div>
                             </div>
                         ) : (
@@ -286,7 +286,7 @@ export default function Round2Meeting() {
                             gap: '8px'
                         }}>
                             <span style={{ opacity: 0.9 }}>You</span>
-                            <span style={{ opacity: 0.6 }}>â€¢</span>
+                            <span style={{ opacity: 0.6 }}>•</span>
                             <span style={{ opacity: 0.85 }}>{micOn ? 'Mic on' : 'Mic off'}</span>
                         </div>
                     </div>

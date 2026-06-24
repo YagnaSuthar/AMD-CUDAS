@@ -216,6 +216,10 @@ async def evaluate_answer(
     answer: str,
     llm: Any,
     difficulty: str = "medium",
+    phase: str = "core_technical",
+    topic: str = "",
+    concept: str = "",
+    role: str = "",
 ) -> Dict[str, Any]:
     """
     Evaluate the candidate's answer with weighted scoring.
@@ -269,14 +273,15 @@ async def evaluate_answer(
     # ── Normal LLM evaluation for VALID answers ───────────────────────────
     logger.info("AnswerEvaluatorAgent: evaluating answer (weighted scoring)")
 
-    # NOTE: We cannot change orchestrator/question_generator interfaces.
-    # phase/job_role are not currently provided here, so we keep safe defaults.
     prompt = build_evaluator_prompt(
         question=question,
         answer=answer,
-        phase="core_technical",
+        phase=phase,
         difficulty=difficulty,
         keywords=None,  # Placeholder for future keyword support
+        topic=topic,
+        concept=concept,
+        role=role,
     )
 
     try:

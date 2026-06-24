@@ -59,7 +59,7 @@ export default function Dashboard({ analytics = false, departments = false }) {
         );
     }
 
-    // â”€â”€ Dispatch to role-specific dashboards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Dispatch to role-specific dashboards
     if (user.role === 'COLLEGE_PRINCIPAL' && !departments) {
         return <PrincipalDashboard />;
     }
@@ -211,7 +211,7 @@ export default function Dashboard({ analytics = false, departments = false }) {
     );
 }
 
-/* â”€â”€ Principal Departments Sub-Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Principal Departments Sub-Component */
 function PrincipalDepartments() {
     const [depts, setDepts] = useState([]);
     const [loading, setLoading] = useState(true);

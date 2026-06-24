@@ -26,11 +26,11 @@ from app.agents.Interview.prompts import (
 )
 from app.agents.Interview.sub_agents.profile_intelligence.agent import analyze_profile
 from app.agents.Interview.sub_agents.question_generator.agent import generate_question
-from app.agents.Interview.sub_agents.question_generator.agent_strict import generate_question_strict, _extract_first_project_name
+from app.agents.Interview.sub_agents.question_generator.agent_strict import generate_question_strict
+from app.agents.Interview.planner.interview_planner import InterviewPlanner
 from app.agents.Interview.sub_agents.question_generator.topic_selector import (
-    select_topic_and_concept,
+    select_concept,
     get_rag_query_for_selection,
-    should_use_deterministic_pipeline,
 )
 from app.agents.Interview.sub_agents.answer_evaluator.agent import evaluate_answer
 from app.agents.Interview.sub_agents.memory_agent.agent import update_memory
@@ -121,7 +121,7 @@ class InterviewOrchestrator:
             self._mode = self._normalize_mode(job_role)
         # Mode-based termination control
         self._is_time_based = self._mode == "basic"
-        self._max_questions = 15 if not self._is_time_based else None
+        self._max_questions = 20 if self._is_time_based else 15
         self.state: InterviewState = InterviewState.INIT
         self._profile_context: str = ""
         self._skill_summary: str = ""
@@ -353,19 +353,10 @@ class InterviewOrchestrator:
                     used_concepts.append(sc)
         return question_history, used_topics, used_concepts, used_subtopics
 
-    def _rag_query_for_question(self, question_number: int, project_summary: str) -> str:
+    def _rag_query_for_question(self, question_number: int, project_summary: str, plan: dict | None = None) -> str:
         """Build a focused RAG query from deterministic topic/concept when applicable."""
-        if should_use_deterministic_pipeline(
-            resume_has_projects=self._has_relevant_projects,
-            question_number=question_number,
-            mode=self._mode,
-        ):
-            topic, concept = select_topic_and_concept(
-                question_number,
-                self._previous_topics,
-                [],
-            )
-            return get_rag_query_for_selection(topic, concept, project_summary)
+        if plan and plan.get("concept"):
+            return get_rag_query_for_selection(plan.get("topic", ""), plan.get("concept", ""), project_summary)
         return f"{project_summary} project architecture tech stack"
         
     def _get_next_topic(self) -> tuple[str, str]:
@@ -445,9 +436,9 @@ class InterviewOrchestrator:
                     logger.info("No relevant projects for mode=%s, skipping to core phase. Q1 will be scenario-based.", self._mode)
                     self._current_phase = "core"
 
-                # Safety check: never exceed max_questions (non-time-based modes only)
+                # Safety check: never exceed max_questions
                 print("QUESTION COUNT (INIT):", self._question_count)
-                if not self._is_time_based and self._question_count >= self._max_questions:
+                if self._question_count >= self._max_questions:
                     print("MAX QUESTIONS REACHED IN INIT, ENDING INTERVIEW")
                     return await self._end_interview()
 
@@ -456,79 +447,91 @@ class InterviewOrchestrator:
                 self._current_topic = next_topic
                 self._current_intent = next_intent
                 
+                # Fetch RAG context will be done after we compute the plan and concept
+
+                # Generate first question
+                self.state = InterviewState.QUESTIONING
+                gen_fn = generate_question_strict
+                
+                # Fetch history turns (empty on first question, but good for consistency)
+                turns_for_history = (
+                    await self.db.execute(
+                        select(InterviewTurn)
+                        .where(InterviewTurn.session_id == self.session_id)
+                        .order_by(InterviewTurn.timestamp.asc())
+                    )
+                ).scalars().all()
+                
+                history_metadata = []
+                question_history = []
+                for t in turns_for_history:
+                    if t.question:
+                        question_history.append(t.question)
+                    ev = t.evaluation if isinstance(t.evaluation, dict) else {}
+                    qm = ev.get("question_meta") if isinstance(ev, dict) else None
+                    if isinstance(qm, dict):
+                        history_metadata.append({
+                            "phase": qm.get("phase") or t.phase or "",
+                            "topic": qm.get("topic") or "",
+                            "concept": qm.get("concept") or "",
+                            "project": qm.get("project") or "",
+                            "technology": qm.get("technology") or "",
+                            "role": qm.get("role") or "",
+                            "difficulty": qm.get("difficulty") or t.difficulty or "",
+                            "intent": qm.get("intent") or qm.get("type") or "",
+                            "question_number": qm.get("question_number") or 1
+                        })
+
+                # Compute next plan
+                plan = InterviewPlanner.get_next_plan(
+                    question_number=self._question_count + 1,
+                    mode=self._mode,
+                    history_metadata=history_metadata,
+                    resume_project_summary=self._project_summary,
+                    resume_has_projects=self._has_relevant_projects,
+                    answer_quality=self._last_evaluation.get("answer_classification", "") if self._last_evaluation else "",
+                    topic_depth=self._topic_depth,
+                    skills=self._skill_summary,
+                    phase=self._current_phase,
+                    job_description=self._job_role
+                )
+                
+                # Select concept dynamically
+                used_concepts = [m["concept"] for m in history_metadata if m.get("concept")]
+                plan["concept"] = select_concept(
+                    phase=plan.get("phase", ""),
+                    topic=plan.get("topic", ""),
+                    role=plan.get("role", ""),
+                    difficulty=plan.get("difficulty", ""),
+                    used_concepts=used_concepts
+                )
+                
                 # Fetch RAG context if in resume phase
                 rag_context = ""
-                if self._current_phase == "resume" or (
-                    self._has_relevant_projects
-                    and (self._question_count + 1) <= 6
-                ):
+                if plan.get("phase") == "resume" or plan.get("project"):
                     rag_query = self._rag_query_for_question(
                         self._question_count + 1,
                         filtered_project_summary or self._project_summary,
+                        plan
                     )
                     rag_context = await get_interview_context(
                         self.student_id, rag_query, self.db
                     )
-
-                # Generate first question
-                self.state = InterviewState.QUESTIONING
-                # Always use strict generator for all modes now
-                use_strict = True
-                gen_fn = generate_question_strict
-                extra_kwargs = {}
                 
-                # Calculate elapsed time
-                elapsed_time = 0
-                try:
-                    from app.models.interview import InterviewSession
-                    sess = await self.db.get(InterviewSession, self.session_id)
-                    if sess and sess.start_time:
-                        import datetime as dt_mod
-                        elapsed_time = int((dt_mod.datetime.utcnow().replace(tzinfo=sess.start_time.tzinfo) - sess.start_time).total_seconds())
-                except Exception as e:
-                    logger.warning("Could not calculate elapsed time: %s", e)
-
-                if use_strict:
-                    turns_for_history = (
-                        await self.db.execute(
-                            select(InterviewTurn)
-                            .where(InterviewTurn.session_id == self.session_id)
-                            .order_by(InterviewTurn.timestamp.asc())
-                        )
-                    ).scalars().all()
-                    question_history, used_topics, used_concepts, used_subtopics = (
-                        self._extract_turn_history_metadata(turns_for_history)
-                    )
-
-                    phase_plan = self._phase_topics.get(self._current_phase, [])
-                    available_subtopics = [x.get("topic") for x in phase_plan if isinstance(x, dict) and x.get("topic")]
-
-                    extra_kwargs = {
-                        "question_number": self._question_count + 1,
-                        "question_history": question_history,
-                        "topic_history": self._previous_topics,
-                        "answer_quality": self._last_evaluation.get("answer_classification", "") if self._last_evaluation else "",
-                        "available_subtopics": available_subtopics,
-                        "used_subtopics": used_subtopics,
-                        "used_topics": used_topics,
-                        "used_concepts": used_concepts,
-                        "elapsed_time": elapsed_time,
-                    }
+                # Ensure the orchestrator's phase matches the planner's plan
+                self._current_phase = plan.get("phase", self._current_phase)
+                self._current_topic = plan.get("topic", "")
+                self._current_intent = plan.get("intent", "concept")
 
                 question_data = await gen_fn(
+                    plan=plan,
                     context=self._profile_context,
-                    difficulty=self._current_difficulty,
+                    difficulty=plan.get("difficulty", self._current_difficulty),
                     llm=self.llm,
                     last_answer=last_answer,
                     skill_summary=self._skill_summary,
                     resume_has_projects=self._has_relevant_projects,
-                    resume_project_summary=(
-                        "\n".join([f"- {p}" for p in self._project_list])
-                        if (self._has_relevant_projects and self._project_list)
-                        else (filtered_project_summary or self._project_summary)
-                        if self._has_relevant_projects
-                        else ""
-                    ),
+                    resume_project_summary=self._project_summary,
                     phase=self._current_phase,
                     mode=self._mode,
                     previous_topics=self._previous_topics,
@@ -536,15 +539,15 @@ class InterviewOrchestrator:
                     current_topic=self._current_topic,
                     last_evaluation=self._last_evaluation,
                     rag_context=rag_context,
-                    **extra_kwargs,
+                    question_history=question_history,
                 )
                 self._last_question = question_data.get("question", "")
                 self._question_count += 1
                 self._questions_in_phase += 1
                 print("QUESTION COUNT (INIT after increment):", self._question_count)
                 
-                # Additional safety check after increment (non-time-based modes only)
-                if not self._is_time_based and self._question_count > self._max_questions:
+                # Additional safety check after increment
+                if self._question_count > self._max_questions:
                     print("SAFETY: EXCEEDED MAX QUESTIONS AFTER INCREMENT, ENDING INTERVIEW")
                     return await self._end_interview()
 
@@ -557,10 +560,14 @@ class InterviewOrchestrator:
                     evaluation={
                         "question_meta": {
                             "question_number": self._question_count,
-                            "topic": (question_data.get("topic") or "") if isinstance(question_data, dict) else "",
-                            "subtopic": (question_data.get("subtopic") or "") if isinstance(question_data, dict) else "",
-                            "concept": (question_data.get("concept") or "") if isinstance(question_data, dict) else "",
-                            "secondary_concept": (question_data.get("secondary_concept") or "") if isinstance(question_data, dict) else "",
+                            "phase": plan.get("phase", self._current_phase),
+                            "topic": plan.get("topic", ""),
+                            "concept": plan.get("concept", ""),
+                            "project": plan.get("project", ""),
+                            "technology": plan.get("technology", ""),
+                            "role": plan.get("role", self._mode),
+                            "difficulty": plan.get("difficulty", self._current_difficulty),
+                            "intent": plan.get("intent", ""),
                         }
                     },
                     phase=self._current_phase,
@@ -596,9 +603,7 @@ class InterviewOrchestrator:
                 # Print PLAN diagnostics for transparency
                 print(f"\n[PLAN] phase={self._current_phase}")
                 print(f"[PLAN] topic={question_data.get('topic') or self._current_topic}")
-                project_name = ""
-                if self._has_relevant_projects:
-                    project_name = _extract_first_project_name(filtered_project_summary or self._project_summary)
+                project_name = plan.get("project", "")
                 print(f"[PLAN] project={project_name or 'None'}")
                 print(f"[PLAN] Reason For Transition=Deterministic plan progression\n")
 
@@ -623,171 +628,127 @@ class InterviewOrchestrator:
             print(f"QUESTION COUNT: {self._question_count}")
             print(f"MAX QUESTIONS: {self._max_questions}")
             
-            # Safety check: never exceed max_questions for non-time-based modes
-            if not self._is_time_based and self._question_count >= self._max_questions:
+            # Safety check: never exceed max_questions
+            if self._question_count >= self._max_questions:
                 print("MAX QUESTIONS REACHED IN QUESTIONING, ENDING INTERVIEW")
                 return await self._end_interview()
 
             try:
-                # Behavioral phase control: never loop for non-basic modes.
-                # - Only 1 primary behavioral question is allowed.
-                # - If that answer is weak, we allow exactly 1 fallback question.
-                # - After fallback, end.
-                if self._is_time_based and self._current_phase == "behavioral":
-                    # For basic mode, allow exactly 2 behavioral questions (Q13-Q14)
-                    if self._questions_in_phase >= 2:
-                        self._move_to_next_phase()
-                    elif self._questions_in_phase >= 1 and self._last_evaluation.get("answer_classification") != "weak" and not self._force_behavioral_fallback:
-                        # Even if they did well, we still allow 2 behavioral if desired, 
-                        # but user prompt says "Q13-Q14 (2 questions)", so let's allow it.
-                        pass
-
-                # If we need to ask the behavioral fallback, ask a fixed hypothetical (basic mode only).
-                if self._is_time_based and self._current_phase == "behavioral" and self._force_behavioral_fallback and not self._asked_behavioral_fallback:
-                    new_question = (
-                        "If not real, describe a hypothetical conflict scenario and how you would handle it."
+                # Fetch history turns
+                turns_for_history = (
+                    await self.db.execute(
+                        select(InterviewTurn)
+                        .where(InterviewTurn.session_id == self.session_id)
+                        .order_by(InterviewTurn.timestamp.asc())
                     )
-                    question_data = {
-                        "question": new_question,
-                        "topic": "behavioral_fallback",
-                        "phase": "behavioral",
-                        "type": "primary",
-                        "difficulty": self._current_difficulty,
-                    }
-                    self._force_behavioral_fallback = False
-                    self._asked_behavioral_fallback = True
+                ).scalars().all()
+                
+                history_metadata = []
+                question_history = []
+                for t in turns_for_history:
+                    if t.question:
+                        question_history.append(t.question)
+                    ev = t.evaluation if isinstance(t.evaluation, dict) else {}
+                    qm = ev.get("question_meta") if isinstance(ev, dict) else None
+                    if isinstance(qm, dict):
+                        history_metadata.append({
+                            "phase": qm.get("phase") or t.phase or "",
+                            "topic": qm.get("topic") or "",
+                            "concept": qm.get("concept") or "",
+                            "project": qm.get("project") or "",
+                            "technology": qm.get("technology") or "",
+                            "role": qm.get("role") or "",
+                            "difficulty": qm.get("difficulty") or t.difficulty or "",
+                            "intent": qm.get("intent") or qm.get("type") or "",
+                            "question_number": qm.get("question_number") or 1
+                        })
+
+                # Compute next plan
+                plan = InterviewPlanner.get_next_plan(
+                    question_number=self._question_count + 1,
+                    mode=self._mode,
+                    history_metadata=history_metadata,
+                    resume_project_summary=self._project_summary,
+                    resume_has_projects=self._has_relevant_projects,
+                    answer_quality=self._last_evaluation.get("answer_classification", "") if self._last_evaluation else "",
+                    topic_depth=self._topic_depth,
+                    skills=self._skill_summary,
+                    phase=self._current_phase,
+                    job_description=self._job_role
+                )
+                
+                if self._current_intent == "follow-up" and history_metadata:
+                    # Override planner with follow-up context
+                    last_meta = history_metadata[-1]
+                    plan["intent"] = "follow-up"
+                    plan["topic"] = last_meta.get("topic", plan["topic"])
+                    plan["concept"] = last_meta.get("concept", plan["concept"])
+                    plan["project"] = last_meta.get("project", plan["project"])
+                    plan["technology"] = last_meta.get("technology", plan["technology"])
+                    plan["phase"] = last_meta.get("phase", plan["phase"])
                 else:
-                    # Normal topic selection
-                    if self._topic_depth == 0:
-                        next_topic, next_intent = self._get_next_topic()
-                        self._current_topic = next_topic
-                        self._current_intent = next_intent
+                    # Select concept dynamically
+                    used_concepts = [m["concept"] for m in history_metadata if m.get("concept")]
+                    plan["concept"] = select_concept(
+                        phase=plan.get("phase", ""),
+                        topic=plan.get("topic", ""),
+                        role=plan.get("role", ""),
+                        difficulty=plan.get("difficulty", ""),
+                        used_concepts=used_concepts
+                    )
+                
+                # Ensure current state properties match the planner
+                self._current_phase = plan.get("phase", self._current_phase)
+                self._current_topic = plan.get("topic", "")
+                self._current_intent = plan.get("intent", "concept")
 
-                    # Fetch RAG or Follow-up context
-                    rag_context = ""
-                    followup_context = ""
-                    next_q_num = self._question_count + 1
-                    if self._current_phase == "resume" or (
-                        self._has_relevant_projects and next_q_num <= 6
-                    ):
-                        rag_query = self._rag_query_for_question(
-                            next_q_num,
-                            self._filter_resume_project_summary(self._project_summary) or self._project_summary,
-                        )
-                        rag_context = await get_interview_context(
-                            self.student_id, rag_query, self.db
-                        )
-                    elif self._current_intent == "follow-up":
-                        followup_context = await get_followup_context(
-                            self.student_id, last_answer, self.db
-                        )
+                # Fetch RAG context using clean planner-derived metadata
+                rag_context = ""
+                followup_context = ""
+                if plan.get("phase") == "resume" or plan.get("project"):
+                    rag_query = self._rag_query_for_question(
+                        self._question_count + 1,
+                        self._project_summary,
+                        plan
+                    )
+                    rag_context = await get_interview_context(
+                        self.student_id, rag_query, self.db
+                    )
+                elif plan.get("intent") == "follow-up":
+                    followup_context = await get_followup_context(
+                        self.student_id, last_answer, self.db
+                    )
 
-                    # Generate with duplicate-question protection (retry once with forced topic change).
-                    last_q_norm = (self._last_question or "").strip().lower()
-                    force_topic_change = False
-                    question_data = None
+                # Always use strict generator
+                gen_fn = generate_question_strict
 
-                    for _ in range(2):
-                        if force_topic_change:
-                            self._topic_depth = 0
-                            next_topic, next_intent = self._get_next_topic()
-                            self._current_topic = next_topic
-                            self._current_intent = next_intent
-                            rag_context = ""
-                            followup_context = ""
-                            if self._current_phase == "resume" or (
-                                self._has_relevant_projects and (self._question_count + 1) <= 6
-                            ):
-                                rag_query = self._rag_query_for_question(
-                                    self._question_count + 1,
-                                    self._filter_resume_project_summary(self._project_summary) or self._project_summary,
-                                )
-                                rag_context = await get_interview_context(
-                                    self.student_id, rag_query, self.db
-                                )
-
-                        # Always use strict generator for all modes now
-                        use_strict = True
-                        gen_fn = generate_question_strict
-                        extra_kwargs = {}
-                        
-                        # Calculate elapsed time
-                        elapsed_time = 0
-                        try:
-                            from app.models.interview import InterviewSession
-                            sess = await self.db.get(InterviewSession, self.session_id)
-                            if sess and sess.start_time:
-                                import datetime as dt_mod
-                                elapsed_time = int((dt_mod.datetime.utcnow().replace(tzinfo=sess.start_time.tzinfo) - sess.start_time).total_seconds())
-                        except Exception as e:
-                            logger.warning("Could not calculate elapsed time: %s", e)
-
-                        if use_strict:
-                            turns_for_history = (
-                                await self.db.execute(
-                                    select(InterviewTurn)
-                                    .where(InterviewTurn.session_id == self.session_id)
-                                    .order_by(InterviewTurn.timestamp.asc())
-                                )
-                            ).scalars().all()
-                            question_history, used_topics, used_concepts, used_subtopics = (
-                                self._extract_turn_history_metadata(turns_for_history)
-                            )
-
-                            phase_plan = self._phase_topics.get(self._current_phase, [])
-                            available_subtopics = [x.get("topic") for x in phase_plan if isinstance(x, dict) and x.get("topic")]
-
-                            extra_kwargs = {
-                                "question_number": self._question_count + 1,
-                                "question_history": question_history,
-                                "topic_history": self._previous_topics,
-                                "answer_quality": self._last_evaluation.get("answer_classification", "") if self._last_evaluation else "",
-                                "available_subtopics": available_subtopics,
-                                "used_subtopics": used_subtopics,
-                                "used_topics": used_topics,
-                                "used_concepts": used_concepts,
-                                "elapsed_time": elapsed_time,
-                            }
-
-                        question_data = await gen_fn(
-                            context=self._profile_context,
-                            difficulty=self._current_difficulty,
-                            llm=self.llm,
-                            last_question=self._last_question,
-                            last_answer=last_answer,
-                            last_answer_summary=self._last_answer_summary,
-                            behavior=self._last_behavior,
-                            skill_summary=self._skill_summary,
-                            resume_has_projects=self._has_relevant_projects,
-                            resume_project_summary=(
-                                "\n".join([f"- {p}" for p in self._project_list])
-                                if (self._has_relevant_projects and self._project_list)
-                                else (self._filter_resume_project_summary(self._project_summary) or self._project_summary)
-                                if self._has_relevant_projects
-                                else ""
-                            ),
-                            phase=self._current_phase,
-                            mode=self._mode,
-                            previous_topics=self._previous_topics,
-                            topic_depth=self._topic_depth,
-                            current_topic=self._current_topic,
-                            last_evaluation=self._last_evaluation,
-                            rag_context=rag_context,
-                            followup_context=followup_context,
-                            **extra_kwargs,
-                        )
-
-                        new_q = (question_data or {}).get("question", "")
-                        new_q_norm = new_q.strip().lower()
-
-                        if new_q_norm and last_q_norm and new_q_norm == last_q_norm:
-                            force_topic_change = True
-                            continue
-
-                        break
-
-                    if not isinstance(question_data, dict):
-                        question_data = {"question": "", "topic": "general", "phase": self._current_phase, "type": "primary"}
+                question_data = await gen_fn(
+                    plan=plan,
+                    context=self._profile_context,
+                    difficulty=plan.get("difficulty", self._current_difficulty),
+                    llm=self.llm,
+                    last_question=self._last_question,
+                    last_answer=last_answer,
+                    last_answer_summary=self._last_answer_summary,
+                    behavior=self._last_behavior,
+                    skill_summary=self._skill_summary,
+                    resume_has_projects=self._has_relevant_projects,
+                    resume_project_summary=self._project_summary,
+                    phase=self._current_phase,
+                    mode=self._mode,
+                    previous_topics=self._previous_topics,
+                    topic_depth=self._topic_depth,
+                    current_topic=self._current_topic,
+                    last_evaluation=self._last_evaluation,
+                    rag_context=rag_context,
+                    followup_context=followup_context,
+                    question_history=question_history,
+                    technologies_discussed=", ".join(list(set(m.get("technology") for m in history_metadata if m.get("technology")))),
+                    projects_discussed=", ".join(list(set(m.get("project") for m in history_metadata if m.get("project")))),
+                    previous_concepts=", ".join(list(set(m.get("concept") for m in history_metadata if m.get("concept")))),
+                    current_difficulty=plan.get("difficulty", self._current_difficulty),
+                    interview_phase=self._current_phase,
+                )
 
                 new_question = (question_data.get("question") or "").strip()
                 self._last_question = new_question
@@ -795,8 +756,8 @@ class InterviewOrchestrator:
                 self._questions_in_phase += 1
                 print("QUESTION COUNT (QUESTIONING after increment):", self._question_count)
                 
-                # Additional safety check after increment (non-time-based modes only)
-                if not self._is_time_based and self._question_count > self._max_questions:
+                # Additional safety check after increment
+                if self._question_count > self._max_questions:
                     print("SAFETY: EXCEEDED MAX QUESTIONS AFTER INCREMENT, ENDING INTERVIEW")
                     return await self._end_interview()
 
@@ -809,10 +770,14 @@ class InterviewOrchestrator:
                     evaluation={
                         "question_meta": {
                             "question_number": self._question_count,
-                            "topic": (question_data.get("topic") or "") if isinstance(question_data, dict) else "",
-                            "subtopic": (question_data.get("subtopic") or "") if isinstance(question_data, dict) else "",
-                            "concept": (question_data.get("concept") or "") if isinstance(question_data, dict) else "",
-                            "secondary_concept": (question_data.get("secondary_concept") or "") if isinstance(question_data, dict) else "",
+                            "phase": plan.get("phase", self._current_phase),
+                            "topic": plan.get("topic", ""),
+                            "concept": plan.get("concept", ""),
+                            "project": plan.get("project", ""),
+                            "technology": plan.get("technology", ""),
+                            "role": plan.get("role", self._mode),
+                            "difficulty": plan.get("difficulty", self._current_difficulty),
+                            "intent": plan.get("intent", ""),
                         }
                     },
                     phase=self._current_phase,
@@ -848,15 +813,8 @@ class InterviewOrchestrator:
                 # Print PLAN diagnostics for transparency
                 print(f"\n[PLAN] phase={self._current_phase}")
                 print(f"[PLAN] topic={question_data.get('topic') or self._current_topic}")
-                project_name = ""
-                if self._has_relevant_projects:
-                    project_name = _extract_first_project_name(self._filter_resume_project_summary(self._project_summary) or self._project_summary)
-                print(f"[PLAN] project={project_name or 'None'}")
-                if self._question_count <= 6:
-                    reason = "Deterministic plan progression"
-                else:
-                    reason = f"Phase transition to {self._current_phase}"
-                print(f"[PLAN] Reason For Transition={reason}\n")
+                print(f"[PLAN] project={plan.get('project') or 'None'}")
+                print(f"[PLAN] Reason For Transition=Deterministic plan progression\n")
 
                 return {
                     "next_agent": "question_generator",
@@ -873,14 +831,69 @@ class InterviewOrchestrator:
             try:
                 processed_answer = (last_answer or "").strip()
 
+                # Query the turn first to get metadata
+                try:
+                    result = await self.db.execute(
+                        select(InterviewTurn)
+                        .where(
+                            InterviewTurn.session_id == self.session_id,
+                            or_(
+                                InterviewTurn.answer.is_(None),
+                                func.trim(InterviewTurn.answer) == "",
+                            ),
+                        )
+                        .order_by(InterviewTurn.timestamp.desc())
+                        .limit(1)
+                    )
+                    turn_obj = result.scalar_one_or_none()
+                except Exception as db_err:
+                    logger.error("Orchestrator: DB query for turn failed: %s", db_err)
+                    turn_obj = None
+
+                # Fallback: get the most recent turn if no unanswered turn found
+                if turn_obj is None:
+                    try:
+                        result = await self.db.execute(
+                            select(InterviewTurn)
+                            .where(InterviewTurn.session_id == self.session_id)
+                            .order_by(InterviewTurn.timestamp.asc())
+                            .limit(1)
+                        )
+                        turn_obj = result.scalar_one_or_none()
+                    except Exception as fb_err:
+                        logger.error("Orchestrator: Fallback turn query failed: %s", fb_err)
+                        turn_obj = None
+
+                # Retrieve metadata from the turn's evaluation question_meta
+                phase_val = "core_technical"
+                topic_val = ""
+                concept_val = ""
+                role_val = ""
+                difficulty_val = self._current_difficulty
+
+                if turn_obj and isinstance(turn_obj.evaluation, dict):
+                    qm = turn_obj.evaluation.get("question_meta", {})
+                    if isinstance(qm, dict):
+                        phase_val = qm.get("phase") or turn_obj.phase or "core_technical"
+                        topic_val = qm.get("topic") or ""
+                        concept_val = qm.get("concept") or ""
+                        role_val = qm.get("role") or ""
+                        difficulty_val = qm.get("difficulty") or turn_obj.difficulty or self._current_difficulty
+
                 eval_data = None
                 try:
                     eval_data = await evaluate_answer(
                         question=self._last_question,
                         answer=processed_answer,
                         llm=self.llm,
+                        difficulty=difficulty_val,
+                        phase=phase_val,
+                        topic=topic_val,
+                        concept=concept_val,
+                        role=role_val,
                     )
-                except Exception:
+                except Exception as eval_exc:
+                    logger.error("Orchestrator: evaluate_answer exception: %s", eval_exc)
                     eval_data = None
 
                 if not isinstance(eval_data, dict) or not eval_data:
@@ -915,39 +928,6 @@ class InterviewOrchestrator:
                 clean_answer = (last_answer or "").strip()
                 stored_answer = clean_answer if clean_answer else "Skipped"
                 logger.info("[DEBUG] DB Save Answer Length: %d", len(stored_answer))
-
-                # Store answer and evaluation in current turn
-                try:
-                    result = await self.db.execute(
-                        select(InterviewTurn)
-                        .where(
-                            InterviewTurn.session_id == self.session_id,
-                            or_(
-                                InterviewTurn.answer.is_(None),
-                                func.trim(InterviewTurn.answer) == "",
-                            ),
-                        )
-                        .order_by(InterviewTurn.timestamp.desc())
-                        .limit(1)
-                    )
-                    turn_obj = result.scalar_one_or_none()
-                except Exception as db_err:
-                    logger.error("Orchestrator: DB query for turn failed: %s", db_err)
-                    turn_obj = None
-
-                # Fallback: get the most recent turn if no unanswered turn found
-                if turn_obj is None:
-                    try:
-                        result = await self.db.execute(
-                            select(InterviewTurn)
-                            .where(InterviewTurn.session_id == self.session_id)
-                            .order_by(InterviewTurn.timestamp.desc())
-                            .limit(1)
-                        )
-                        turn_obj = result.scalar_one_or_none()
-                    except Exception as fb_err:
-                        logger.error("Orchestrator: Fallback turn query failed: %s", fb_err)
-                        turn_obj = None
 
                 if turn_obj is not None:
                     existing_answer = (turn_obj.answer or "").strip() if isinstance(turn_obj.answer, str) else ""
@@ -993,8 +973,8 @@ class InterviewOrchestrator:
                 # Decide next difficulty
                 self._current_difficulty = eval_data.get("next_difficulty", "medium")
 
-                # Transition to next question or end (non-time-based modes only)
-                if not self._is_time_based and self._question_count >= self._max_questions:
+                # Transition to next question or end
+                if self._question_count >= self._max_questions:
                     return await self._end_interview()
 
                 # ✅ Answer classification mapping (CRITICAL): use evaluator output.
@@ -1024,59 +1004,33 @@ class InterviewOrchestrator:
                     answer_state = "weak"
                 self._last_evaluation = eval_data
                 
-                # 🔥 Adaptive Rules
-                if answer_state == "weak":
-                    self._weak_answers_total += 1
-                    self._weak_answers_in_phase += 1
-                    self._weak_streak += 1
-                    self._topic_depth = 0
-                    self._current_intent = "primary"
-                else:
-                    self._weak_streak = 0
-
-                if answer_state in ("partial", "strong"):
-                    self._topic_depth = 1
-                    self._current_intent = "follow-up"
-                if answer_state == "strong":
-                    self._strong_answers_in_phase += 1
+                # Advanced follow-up logic based on Evaluation + Answer Length + Concept Depth + Confidence
+                self._weak_streak = 0
+                self._last_evaluation = eval_data
                 
-                # 🚨 Skip / no-knowledge handling (basic mode only)
-                if self._is_time_based and self._current_phase == "behavioral" and self._weak_streak >= 2:
-                    return await self._end_interview()
+                is_last_followup = False
+                if turn_obj and isinstance(turn_obj.evaluation, dict):
+                    qm = turn_obj.evaluation.get("question_meta", {})
+                    if qm.get("intent") == "follow-up":
+                        is_last_followup = True
+                        
+                correctness = float(eval_data.get("correctness", 0))
+                concept_depth = float(eval_data.get("concept_depth", 0))
+                communication = float(eval_data.get("communication", 0))
+                confidence = float(eval_data.get("confidence", 0))
+                
+                total_score = correctness + concept_depth + communication + confidence
+                
+                # Assume each is out of 10. Max = 40. Trigger on > 32 and decent length.
+                if not is_last_followup and total_score >= 32.0 and len(processed_answer) > 50:
+                    self._current_intent = "follow-up"
+                    self._topic_depth += 1
+                else:
+                    self._current_intent = "concept"
+                    self._topic_depth = 0
 
-                if self._weak_streak >= 2 and self._current_phase != "behavioral":
-                    self._move_to_next_phase()
-                    self._weak_streak = 0
-
-                # Behavioral fallback logic (basic mode only).
-                if self._is_time_based and self._current_phase == "behavioral":
-                    if answer_state == "weak":
-                        if not self._asked_behavioral_fallback:
-                            self._force_behavioral_fallback = True
-                        else:
-                            self._move_to_next_phase()
-                    elif self._questions_in_phase >= 2:
-                        self._move_to_next_phase()
-
-                # Duplicate topic protection: if we repeated a topic and the answer is weak, force a topic switch next.
-                if answer_state == "weak" and len(self._previous_topics) >= 2:
-                    prev_topic = self._previous_topics[-2]
-                    if self._current_topic == prev_topic:
-                        self._topic_depth = 0
-
-                # Enforce strict phase transition rules (basic mode only)
-                if self._is_time_based:
-                    if self._current_phase == "resume" and self._questions_in_phase >= 6:
-                        self._move_to_next_phase()
-                    elif self._current_phase == "core" and self._questions_in_phase >= 5:
-                        self._move_to_next_phase()
-                    elif self._current_phase == "problem_solving" and self._questions_in_phase >= 5:
-                        self._move_to_next_phase()
-                    elif self._current_phase == "behavioral" and self._questions_in_phase >= 2:
-                        self._move_to_next_phase()
-                    elif self._current_phase == "mixed" and self._questions_in_phase >= (8 if not self._has_relevant_projects else 2):
-                        # Q19-Q20 (2 questions with project) or Q13-Q20 (8 questions without project)
-                        return await self._end_interview()
+                # Phase transitions are owned strictly by the deterministic planner progression.
+                pass
                     
                 InterviewTracer.log_pipeline_step(2, "phase", self._current_phase)
                 InterviewTracer.log_pipeline_step(3, "topic", self._current_topic)

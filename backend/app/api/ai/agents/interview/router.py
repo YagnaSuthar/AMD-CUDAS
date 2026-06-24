@@ -275,9 +275,11 @@ async def get_session_report_pdf(
     try:
         student_id = _get_user_id(current_user)
 
-        # 1. Fetch session to verify ownership and existence
+        from sqlalchemy.orm import selectinload
         result = await db.execute(
-            select(InterviewSession).where(
+            select(InterviewSession)
+            .options(selectinload(InterviewSession.violations))
+            .where(
                 InterviewSession.session_id == session_id,
                 InterviewSession.student_id == student_id
             )
@@ -298,14 +300,21 @@ async def get_session_report_pdf(
         # build_report expects a list of dicts with 'question', 'answer', and 'evaluation'
         turn_dicts = []
         for t in turns:
+            ev = t.evaluation if t.evaluation else {}
+            qm = ev.get("question_meta", {}) if isinstance(ev, dict) else {}
             turn_dicts.append({
                 "question": t.question,
                 "answer": t.answer,
-                "evaluation": t.evaluation if t.evaluation else {}
+                "evaluation": ev,
+                "topic": qm.get("topic") or qm.get("concept") or t.phase or "Technical",
+                "concept": qm.get("concept") or "",
+                "difficulty": qm.get("difficulty") or t.difficulty or "medium",
+                "phase": qm.get("phase") or t.phase or "core_technical",
+                "project": qm.get("project") or "",
             })
 
         # 4. Generate structured report data
-        report_dict = build_report(turn_dicts)
+        report_dict = build_report(turn_dicts, session.proctoring_violations)
 
         # Calculate duration in minutes if end_time and start_time are available
         duration_minutes = "—"
@@ -315,9 +324,11 @@ async def get_session_report_pdf(
             now = datetime.now(session.start_time.tzinfo) if session.start_time.tzinfo else datetime.utcnow()
             duration_minutes = str(int(round((now - session.start_time).total_seconds() / 60)))
 
+        from app.core.modes import get_interview_type_for_mode
         session_meta = {
             "candidate_name": _get_user_name(current_user),
             "job_role": session.job_role,
+            "interview_type": get_interview_type_for_mode(session.mode),
             "interview_date": session.start_time.strftime("%B %d, %Y") if session.start_time else datetime.now().strftime("%B %d, %Y"),
             "duration_minutes": duration_minutes,
             "total_questions": len(turns),
@@ -615,9 +626,11 @@ async def get_report_pdf(
     try:
         student_id = _get_user_id(current_user)
 
-        # 1. Fetch session to verify ownership and existence
+        from sqlalchemy.orm import selectinload
         result = await db.execute(
-            select(InterviewSession).where(
+            select(InterviewSession)
+            .options(selectinload(InterviewSession.violations))
+            .where(
                 InterviewSession.session_id == session_id,
                 InterviewSession.student_id == student_id
             )
@@ -638,14 +651,21 @@ async def get_report_pdf(
         # build_report expects a list of dicts with 'question', 'answer', and 'evaluation'
         turn_dicts = []
         for t in turns:
+            ev = t.evaluation if t.evaluation else {}
+            qm = ev.get("question_meta", {}) if isinstance(ev, dict) else {}
             turn_dicts.append({
                 "question": t.question,
                 "answer": t.answer,
-                "evaluation": t.evaluation if t.evaluation else {}
+                "evaluation": ev,
+                "topic": qm.get("topic") or qm.get("concept") or t.phase or "Technical",
+                "concept": qm.get("concept") or "",
+                "difficulty": qm.get("difficulty") or t.difficulty or "medium",
+                "phase": qm.get("phase") or t.phase or "core_technical",
+                "project": qm.get("project") or "",
             })
 
         # 4. Generate structured report data
-        report_dict = build_report(turn_dicts)
+        report_dict = build_report(turn_dicts, session.proctoring_violations)
 
         # Calculate duration in minutes if end_time and start_time are available
         duration_minutes = "—"
@@ -655,9 +675,11 @@ async def get_report_pdf(
             now = datetime.now(session.start_time.tzinfo) if session.start_time.tzinfo else datetime.utcnow()
             duration_minutes = str(int(round((now - session.start_time).total_seconds() / 60)))
 
+        from app.core.modes import get_interview_type_for_mode
         session_meta = {
             "candidate_name": _get_user_name(current_user),
             "job_role": session.job_role,
+            "interview_type": get_interview_type_for_mode(session.mode),
             "interview_date": session.start_time.strftime("%B %d, %Y") if session.start_time else datetime.now().strftime("%B %d, %Y"),
             "duration_minutes": duration_minutes,
             "total_questions": len(turns),

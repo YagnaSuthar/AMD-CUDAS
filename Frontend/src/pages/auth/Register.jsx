@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import AnimatedBackground from '../../components/AnimatedBackground';
@@ -180,7 +180,7 @@ export default function Register() {
                                 className="form-input"
                                 value={formData.password}
                                 onChange={handleChange}
-                                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                                placeholder="••••••••"
                                 required
                                 minLength={6}
                                 style={{ paddingRight: '40px' }}
@@ -213,7 +213,7 @@ export default function Register() {
                                 className="form-input"
                                 value={formData.confirmPassword}
                                 onChange={handleChange}
-                                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                                placeholder="••••••••"
                                 required
                                 minLength={6}
                                 style={{ paddingRight: '40px' }}

@@ -1,3 +1,4 @@
+import { FiCamera } from 'react-icons/fi';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../../../../utils/api';
@@ -7,15 +8,22 @@ import TranscriptPanel from '../../../../components/TranscriptPanel';
 import '../../../../style/interviewLive.css';
 
 /**
- * InterviewLive â€” Google Meet-Style Full-Screen AI Interview.
+ * InterviewLive — Google Meet-Style Full-Screen AI Interview.
  *
  * Layout:
- * â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
- * â”‚              TOP BAR                     â”‚
- * â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
- * â”‚  AI INTERVIEWER   â”‚   STUDENT CAMERA     â”‚
- * â”‚  avatar+waveform  â”‚   webcam preview     â”‚
- * â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+ * +-----------------------------------------+
+ * |              TOP BAR                    |
+ * +-------------------+---------------------+
+ * |  AI INTERVIEWER   |   STUDENT CAMERA    |
+ * |  avatar+waveform  |   webcam preview    |
+ * +-------------------+---------------------+
+ * |  QUESTION OVERLAY (glassmorphism)       |
+ * |  TRANSCRIPT OVERLAY                     |
+ * +-----------------------------------------+
+ * |  FLOATING CONTROL BAR                   |
+ * |  Mic  Cam  Vol  End  Settings  Rec      |
+ * +-----------------------------------------+
+ * �â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
  * â”‚  QUESTION OVERLAY (glassmorphism)        â”‚
  * â”‚  TRANSCRIPT OVERLAY                      â”‚
  * â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
@@ -76,7 +84,7 @@ const CLOSING_TEMPLATE = (
   "Thank you for your responses. This concludes your interview."
 );
 
-/* â”€â”€ SVG Icons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* SVG Icons */
 
 const MicIcon   = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>;
 const MicOffIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.12 1.5-.34 2.18"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>;
@@ -95,7 +103,7 @@ export default function InterviewLive() {
   const modeParam = queryParams.get('mode') || 'practice';
   const roleParam = queryParams.get('role') || 'basic';
 
-  /* â”€â”€ state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* state */
   const [state, setState]   = useState(STATES.LOADING);
   const [config, setConfig] = useState({ max_questions: 15, min_questions: 5, answer_timeout: 20, silence_timeout: 10 });
   const [sessionId, setSessionId]     = useState(null);
@@ -111,7 +119,7 @@ export default function InterviewLive() {
   const [isSpeaking, setIsSpeaking]   = useState(false);
   const [agentSpeaking, setAgentSpeaking] = useState(false);
   const [timeLeft, setTimeLeft]       = useState(0);
-  const [globalTimeLeft, setGlobalTimeLeft] = useState(20 * 60);
+  const [globalTimeLeft, setGlobalTimeLeft] = useState(30 * 60);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [interviewStarted, setInterviewStarted] = useState(false);
   const [speechHint, setSpeechHint]   = useState('');
@@ -171,6 +179,7 @@ export default function InterviewLive() {
   const finalTranscriptRef = useRef('');         // accumulates final results across STT segments
   const liveTranscriptRef = useRef('');          // tracks latest interim transcript for preservation on restart
   const isListeningRef     = useRef(false);      // tracks if we WANT to keep listening
+  const tabSwitchTriggered = useRef(false);
 
   const extractNameFromGreeting = useCallback((greetingText) => {
     const t = String(greetingText || '').trim();
@@ -197,9 +206,9 @@ export default function InterviewLive() {
     }
   }, [sessionId]);
 
-  /* â”€â”€ fullscreen is now handled by DashboardLayout.jsx â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* fullscreen is now handled by DashboardLayout.jsx */
 
-  /* â”€â”€ utils â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* utils */
   const goBack = useCallback(() => navigate('/dashboard/interview'), [navigate]);
 
   const clearTimers = useCallback(() => {
@@ -293,7 +302,7 @@ export default function InterviewLive() {
     pollReport();
   }, [pollReport]);
 
-  /* â”€â”€ camera toggle (camera is MANDATORY â€” cannot be turned off) â”€â”€â”€â”€â”€â”€ */
+  /* camera toggle (camera is MANDATORY — cannot be turned off) */
   const startCamera = useCallback(async () => {
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
@@ -309,8 +318,8 @@ export default function InterviewLive() {
 
   const toggleCamera = useCallback(async () => {
     if (cameraOn) {
-      // Camera must stay on during interview â€” show warning
-      setProctorWarning('âš ï¸ Camera is required for the interview. You cannot turn it off.');
+      // Camera must stay on during interview — show warning
+      setProctorWarning('⚠️ Camera is required for the interview. You cannot turn it off.');
       if (proctorWarningTimer.current) clearTimeout(proctorWarningTimer.current);
       proctorWarningTimer.current = setTimeout(() => setProctorWarning(null), 4000);
       return;
@@ -349,7 +358,7 @@ export default function InterviewLive() {
     });
   }, [transcript, liveTranscript, isRecording, state]);
 
-  /* â”€â”€ TTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* TTS */
   const speak = useCallback((text, onEnd) => {
     if (!window.speechSynthesis || !volumeOn) {
       console.log('[DIAG] speak() short-circuited — onEnd fired immediately (isSpeaking never toggles)', {
@@ -391,7 +400,7 @@ export default function InterviewLive() {
     return accumulated;
   }, []);
 
-  /* â”€â”€ end / recording â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* end / recording */
   const runSilenceMonitor = useCallback(() => {
     const analyser = analyserRef.current;
     if (!analyser) return;
@@ -414,48 +423,41 @@ export default function InterviewLive() {
 
       const speaking = rms > threshold;
       userSpeakingRef.current = speaking;
-
-      // No time-based cutoffs. We only end an answer after the user has spoken
-      // and then stays silent for HARD_PAUSE seconds.
       lastWaitingTickTsRef.current = null;
 
       if (speaking) {
         userHasSpokenRef.current = true;
-        if (!userSpeaking) setUserSpeaking(true);
+        setUserSpeaking(true);
         waitingTimeRef.current = 0;
         setStartTimer(0);
-        if (silenceTimerRef2.current !== 0) {
-          silenceTimerRef2.current = 0;
-          setSilenceTimer(0);
-        }
+        silenceTimerRef2.current = 0;
+        setSilenceTimer(0);
         setSpeechHint('');
         silenceStartTsRef.current = null;
+        setTimeLeft(HARD_PAUSE);
         if (!answerStartTsRef.current) answerStartTsRef.current = now;
       } else {
-        if (userHasSpokenRef.current) {
-          if (!silenceStartTsRef.current) silenceStartTsRef.current = now;
-          const silenceSec = (now - silenceStartTsRef.current) / 1000;
+        if (!silenceStartTsRef.current) {
+          silenceStartTsRef.current = now;
+        }
+        const silenceSec = (now - silenceStartTsRef.current) / 1000;
+        silenceTimerRef2.current = silenceSec;
+        setSilenceTimer(silenceSec);
+        setStartTimer(0);
+        waitingTimeRef.current = 0;
+        
+        const remaining = Math.max(0, Math.ceil(HARD_PAUSE - silenceSec));
+        setTimeLeft(remaining);
 
-          // Phase 2 (Silence Timer): only active after user started speaking.
-          silenceTimerRef2.current = silenceSec;
-          setSilenceTimer(silenceSec);
-          setStartTimer(0);
-          waitingTimeRef.current = 0;
-          const remaining = Math.max(0, Math.ceil(HARD_PAUSE - silenceSec));
-          setTimeLeft(remaining);
+        if (silenceSec >= SOFT_PAUSE && silenceSec < HARD_PAUSE) {
+          setSpeechHint("You can continue if you're not finished");
+        }
 
-          if (silenceSec >= SOFT_PAUSE && silenceSec < HARD_PAUSE) {
-            setSpeechHint("You can continue if you're not finished");
-          }
-
-          if (silenceSec >= HARD_PAUSE) {
-            const payload = submitFromCurrentTranscript();
-            stopRecording();
-            if (payload) {
-              submitAnswerRef.current?.(payload);
-              return;
-            }
-          }
+        if (silenceSec >= HARD_PAUSE) {
+          const payload = submitFromCurrentTranscript() || '';
+          stopRecording();
+          submitAnswerRef.current?.(payload);
+          return;
         }
       }
 
@@ -466,7 +468,7 @@ export default function InterviewLive() {
     };
 
     rafRef.current = requestAnimationFrame(tick);
-  }, [isRecording, isSpeaking, stopRecording, submitFromCurrentTranscript, userSpeaking]);
+  }, [stopRecording, submitFromCurrentTranscript]);
 
   const startRecording = useCallback(async () => {
     if (isRecordingRef.current) {
@@ -563,7 +565,7 @@ export default function InterviewLive() {
 
         // Treat STT activity itself as speech to avoid premature silence cutoff
         // when the user speaks softly and RMS threshold doesn't trigger.
-        if (currentTranscript) {
+        if (currentTranscript || liveTranscriptRef.current) {
           userHasSpokenRef.current = true;
           if (!userSpeakingRef.current) userSpeakingRef.current = true;
           setUserSpeaking(true);
@@ -571,6 +573,7 @@ export default function InterviewLive() {
           setStartTimer(0);
           silenceStartTsRef.current = null;
           setSpeechHint('');
+          setTimeLeft(HARD_PAUSE);
           if (!answerStartTsRef.current) answerStartTsRef.current = Date.now();
         }
 
@@ -669,6 +672,8 @@ export default function InterviewLive() {
 
   const endInterview = useCallback(async (reason = 'normal') => {
     if (!sessionId) return;
+    setTabSwitchCount(0);
+    tabSwitchTriggered.current = false;
     clearTimers();
     stopRecording();
     window.speechSynthesis?.cancel();
@@ -709,7 +714,13 @@ export default function InterviewLive() {
       setGlobalTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          endInterview();
+          if ([STATES.QUESTION, STATES.LISTENING].includes(state)) {
+            const payload = submitFromCurrentTranscript() || '';
+            stopRecording();
+            submitAnswerRef.current?.(payload);
+          } else {
+            endInterview();
+          }
           return 0;
         }
         return prev - 1;
@@ -717,7 +728,7 @@ export default function InterviewLive() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [interviewStarted, isBasicMode, endInterview]);
+  }, [interviewStarted, isBasicMode, state, stopRecording, submitFromCurrentTranscript, endInterview]);
 
   /* ── proctoring callbacks (must be after endInterview) ────────────────── */
   const handleProctorWarning = useCallback((type, message) => {
@@ -739,8 +750,14 @@ export default function InterviewLive() {
 
   const handleTabSwitch = useCallback(async () => {
     if (![STATES.QUESTION, STATES.LISTENING, STATES.EVALUATING].includes(state)) return;
+    if (tabSwitchTriggered.current) return;
+    tabSwitchTriggered.current = true;
+    setTabSwitchCount(p => p + 1);
     setShowTabWarning(true);
-    await endInterview('TAB_SWITCH');
+    setTimeout(async () => {
+      setShowTabWarning(false);
+      await endInterview('TAB_SWITCH');
+    }, 2500);
   }, [state, endInterview]);
 
   const handleTerminate = useCallback(async () => {
@@ -825,11 +842,8 @@ export default function InterviewLive() {
         setState(STATES.EARLY_EXIT);
         setInterviewStarted(false);
       } else if (d.next_action === 'end') {
-        setAgentText((d.agent_response || '') + ' Preparing your report...');
-        speak(d.agent_response, () => {
-          setAgentText(CLOSING_TEMPLATE);
-          speak(CLOSING_TEMPLATE, () => endInterview());
-        });
+        setAgentText(CLOSING_TEMPLATE);
+        speak(CLOSING_TEMPLATE, () => endInterview());
       } else {
         setAgentText(d.agent_response);
         speak(d.agent_response, () => {
@@ -933,7 +947,7 @@ export default function InterviewLive() {
     setCurrentQuestion(d.first_question);
     setQuestionNumber(1);
     setQuestionCount(1);
-    setGlobalTimeLeft(20 * 60);
+    setGlobalTimeLeft(30 * 60);
     setElapsedTime(0);
     setInterviewStarted(true);
     setSessionTurns([{ q: d.first_question.question, a: null }]);
@@ -1382,6 +1396,65 @@ export default function InterviewLive() {
                     {report.behavior_summary && <div className="meet-report-section"><h4>Behavior</h4><p>{report.behavior_summary}</p></div>}
                     {report.recommendation && <div className={`meet-recommendation ${(report.recommendation || '').split(':')[0]}`}>{report.recommendation}</div>}
                   </>}
+
+                  {/* Proctoring Summary (only visible if violations occurred) */}
+                  {(() => {
+                    const proctorSummary = studentReport?.proctoring_summary || report?.proctoring_summary;
+                    if (!proctorSummary || proctorSummary.total_violations <= 0) return null;
+                    const VIOLATION_LABELS = {
+                      NO_FACE: 'No Face Detected',
+                      MULTIPLE_FACES: 'Multiple Faces Detected',
+                      LOOKING_AWAY: 'Looking Away from Screen',
+                      PHONE_DETECTED: 'Mobile Phone Detected',
+                      TABLET_DETECTED: 'Tablet/Device Detected',
+                      REMOTE_DETECTED: 'Remote Screen/Software Detected',
+                      BOOK_DETECTED: 'Book/Material Detected',
+                      MULTIPLE_PEOPLE: 'Multiple People Detected',
+                      TAB_SWITCH: 'Tab Switch / Window Blur'
+                    };
+                    return (
+                      <div className="meet-report-section" style={{ marginTop: '20px', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '15px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.02)' }}>
+                        <h4 style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '1.05rem', margin: '0 0 12px 0' }}>
+                          ⚠️ Proctoring & Integrity Summary
+                        </h4>
+                        <div style={{ display: 'flex', gap: '12px', marginBottom: '15px' }}>
+                          <div className="meet-report-score-card" style={{ flex: 1, margin: 0, padding: '10px', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.15)' }}>
+                            <div className="meet-report-score-val" style={{ color: '#ef4444', fontSize: '1.4rem' }}>
+                              {Math.round((proctorSummary.integrity_score || 0) * 100)}%
+                            </div>
+                            <div className="meet-report-score-lbl" style={{ fontSize: '0.75rem' }}>Integrity Score</div>
+                          </div>
+                          <div className="meet-report-score-card" style={{ flex: 1, margin: 0, padding: '10px', background: 'rgba(245, 158, 11, 0.05)', border: '1px solid rgba(245, 158, 11, 0.15)' }}>
+                            <div className="meet-report-score-val" style={{ color: '#f59e0b', fontSize: '1.4rem' }}>
+                              {proctorSummary.total_violations}
+                            </div>
+                            <div className="meet-report-score-lbl" style={{ fontSize: '0.75rem' }}>Total Violations</div>
+                          </div>
+                        </div>
+                        {proctorSummary.summary && (
+                          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '12px', lineHeight: 1.5 }}>
+                            {proctorSummary.summary}
+                          </p>
+                        )}
+                        <div style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '6px', color: 'var(--color-text-primary)' }}>Recorded Incidents:</div>
+                        <ul className="meet-report-list wk">
+                          {Object.entries(proctorSummary.violation_breakdown || {}).map(([type, count]) => {
+                            if (count <= 0) return null;
+                            const label = VIOLATION_LABELS[type] || type.replace(/_/g, ' ');
+                            return (
+                              <li key={type} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', padding: '4px 0' }}>
+                                <span>{label}</span>
+                                <span className="meet-badge" style={{ backgroundColor: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 600 }}>
+                                  {count} {count === 1 ? 'time' : 'times'}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    );
+                  })()}
+
                   <div style={{ textAlign: 'center', marginTop: 20, display: 'flex', justifyContent: 'center', gap: '12px' }}>
                     <button 
                       className="meet-btn-yes" 
@@ -1418,7 +1491,7 @@ export default function InterviewLive() {
               </>
             ) : (
               <div className="meet-student-placeholder">
-                <div className="meet-student-avatar">ðŸ“·</div>
+                <div className="meet-student-avatar"><FiCamera size={24} /></div>
                 <span className="meet-student-name">Camera required â€” enable to continue</span>
               </div>
             )}

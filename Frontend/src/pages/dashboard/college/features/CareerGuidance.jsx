@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -6,7 +6,7 @@ import { toast } from 'react-toastify';
 import { useAuth } from '../../../../context/AuthContext';
 import api from '../../../../utils/api';
 import RoadmapContainer from '../../../../components/RoadmapContainer';
-import { FiTarget, FiBookOpen, FiAward, FiBriefcase, FiTrendingUp, FiLoader, FiEdit2, FiSave, FiX, FiCheck, FiCompass, FiZap, FiShield, FiSend, FiMessageCircle, FiLock, FiCheckCircle, FiClock, FiBarChart2 } from 'react-icons/fi';
+import { FiTarget, FiBookOpen, FiAward, FiBriefcase, FiTrendingUp, FiLoader, FiEdit2, FiSave, FiX, FiCheck, FiCompass, FiZap, FiShield, FiSend, FiMessageCircle, FiLock, FiCheckCircle, FiClock, FiBarChart2, FiCode, FiCpu, FiFileText, FiFolder } from 'react-icons/fi';
 import '../../../../style/roadmap.css';
 
 export default function CareerGuidance() {
@@ -52,7 +52,7 @@ export default function CareerGuidance() {
             const apiData = response.data?.data;
 
             if (apiData && apiData.steps && apiData.steps.length > 0) {
-                // Saved roadmap exists â€” restore it
+                // Saved roadmap exists — restore it
                 const rawSteps = apiData.steps;
                 const firstPendingIndex = rawSteps.findIndex((s) => s.status === 'pending');
 
@@ -88,7 +88,7 @@ export default function CareerGuidance() {
                     setPhaseBranches(restoredBranches);
                 }
             } else {
-                // No saved roadmap â€” generate fresh
+                // No saved roadmap — generate fresh
                 await generateRoadmap(false, effectiveGoal);
             }
         } catch (err) {
@@ -202,7 +202,7 @@ export default function CareerGuidance() {
         try {
             await api.post('/rag/mark-step-complete', { step_id: stepId });
 
-            // Update status IN-PLACE â€” only unlock the NEXT step
+            // Update status IN-PLACE — only unlock the NEXT step
             setRoadmap((prev) => {
                 if (!prev) return prev;
 
@@ -364,11 +364,11 @@ export default function CareerGuidance() {
                 <p>Plan your path to success with AI-powered personalized career guidance</p>
             </div>
 
-            {/* Error Message â€” top level for visibility */}
+            {/* Error Message — top level for visibility */}
             {error && (
                 <div className="roadmap-error-banner">
-                    <p>âš ï¸ {error}</p>
-                    <button onClick={() => setError('')} className="error-dismiss">âœ•</button>
+                    <p><FiAlertTriangle style={{ marginRight: '8px' }} /> {error}</p>
+                    <button onClick={() => setError('')} className="error-dismiss"><FiX /></button>
                 </div>
             )}
 
@@ -500,7 +500,7 @@ export default function CareerGuidance() {
                                     <div className="insight-icon"><FiAward /></div>
                                     <div className="insight-content">
                                         <h5>Salary Range</h5>
-                                        <p>â‚¹6L - â‚¹25L+ depending on experience and location</p>
+                                        <p>₹6L - ₹25L+ depending on experience and location</p>
                                     </div>
                                 </div>
                                 <div className="insight-card">
@@ -525,10 +525,10 @@ export default function CareerGuidance() {
                             <h4>Popular Career Paths</h4>
                             <div className="suggestion-cards">
                                 {[
-                                    { title: 'Full-Stack Developer', desc: 'Build complete web applications', icon: 'ðŸ’»' },
-                                    { title: 'Data Scientist', desc: 'Analyze data and drive insights', icon: 'ðŸ“Š' },
-                                    { title: 'Product Manager', desc: 'Lead product strategy and teams', icon: 'ðŸ“±' },
-                                    { title: 'AI/ML Engineer', desc: 'Create intelligent systems', icon: 'ðŸ¤–' }
+                                    { title: 'Full-Stack Developer', desc: 'Build complete web applications', icon: <FiCode size={24} /> },
+                                    { title: 'Data Scientist', desc: 'Analyze data and drive insights', icon: <FiBarChart2 size={24} /> },
+                                    { title: 'Product Manager', desc: 'Lead product strategy and teams', icon: <FiBriefcase size={24} /> },
+                                    { title: 'AI/ML Engineer', desc: 'Create intelligent systems', icon: <FiCpu size={24} /> }
                                 ].map((career) => (
                                     <div key={career.title} className="career-card" onClick={() => { setTempGoal(`Become a ${career.title}`); setIsEditingGoal(true); }}>
                                         <div className="career-card-icon">{career.icon}</div>
@@ -549,7 +549,7 @@ export default function CareerGuidance() {
                         <div className="chat-header-icon"><FiMessageCircle /></div>
                         <div>
                             <h3>AI Career Advisor</h3>
-                            <p>Ask anything about your career path â€” powered by your profile data + RAG</p>
+                            <p>Ask anything about your career path — powered by your profile data + RAG</p>
                         </div>
                     </div>
 
@@ -621,7 +621,7 @@ export default function CareerGuidance() {
                                     borderBottom: '1px solid var(--color-border)'
                                 }}>
                                     <span style={{ fontSize: '12px', color: 'var(--color-text-primary)', marginRight: '4px', display: 'flex', alignItems: 'center', fontWeight: 600 }}>
-                                        ðŸ“Š Data used:
+                                        <FiBarChart2 size={16} style={{ marginRight: '6px' }} /> Data used:
                                     </span>
                                     {guidanceResponse.data_sources.map((source) => (
                                         <span key={source} style={{
@@ -631,12 +631,14 @@ export default function CareerGuidance() {
                                             color: 'var(--color-text-primary)',
                                             border: '1px solid rgba(0, 188, 212, 0.25)',
                                         }}>
-                                            {source === 'Skills' ? 'ðŸ› ï¸' :
-                                             source === 'Certificates' ? 'ðŸ“œ' :
-                                             source === 'Projects' ? 'ðŸ’»' :
-                                             source === 'Interviews' ? 'ðŸŽ¤' :
-                                             source === 'Academics' ? 'ðŸ“š' :
-                                             source === 'Resume' ? 'ðŸ“„' : 'ðŸ“‹'} {source}
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                {source === 'Skills' ? <FiZap size={14} /> :
+                                                 source === 'Certificates' ? <FiAward size={14} /> :
+                                                 source === 'Projects' ? <FiFolder size={14} /> :
+                                                 source === 'Interviews' ? <FiMessageCircle size={14} /> :
+                                                 source === 'Academics' ? <FiBookOpen size={14} /> :
+                                                 source === 'Resume' ? <FiFileText size={14} /> : <FiFileText size={14} />} {source}
+                                            </span>
                                         </span>
                                     ))}
                                 </div>
@@ -651,12 +653,12 @@ export default function CareerGuidance() {
             )}
 
 
-            {/* â”€â”€ Career Roadmap Progress Overview (equal-weight phases) â”€â”€ */}
+            {/* Career Roadmap Progress Overview (equal-weight phases) */}
             {goal && roadmap && roadmap.steps && roadmap.steps.length > 0 && (() => {
                 const totalPhases = roadmap.steps.length;
                 const phaseWeight = 1 / totalPhases; // each phase = equal slice
 
-                let progressSum = 0;        // 0.0 â€“ 1.0
+                let progressSum = 0;        // 0.0 – 1.0
                 let totalWeeksCompleted = 0;
                 let totalWeeks = 0;
                 let phasesCompleted = 0;
@@ -680,7 +682,7 @@ export default function CareerGuidance() {
                             totalWeeksCompleted += branchSteps.length;
                         }
                     } else if (branchSteps.length > 0) {
-                        // Phase with loaded weeks â€” granular sub-progress
+                        // Phase with loaded weeks — granular sub-progress
                         const doneWeeks = branchSteps.filter(bs => bs.status === 'completed').length;
                         progressSum += phaseWeight * (doneWeeks / branchSteps.length);
                         totalWeeks += branchSteps.length;
@@ -704,25 +706,25 @@ export default function CareerGuidance() {
 
                 const pct = Math.round(progressSum * 100);
 
-                // â”€â”€ Motivational toast notification (once per page visit) â”€â”€
+                // Motivational toast notification (once per page visit)
                 if (!toastShownRef.current && roadmap) {
                     toastShownRef.current = true;
                     setTimeout(() => {
                         if (pct === 100) {
-                            toast.success('ðŸŽ‰ Amazing! You\'ve completed your entire career roadmap!', { autoClose: 5000 });
+                            toast.success('Amazing! You\'ve completed your entire career roadmap!', { autoClose: 5000 });
                         } else if (activePhaseWeeksRemaining > 0 && activePhaseTitle) {
                             toast.info(
-                                `ðŸ’ª You're just ${activePhaseWeeksRemaining} week${activePhaseWeeksRemaining > 1 ? 's' : ''} away from completing Phase ${activePhaseIndex + 1}: "${activePhaseTitle}"! Keep going!`,
+                                `You're just ${activePhaseWeeksRemaining} week${activePhaseWeeksRemaining > 1 ? 's' : ''} away from completing Phase ${activePhaseIndex + 1}: "${activePhaseTitle}"! Keep going!`,
                                 { autoClose: 6000 }
                             );
                         } else if (phasesCompleted > 0 && phasesCompleted < totalPhases) {
                             toast.info(
-                                `ðŸš€ ${phasesCompleted}/${totalPhases} phases done! Open your next phase to unlock weekly tasks and keep progressing!`,
+                                `${phasesCompleted}/${totalPhases} phases done! Open your next phase to unlock weekly tasks and keep progressing!`,
                                 { autoClose: 5000 }
                             );
                         } else if (pct === 0) {
                             toast.info(
-                                'ðŸŽ¯ Welcome back! Start completing your roadmap phases to track your career progress!',
+                                'Welcome back! Start completing your roadmap phases to track your career progress!',
                                 { autoClose: 5000 }
                             );
                         }
@@ -730,12 +732,12 @@ export default function CareerGuidance() {
                 }
 
                 const getMessage = () => {
-                    if (pct === 0) return { text: 'Your journey begins now â€” take the first step! ðŸš€', color: 'var(--color-text-muted)' };
-                    if (pct < 25) return { text: 'Great start! Keep the momentum going! ðŸ’ª', color: 'var(--color-warning)' };
-                    if (pct < 50) return { text: 'Making solid progress â€” you\'re on the right track! ðŸ”¥', color: 'var(--color-accent)' };
-                    if (pct < 75) return { text: 'Over halfway there! You\'re doing amazing! âš¡', color: 'var(--color-secondary)' };
-                    if (pct < 100) return { text: 'Almost at the finish line â€” don\'t stop now! ðŸ†', color: 'var(--color-success)' };
-                    return { text: 'Congratulations! You\'ve completed your roadmap! ðŸŽ‰ðŸŽ“', color: 'var(--color-success)' };
+                    if (pct === 0) return { text: 'Your journey begins now — take the first step!', color: 'var(--color-text-muted)' };
+                    if (pct < 25) return { text: 'Great start! Keep the momentum going!', color: 'var(--color-warning)' };
+                    if (pct < 50) return { text: 'Making solid progress — you\'re on the right track!', color: 'var(--color-accent)' };
+                    if (pct < 75) return { text: 'Over halfway there! You\'re doing amazing!', color: 'var(--color-secondary)' };
+                    if (pct < 100) return { text: 'Almost at the finish line — don\'t stop now!', color: 'var(--color-success)' };
+                    return { text: 'Congratulations! You\'ve completed your roadmap!', color: 'var(--color-success)' };
                 };
                 const msg = getMessage();
                 return (

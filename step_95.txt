@@ -1,0 +1,125 @@
+<USER_REQUEST>
+## Safe Implementation Request – Fix Tab Switch Termination Flow & Conditional Proctoring Summary
+
+Implement only the changes described below. **Do not modify any unrelated functionality, business logic, UI, interview flow, question generation, evaluation, report generation, or backend architecture.** Preserve all existing APIs, data models, and behavior except where explicitly mentioned.
+
+---
+
+# Objective 1: Fix the Tab Switch Termination Flow
+
+## Current Issue
+
+All critical proctoring violations (such as phone detection, no face timeout, multiple people, etc.) correctly follow this flow:
+
+```
+Violation Detected
+        ↓
+Show Warning
+        ↓
+End Interview
+        ↓
+Generate Report
+        ↓
+Redirect to Report Page
+```
+
+However, **Tab Switch** behaves differently.
+
+Currently:
+
+```
+Tab Switch
+        ↓
+Warning Overlay Appears
+        ↓
+Interview remains on the same screen
+```
+
+The report page is not displayed even though the interview should terminate.
+
+---
+
+## Required Behaviour
+
+Tab Switch must follow **exactly the same termination pipeline** as every other interview-ending proctoring violation.
+
+Required flow:
+
+```
+Tab Switch Detected
+        ↓
+Display Tab Switch Warning Overlay
+        ↓
+(Optional) Allow the warning to remain visible briefly so the candidate understands why the interview ended.
+        ↓
+Execute the normal interview termination flow.
+        ↓
+Call the existing interview end logic.
+        ↓
+Generate the report using the existing backend pipeline.
+        ↓
+Redirect to the report page.
+```
+
+---
+
+## Requirements
+
+* Do not create a separate termination flow for tab switching.
+* Reuse the existing interview-ending pipeline already used by other critical violations.
+* Do not duplicate code.
+* Ensure the backend receives the same termination event it expects for other violations.
+* Ensure report generation is triggered exactly once.
+* Ensure navigation to the report page always occurs 
+<truncated 1775 bytes>
+breaking changes.
+* Do not change existing report content except for making the Proctoring section conditional.
+* Preserve backward compatibility.
+
+---
+
+# Validation Checklist
+
+Before completing the implementation, verify the following:
+
+### Tab Switch
+
+* Tab switch shows the warning overlay.
+* The interview terminates using the existing termination pipeline.
+* The backend receives the termination request.
+* The report is generated successfully.
+* The application redirects to the report page.
+* The warning overlay does not prevent navigation.
+* No duplicate termination requests occur.
+
+### Report
+
+**Interview with violations**
+
+* Proctoring section is visible.
+* Only recorded violations are displayed.
+* Section appears at the end of the report.
+
+**Interview without violations**
+
+* Proctoring section is not rendered at all.
+* No empty cards or placeholder messages appear.
+* Existing report layout remains unchanged.
+
+Implement only the above requirements and leave every other part of the system unchanged.
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-21T23:10:53+05:30.
+
+The user's current state is as follows:
+Other open documents:
+- e:\Drive D\New clone\AMD-CUDAS\backend\app\agents\Interview\sub_agents\answer_evaluator\validator.py (LANGUAGE_PYTHON)
+- e:\Drive D\New clone\AMD-CUDAS\backend\app\agents\Interview\sub_agents\answer_evaluator\prompt.py (LANGUAGE_PYTHON)
+- e:\Drive D\New clone\AMD-CUDAS\backend\app\agents\Interview\sub_agents\feedback_agent\agent.py (LANGUAGE_PYTHON)
+- e:\Drive D\New clone\AMD-CUDAS\backend\app\agents\Interview\sub_agents\question_generator\topic_selector.py (LANGUAGE_PYTHON)
+- e:\Drive D\New clone\AMD-CUDAS\Frontend\src\pages\dashboard\college\features\InterviewLive.jsx (LANGUAGE_JAVASCRIPT)
+Running terminal commands:
+- python -m uvicorn app.main:app --reload (in e:\Drive D\New clone\AMD-CUDAS\backend, running for 2h20m0s)
+- npm run dev (in e:\Drive D\New clone\AMD-CUDAS\Frontend, running for 2h19m51s)
+</ADDITIONAL_METADATA>

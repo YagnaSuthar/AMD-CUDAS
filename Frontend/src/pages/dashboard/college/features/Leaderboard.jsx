@@ -93,7 +93,7 @@ export default function Leaderboard() {
                             onChange={(e) => setFilters({ ...filters, performance: e.target.value })}
                         >
                             <option value="">All</option>
-                            <option value="TOP">Top (â‰¥ 85%)</option>
+                            <option value="TOP">Top (≥ 85%)</option>
                             <option value="WEAK">Weak (&lt; 50%)</option>
                         </select>
                     </div>
@@ -210,7 +210,7 @@ export default function Leaderboard() {
                                                     {item.badge}
                                                 </span>
                                             ) : (
-                                                <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>â€”</span>
+                                                <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>—</span>
                                             )}
                                         </td>
                                         <td>

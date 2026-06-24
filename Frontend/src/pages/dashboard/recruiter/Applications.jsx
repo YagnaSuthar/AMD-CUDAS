@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import api from '../../../utils/api';
-import { FiInbox, FiCheckCircle, FiXCircle, FiClock, FiBriefcase, FiUser, FiMail, FiAward, FiInfo, FiTrash2 } from 'react-icons/fi';
+import { FiInbox, FiCheckCircle, FiXCircle, FiClock, FiBriefcase, FiUser, FiMail, FiAward, FiInfo, FiTrash2, FiMonitor, FiCamera, FiSmartphone, FiAlertTriangle } from 'react-icons/fi';
 import SkeletonText from '../../../components/common/skeleton/SkeletonText';
 import SkeletonTableRow from '../../../components/common/skeleton/SkeletonTableRow';
 
@@ -556,16 +556,16 @@ export default function Applications() {
                         </p>
                         <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                             <li style={{ display: 'flex', gap: '10px', alignItems: 'center', fontSize: '0.95rem' }}>
-                                <span style={{ color: 'var(--color-error)' }}>ðŸ–¥ï¸</span> <strong>Desktop Only:</strong> Mobile & Tablets are blocked.
+                                <FiMonitor size={20} style={{ color: 'var(--color-error)' }} /> <strong>Desktop Only:</strong> Mobile & Tablets are blocked.
                             </li>
                             <li style={{ display: 'flex', gap: '10px', alignItems: 'center', fontSize: '0.95rem' }}>
-                                <span style={{ color: 'var(--color-error)' }}>ðŸ“¹</span> <strong>Strict Camera:</strong> Session ends if the face disappears.
+                                <FiCamera size={20} style={{ color: 'var(--color-error)' }} /> <strong>Strict Camera:</strong> Session ends if the face disappears.
                             </li>
                             <li style={{ display: 'flex', gap: '10px', alignItems: 'center', fontSize: '0.95rem' }}>
-                                <span style={{ color: 'var(--color-error)' }}>ðŸ“±</span> <strong>No Devices:</strong> Phones and notes trigger termination.
+                                <FiSmartphone size={20} style={{ color: 'var(--color-error)' }} /> <strong>No Devices:</strong> Phones and notes trigger termination.
                             </li>
                             <li style={{ display: 'flex', gap: '10px', alignItems: 'center', fontSize: '0.95rem' }}>
-                                <span style={{ color: 'var(--color-error)' }}>âš ï¸</span> <strong>No Tab Switch:</strong> Interview immediately terminates.
+                                <FiAlertTriangle size={20} style={{ color: 'var(--color-error)' }} /> <strong>No Tab Switch:</strong> Interview immediately terminates.
                             </li>
                         </ul>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>

@@ -8,86 +8,109 @@ The LLM does NOT choose what to ask — it only converts a pre-selected
 from __future__ import annotations
 
 import re
+import random
 from typing import Any
 
-# ── Topic hierarchy ────────────────────────────────────────────────────────
+# ── Concept Pools ────────────────────────────────────────────────────────
 
-TOPIC_HIERARCHY: dict[str, list[str]] = {
-    "project_overview": [
-        "project_overview",
-        "architecture",
-        "motivation",
-        "challenges",
-        "scalability",
-        "future_improvements",
-    ],
-    "tech_stack": [
-        "backend_choice",
-        "database_choice",
-        "frontend_choice",
-        "deployment",
-    ],
-    "backend_design": [
-        "api_design",
-        "authentication",
-        "session_management",
-        "performance",
-    ],
-    "database": [
-        "schema_design",
-        "indexing",
-        "relationships",
-        "optimization",
-    ],
-    "ai_features": [
-        "rag",
-        "embeddings",
-        "prompt_engineering",
-        "evaluation",
-    ],
+RESUME_CONCEPTS = [
+    "Architecture",
+    "Authentication",
+    "APIs",
+    "Database",
+    "Deployment",
+    "Security",
+    "Scalability",
+    "Performance",
+    "AI Workflow",
+    "Agent Communication",
+    "LangGraph",
+    "Prompt Engineering",
+    "Challenges",
+    "Trade-offs",
+    "Future Improvements"
+]
+
+CORE_CONCEPTS = {
+    "DBMS": ["ACID Properties", "Normalization", "Indexing", "Joins", "Transactions", "NoSQL vs SQL"],
+    "OS": ["Process vs Thread", "Deadlocks", "Virtual Memory", "Scheduling", "Concurrency"],
+    "Computer_Networks": ["OSI Model", "TCP vs UDP", "DNS", "HTTP/HTTPS", "Load Balancing"],
+    "OOP": ["Inheritance", "Polymorphism", "Encapsulation", "Abstraction", "Design Patterns"],
+    "Software_Engineering": ["Agile", "CI/CD", "Testing", "Version Control", "Microservices"],
+    "System_Design_Basics": ["Client-Server", "API Design", "Caching", "Message Queues", "CAP Theorem"],
+    "Behavioral": ["Conflict Resolution", "Time Management", "Leadership", "Handling Failure", "Teamwork"],
+    "Scenario": ["System Outage", "Tight Deadline", "Disagreement with Manager", "Scaling a feature"]
 }
 
-# Fixed plan: question_number → (topic, concept)
-QUESTION_NUMBER_PLAN: dict[int, tuple[str, str]] = {
-    1: ("project_overview", "project_overview"),   # Project overview
-    2: ("project_overview", "architecture"),       # Architecture
-    3: ("tech_stack", "backend_choice"),           # Tech stack decision
-    4: ("backend_design", "api_design"),             # Backend implementation
-    5: ("database", "schema_design"),                # Database design
-    6: ("project_overview", "challenges"),           # Challenges faced
-    7: ("backend_design", "performance"),            # Optimization
-    8: ("project_overview", "scalability"),          # Scalability
-    9: ("ai_features", "rag"),                       # AI features
-    10: ("project_overview", "future_improvements"), # Future improvements
+ROLE_CONCEPTS = {
+    "frontend": {
+        "easy": ["DOM Manipulation", "CSS Flexbox/Grid", "HTML Semantics", "State Management Basics"],
+        "medium": ["Virtual DOM", "React Hooks", "Component Lifecycle", "Performance Optimization", "Responsive Design"],
+        "hard": ["Server-Side Rendering", "WebSockets", "Micro-frontends", "Advanced State Management", "Web Workers"]
+    },
+    "backend": {
+        "easy": ["REST APIs", "CRUD Operations", "Basic SQL", "Authentication Basics"],
+        "medium": ["Caching Strategies", "Connection Pooling", "Message Brokers", "JWT", "Middleware"],
+        "hard": ["Distributed Systems", "Database Sharding", "Event-Driven Architecture", "gRPC", "Consensus Algorithms"]
+    },
+    "fullstack": {
+        "easy": ["Client-Server Architecture", "REST APIs", "DOM Basics", "Basic SQL"],
+        "medium": ["State Management", "Authentication Flow", "API Integration", "Database Design"],
+        "hard": ["Microservices", "System Design", "Advanced Security", "Performance Profiling"]
+    },
+    "java": {
+        "easy": ["JVM Basics", "OOP in Java", "Collections Framework Basics", "Exceptions"],
+        "medium": ["Multithreading", "Stream API", "Spring Boot Basics", "Generics"],
+        "hard": ["Garbage Collection Tuning", "Concurrency Utilities", "Spring Security", "Microservices with Spring"]
+    },
+    "python": {
+        "easy": ["Data Types", "Functions", "List Comprehensions", "Basic OOP"],
+        "medium": ["Decorators", "Generators", "Context Managers", "Flask/Django Basics"],
+        "hard": ["GIL", "Asyncio", "Metaclasses", "Advanced Performance Optimization"]
+    },
+    "cybersecurity": {
+        "easy": ["CIA Triad", "Phishing", "Basic Encryption", "Firewalls"],
+        "medium": ["OWASP Top 10", "Symmetric vs Asymmetric Encryption", "VPNs", "Intrusion Detection"],
+        "hard": ["Zero Trust Architecture", "Penetration Testing Strategies", "Advanced Cryptography", "Malware Analysis"]
+    }
 }
+
+ROLE_BEHAVIORAL_CONCEPTS = {
+    "frontend": ["Conflict while shipping UI", "Cross-browser issues", "Designer vs Developer conflict", "Accessibility challenges"],
+    "backend": ["Production outage", "Database migration failure", "API contract breaking", "Scaling bottlenecks"],
+    "mern": ["Production outage", "Database migration failure", "API contract breaking", "Scaling bottlenecks"],
+    "fullstack": ["Production outage", "Database migration failure", "API contract breaking", "Scaling bottlenecks"],
+    "java": ["Production outage", "Database migration failure", "API contract breaking", "Scaling bottlenecks"],
+    "python": ["Production outage", "Database migration failure", "API contract breaking", "Scaling bottlenecks"],
+    "data_analyst": ["Handling dirty data sources", "Explaining statistics to business stakeholders", "Conflicting report definitions", "Query performance bottlenecks"],
+    "data_science": ["Overfitting in production", "Handling model bias", "Data privacy conflict", "Concept drift in deployed model"],
+    "ml_ai": ["LLM hallucination in production", "GPU memory optimization conflict", "Model training latency", "RAG performance tuning"],
+    "ai": ["LLM hallucination in production", "GPU memory optimization conflict", "Model training latency", "RAG performance tuning"],
+    "cloud": ["Deployment failure", "Cost overrun", "Downtime during peak", "Cloud provider outage"],
+    "devops": ["CI/CD pipeline broken", "Secret leak", "Reverting a bad deploy", "Infrastructure as code failure"],
+    "cybersecurity": ["Security breach response", "Zero-day vulnerability", "Pushback on security policies", "Incident post-mortem"]
+}
+
+GENERAL_BEHAVIORAL_CONCEPTS = [
+    "Leadership", "Ownership", "Teamwork", "Conflict", "Communication",
+    "Deadlines", "Failure", "Learning", "Mentoring", "Decision Making",
+    "Time Management", "Stakeholder Management", "Prioritization", "Product Thinking"
+]
 
 CONCEPT_RAG_KEYWORDS: dict[str, list[str]] = {
-    "project_overview": ["project", "overview", "built", "developed", "application"],
-    "architecture": ["architecture", "components", "system design", "modules", "microservice"],
-    "motivation": ["why", "motivation", "problem", "goal"],
-    "challenges": ["challenge", "difficulty", "issue", "problem", "obstacle"],
-    "scalability": ["scale", "scalability", "load", "users", "growth"],
-    "future_improvements": ["future", "improve", "next", "roadmap", "enhancement"],
-    "backend_choice": ["backend", "fastapi", "django", "flask", "node", "express", "api"],
-    "database_choice": ["database", "postgres", "mysql", "mongodb", "redis", "sql"],
-    "frontend_choice": ["frontend", "react", "vue", "angular", "ui"],
-    "deployment": ["deploy", "docker", "kubernetes", "aws", "cloud", "ci/cd"],
-    "api_design": ["api", "rest", "endpoint", "routes", "backend"],
-    "authentication": ["auth", "jwt", "login", "oauth", "session"],
-    "session_management": ["session", "token", "cookie", "auth"],
-    "performance": ["performance", "optimize", "latency", "cache", "speed"],
-    "schema_design": ["schema", "database", "table", "model", "entity"],
-    "indexing": ["index", "query", "database"],
-    "relationships": ["relationship", "foreign key", "join", "schema"],
-    "optimization": ["optimize", "query", "index", "performance"],
-    "rag": ["rag", "retrieval", "embedding", "vector", "llm", "ai"],
-    "embeddings": ["embedding", "vector", "semantic"],
-    "prompt_engineering": ["prompt", "llm", "generation"],
-    "evaluation": ["evaluation", "metric", "accuracy", "testing"],
+    "Project Overview": ["project", "overview", "built", "developed", "application"],
+    "Architecture": ["architecture", "components", "system design", "modules", "microservice"],
+    "Tech Decisions": ["why", "motivation", "choice", "decision", "tech stack"],
+    "Scalability": ["scale", "scalability", "load", "users", "growth"],
+    "Future Improvements": ["future", "improve", "next", "roadmap", "enhancement"],
+    "Deployment": ["deploy", "docker", "kubernetes", "aws", "cloud", "ci/cd"],
+    "Authentication": ["auth", "jwt", "login", "oauth", "session"],
+    "Performance": ["performance", "optimize", "latency", "cache", "speed"],
+    "Database": ["database", "postgres", "mysql", "mongodb", "redis", "sql", "schema"],
+    "Security": ["security", "vulnerability", "encryption", "protection"]
 }
 
 MAX_RAG_CHUNK_CHARS = 600
-
 
 def normalize_concept(c: str) -> str:
     if not c:
@@ -119,68 +142,109 @@ def concept_is_used(concept: str, used_concepts: list[str] | None) -> bool:
     return False
 
 
-def _normalize_used(values: list[str] | None) -> set[str]:
-    return {normalize_concept(v) for v in (values or []) if v}
-
-
-def select_topic_and_concept(
-    question_number: int,
-    used_topics: list[str] | None = None,
-    used_concepts: list[str] | None = None,
-) -> tuple[str, str]:
+def select_concept(
+    phase: str,
+    topic: str,
+    role: str,
+    difficulty: str,
+    used_concepts: list[str] | None = None
+) -> str:
     """
-    Deterministically pick (topic, concept) for a question number.
-    Retries with the next unused concept if the planned one was already used.
+    Dynamically pick an unused concept based on metadata.
     """
-    used_topics = used_topics or []
     used_concepts = used_concepts or []
-    used_topic_norm = _normalize_used(used_topics)
+    role_norm = (role or "").strip().lower()
+    
+    # For role-based interviews (where role != "basic"), we bypass the generic
+    # core concepts and role concepts lookup for Q2-Q14, and instead return the
+    # deterministic topic directly as the concept.
+    # This aligns with the deterministic roadmap where the planner controls topic & concept.
+    if role_norm != "basic":
+        if phase == "resume":
+            available = [c for c in RESUME_CONCEPTS if not concept_is_used(c, used_concepts)]
+            if available:
+                return random.choice(available)
+            return random.choice(RESUME_CONCEPTS)
+            
+        if phase == "behavioral" or topic.lower() == "behavioral":
+            pool = ROLE_BEHAVIORAL_CONCEPTS.get(role_norm, GENERAL_BEHAVIORAL_CONCEPTS)
+            available = [c for c in pool if not concept_is_used(c, used_concepts)]
+            if not available and pool is not GENERAL_BEHAVIORAL_CONCEPTS:
+                available = [c for c in GENERAL_BEHAVIORAL_CONCEPTS if not concept_is_used(c, used_concepts)]
+            if available:
+                return random.choice(available)
+            return random.choice(GENERAL_BEHAVIORAL_CONCEPTS)
+            
+        if topic == "Scenario":
+            scenarios = {
+                "mern": "Debugging a slow MERN application after deployment",
+                "frontend": "Resolving performance bottlenecks in a complex React/JavaScript application",
+                "backend": "Handling database connection spikes and API latency issues under high load",
+                "python": "Debugging a memory leak or CPU spike in a production FastAPI or Django application",
+                "java": "Analyzing and resolving thread deadlocks or JVM OutOfMemoryError in production",
+                "data_analyst": "Handling contradictory data sources or massive clean-up challenges before reporting",
+                "data_science": "Dealing with concept drift or high variance in a deployed model in production",
+                "ml_ai": "Optimizing latency for LLM inference or handling vector database scaling issues",
+                "devops": "Recovering from a failing CI/CD deployment or secret leak in production",
+                "cloud": "Diagnosing cloud service outage or unexpected monthly cost overrun",
+                "cybersecurity": "Responding to a suspected security breach or zero-day vulnerability in the system"
+            }
+            return scenarios.get(role_norm, "Technical Scenario Analysis")
+            
+        # Check if topic is in the roadmap for this role
+        from app.agents.Interview.planner.interview_planner import ROADMAPS
+        role_roadmap = ROADMAPS.get(role_norm, [])
+        if topic in role_roadmap:
+            return topic
 
-    def _pick(topic: str, concept: str) -> tuple[str, str] | None:
-        if concept_is_used(concept, used_concepts):
-            return None
-        return topic, concept
+    # 1. Resume Phase (Basic Practice)
+    if phase == "resume":
+        available = [c for c in RESUME_CONCEPTS if not concept_is_used(c, used_concepts)]
+        if available:
+            return random.choice(available)
+        return random.choice(RESUME_CONCEPTS) # Fallback if all used
 
-    # 1) Primary plan for this question number
-    plan = QUESTION_NUMBER_PLAN.get(question_number)
-    if plan:
-        topic, concept = plan
-        picked = _pick(topic, concept)
-        if picked:
-            return picked
+    # 1b. Behavioral Phase (Basic Practice)
+    if phase == "behavioral" or topic.lower() == "behavioral":
+        pool = ROLE_BEHAVIORAL_CONCEPTS.get(role_norm, GENERAL_BEHAVIORAL_CONCEPTS)
+        available = [c for c in pool if not concept_is_used(c, used_concepts)]
+        if not available and pool is not GENERAL_BEHAVIORAL_CONCEPTS:
+            available = [c for c in GENERAL_BEHAVIORAL_CONCEPTS if not concept_is_used(c, used_concepts)]
+        if available:
+            return random.choice(available)
+        return random.choice(GENERAL_BEHAVIORAL_CONCEPTS)
 
-        # 2) Retry: other unused concepts under the same topic
-        for alt in TOPIC_HIERARCHY.get(topic, []):
-            picked = _pick(topic, alt)
-            if picked:
-                return picked
+    # 2. Core/Topic based (if topic exists in CORE_CONCEPTS - Basic Practice)
+    if topic in CORE_CONCEPTS:
+        available = [c for c in CORE_CONCEPTS[topic] if not concept_is_used(c, used_concepts)]
+        if available:
+            return random.choice(available)
+    
+    # 3. Role based (if topic maps to role concepts or just general role phase - Basic Practice)
+    if role_norm in ROLE_CONCEPTS:
+        diff_norm = difficulty.lower()
+        if diff_norm not in ["easy", "medium", "hard"]:
+            diff_norm = "medium"
+        
+        pool = ROLE_CONCEPTS[role_norm].get(diff_norm, [])
+        available = [c for c in pool if not concept_is_used(c, used_concepts)]
+        if available:
+            return random.choice(available)
+            
+        # Fallback to any difficulty for this role
+        all_role_concepts = []
+        for d in ["easy", "medium", "hard"]:
+            all_role_concepts.extend(ROLE_CONCEPTS[role_norm].get(d, []))
+        available = [c for c in all_role_concepts if not concept_is_used(c, used_concepts)]
+        if available:
+            return random.choice(available)
+            
+    # 4. Fallback for any unknown topic (Basic Practice)
+    if topic and topic.strip() and topic.lower() != "general":
+        # Just use the topic itself as the concept if nothing else matches
+        return topic.replace("_", " ").title()
 
-    # 3) Retry: walk remaining question plan slots
-    for qn in sorted(QUESTION_NUMBER_PLAN.keys()):
-        if qn == question_number:
-            continue
-        t, c = QUESTION_NUMBER_PLAN[qn]
-        picked = _pick(t, c)
-        if picked:
-            return picked
-        for alt in TOPIC_HIERARCHY.get(t, []):
-            picked = _pick(t, alt)
-            if picked:
-                return picked
-
-    # 4) Fallback: first unused pair in hierarchy order
-    for topic, concepts in TOPIC_HIERARCHY.items():
-        if normalize_concept(topic) in used_topic_norm and all(
-            concept_is_used(c, used_concepts) for c in concepts
-        ):
-            continue
-        for concept in concepts:
-            picked = _pick(topic, concept)
-            if picked:
-                return picked
-
-    return "project_overview", "project_overview"
-
+    return "General Technical Concepts"
 
 def get_rag_query_for_selection(
     topic: str,
@@ -192,7 +256,6 @@ def get_rag_query_for_selection(
     kw = " ".join(keywords[:4])
     summary_snippet = " ".join((project_summary or "").split()[:12])
     return f"{summary_snippet} {kw}".strip()
-
 
 def select_rag_chunk(rag_context: str, topic: str, concept: str) -> str:
     """
@@ -224,42 +287,7 @@ def select_rag_chunk(rag_context: str, topic: str, concept: str) -> str:
 
     return best_chunk
 
-
 def format_concept_label(concept: str) -> str:
     """Human-readable concept label for the LLM prompt."""
     return concept.replace("_", " ")
 
-
-def should_use_deterministic_pipeline(
-    *,
-    resume_has_projects: bool,
-    question_number: int,
-    mode: str = "basic",
-) -> bool:
-    """Use deterministic topic/concept selection for project-based early questions.
-    
-    Q1-Q6 are the resume phase — project overview, architecture, tech stack,
-    API design, database design, and challenges. Beyond Q6 the interview
-    transitions to core CS, advanced, and DSA phases.
-    """
-    if not resume_has_projects:
-        return False
-    if question_number < 1 or question_number > 6:
-        return False
-    return True
-
-
-def selection_debug_info(
-    question_number: int,
-    topic: str,
-    concept: str,
-    used_topics: list[str] | None,
-    used_concepts: list[str] | None,
-) -> dict[str, Any]:
-    return {
-        "question_number": question_number,
-        "selected_topic": topic,
-        "selected_concept": concept,
-        "used_topics": list(used_topics or []),
-        "used_concepts": list(used_concepts or []),
-    }

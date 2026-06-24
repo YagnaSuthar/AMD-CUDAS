@@ -9,6 +9,9 @@ def build_evaluator_prompt(
     phase: str,
     difficulty: str,
     keywords: Optional[str] = None,
+    topic: str = "",
+    concept: str = "",
+    role: str = "",
 ) -> str:
     keywords_val = keywords if keywords else "None"
     
@@ -29,6 +32,9 @@ def build_evaluator_prompt(
         f"QUESTION:\n{question}\n\n"
         f"ANSWER:\n{answer}\n\n"
         f"PHASE:\n{phase}\n\n"
+        f"TOPIC:\n{topic if topic else 'None'}\n\n"
+        f"CONCEPT:\n{concept if concept else 'None'}\n\n"
+        f"ROLE:\n{role if role else 'None'}\n\n"
         f"DIFFICULTY:\n{difficulty}\n\n"
         f"EXPECTED KEYWORDS:\n{keywords_val}\n\n"
         "---\n\n"

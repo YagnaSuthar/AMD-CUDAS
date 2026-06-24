@@ -168,7 +168,7 @@ export default function MarksManagement() {
                             onChange={(e) => setPerformanceFilter(e.target.value)}
                         >
                             <option value="">All Students</option>
-                            <option value="TOP">Top (â‰¥ 85%)</option>
+                            <option value="TOP">Top (≥ 85%)</option>
                             <option value="WEAK">Weak (&lt; 50%)</option>
                         </select>
                     </div>
@@ -201,7 +201,7 @@ export default function MarksManagement() {
                                     const pct = m.max_marks > 0 ? (m.marks_obtained / m.max_marks * 100).toFixed(1) : 0;
                                     return (
                                         <tr key={m.id} className={i % 2 === 0 ? 'row-even' : 'row-odd'}>
-                                            <td style={{ fontWeight: 600 }}>{m.student_name || 'â€”'}</td>
+                                            <td style={{ fontWeight: 600 }}>{m.student_name || '—'}</td>
                                             <td>{m.subject_name}</td>
                                             <td>{m.semester}</td>
                                             <td>{m.marks_obtained}</td>
@@ -214,7 +214,7 @@ export default function MarksManagement() {
                                             </td>
                                             <td>
                                                 <span className={`status-badge ${m.is_locked ? 'status-badge-locked' : 'status-badge-approved'}`}>
-                                                    {m.is_locked ? 'ðŸ”’ Locked' : 'Open'}
+                                                    {m.is_locked ? <span style={{ display: 'inline-flex', alignItems: 'center' }}><FiLock size={14} style={{ marginRight: '4px' }} /> Locked</span> : 'Open'}
                                                 </span>
                                             </td>
                                             {isFaculty && (

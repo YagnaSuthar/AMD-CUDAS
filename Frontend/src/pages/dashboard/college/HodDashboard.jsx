@@ -6,7 +6,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recha
 import SkeletonText from '../../../components/common/skeleton/SkeletonText';
 import SkeletonCard from '../../../components/common/skeleton/SkeletonCard';
 
-/* â”€â”€ SVG Gauge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* SVG Gauge */
 function Gauge({ value, max = 100, label, color = '#00bcd4' }) {
     const pct = Math.min((value / max) * 100, 100);
     const radius = 70;
@@ -272,7 +272,7 @@ export default function HodDashboard() {
             {failCount > 0 && (
                 <div className="data-table-container fade-in-up fade-in-delay-3" style={{ marginTop: '24px' }}>
                     <div className="data-table-header" style={{ borderLeftColor: 'var(--color-error)' }}>
-                        <h3 style={{ color: 'var(--color-error)' }}>âš  Students Below 40%</h3>
+                        <h3 style={{ color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '8px' }}><FiAlertTriangle /> Students Below 40%</h3>
                     </div>
                     <div className="table-scroll-wrapper">
                         <table className="data-table">

@@ -1,0 +1,237 @@
+/* reportDesign.css – UI/UX design system for Interview Report */
+
+/* ==== Design Tokens ==== */
+:root {
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* Typography */
+  --font-family: 'Inter', system-ui, sans-serif;
+  --font-size-base: 0.95rem; /* ~15px */
+  --font-size-sm: 0.85rem;
+  --font-size-lg: 1.1rem;
+  --font-size-xl: 1.3rem;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 600;
+
+  /* Colors */
+  --color-bg: #ffffff;
+  --color-surface: #fafafa;
+  --color-primary: #0052cc; /* corporate blue */
+  --color-primary-light: #e6f0ff;
+  --color-success: #28a745;
+  --color-danger: #dc3545;
+  --color-warning: #ffc107;
+  --color-text-primary: #212529;
+  --color-text-muted: #6c757d;
+  --color-border: #e0e0e0;
+
+  /* Card */
+  --card-radius: 8px;
+  --card-shadow: 0 2px 6px rgba(0,0,0,0.08);
+
+  /* Breakpoints */
+  --bp-sm: 576px;
+  --bp-md: 768px;
+  --bp-lg: 992px;
+}
+
+/* ==== Global Reset ==== */
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg);
+  margin: 0;
+  padding: 0;
+}
+
+/* ==== Layout ==== */
+.report-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--spacing-lg);
+}
+
+/* ==== Section spacing ==== */
+.report-section {
+  margin-bottom: var(--spacing-xl);
+}
+
+/* ==== Typography ==== */
+.report-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--spacing-lg);
+}
+.report-subtitle {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  margin-bottom: var(--spacing-md);
+}
+.card-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  margin-bottom: var(--spacing-sm);
+}
+.card-value {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+}
+.label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+.value {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-regular);
+}
+
+/* ==== Card System ==== */
+.card {
+  background: var(--color-surface);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  padding: var(--spacing-lg);
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-width: 260px;
+}
+.card-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-lg);
+  justify-content: space-between;
+}
+
+/* ==== Score Card Specific ==== */
+.score-card .card-value {
+  font-size: 2rem;
+  line-height: 1.2;
+}
+.score-card .label {
+  margin-top: var(--spacing-xs);
+}
+
+/* ==== Readiness Tier ==== */
+.readiness-card .card-value {
+  font-size: 1.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==== Question Card ==== */
+.question-card {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--card-radius);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+.question-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+.question-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+}
+.difficulty-badge {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  padding: 2px 8px;
+  border-radius: var(--card-radius);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+.score-badge {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-success);
+}
+
+/* ==== Candidate Response ==== */
+.response-text {
+  line-height: 1.5;
+  margin-top: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  max-width: 800px;
+}
+
+/* ==== Status Indicators ==== */
+.status-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.status-item {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: var(--spacing-sm);
+}
+.status-icon {
+  width: 20px;
+  height: 20px;
+  margin-right: var(--spacing-xs);
+  flex-shrink: 0;
+}
+.status-content {
+  flex: 1;
+}
+
+/* ==== Charts ==== */
+.chart-wrapper {
+  margin: var(--spacing-lg) 0;
+  display: flex;
+  justify-content: center;
+}
+
+/* ==== Tables ==== */
+.table-wrapper {
+  overflow-x: auto;
+  margin: var(--spacing-lg) 0;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table th,
+.table td {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+.table th {
+  background: var(--color-primary-light);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ==== Report Body Padding ==== */
+.report-body {
+  padding: 22px 24px;
+}
+
+/* ==== Responsive Adjustments ==== */
+@media (max-width: var(--bp-md)) {
+  .card-grid {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .report-container {
+    padding: var(--spacing-md);
+  }
+}

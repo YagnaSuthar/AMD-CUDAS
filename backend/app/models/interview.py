@@ -189,6 +189,10 @@ class InterviewSession(Base):
         order_by="InterviewTurn.timestamp",
     )
 
+    @property
+    def proctoring_violations(self) -> List["ProctoringViolation"]:
+        return self.violations
+
 
 class Question(Base):
     """A question asked during an interview session."""

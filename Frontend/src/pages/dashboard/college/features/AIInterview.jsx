@@ -1,17 +1,17 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../../context/AuthContext';
-import { FiMic, FiCpu, FiActivity, FiZap, FiShield, FiMessageCircle, FiClock, FiCheckCircle, FiXCircle, FiTrash2, FiEye, FiDownload } from 'react-icons/fi';
+import { FiMic, FiCpu, FiActivity, FiZap, FiShield, FiMessageCircle, FiClock, FiCheckCircle, FiXCircle, FiTrash2, FiEye, FiDownload, FiCamera, FiSmartphone, FiMonitor, FiUsers } from 'react-icons/fi';
 import api from '../../../../utils/api';
 import '../../../../style/interview.css';
 
 const FEATURES = [
-    { icon: FiMic, title: 'Voice-Enabled', desc: 'Speak naturally â€” our AI listens and responds in real-time.' },
+    { icon: FiMic, title: 'Voice-Enabled', desc: 'Speak naturally — our AI listens and responds in real-time.' },
     { icon: FiCpu, title: 'AI-Powered', desc: 'Powered by advanced LLMs tuned for technical interviews.' },
     { icon: FiActivity, title: 'Adaptive', desc: 'Difficulty adjusts based on your performance dynamically.' },
     { icon: FiZap, title: 'Instant Feedback', desc: 'Get scored on clarity, depth, confidence & technical accuracy.' },
     { icon: FiShield, title: 'Behavior-Aware', desc: 'Detects communication style & provides soft-skill feedback.' },
-    { icon: FiMessageCircle, title: 'Conversational', desc: 'Feels like a real interview â€” not a quiz.' },
+    { icon: FiMessageCircle, title: 'Conversational', desc: 'Feels like a real interview — not a quiz.' },
 ];
 
 const STATUS_CONFIG = {
@@ -95,7 +95,7 @@ export default function AIInterview() {
     }, [location?.state?.openRules]);
 
     const formatDate = (dateStr) => {
-        if (!dateStr) return 'â€”';
+        if (!dateStr) return '—';
         return new Date(dateStr).toLocaleDateString('en-IN', {
             day: 'numeric', month: 'short', year: 'numeric',
             hour: '2-digit', minute: '2-digit',
@@ -173,7 +173,7 @@ export default function AIInterview() {
                         Ace Your Next <span className="gradient-text">Interview</span>
                     </h1>
                     <p className="iv-hero-subtitle">
-                        Practice with our AI interviewer â€” voice-enabled, behavior-reactive, fully dynamic.
+                        Practice with our AI interviewer — voice-enabled, behavior-reactive, fully dynamic.
                         Tailored to your skills profile and designed to simulate real-world technical interviews.
                     </p>
                     <button
@@ -486,19 +486,19 @@ export default function AIInterview() {
                         </div>
                         <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                             <li style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                                <span style={{ fontSize: '1.2rem' }}>ðŸ“¹</span>
+                                <FiCamera size={20} />
                                 <div><strong style={{ display: 'block' }}>Camera Required</strong><span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>You must keep your webcam enabled. If your face is out of view, the interview will terminate instantly.</span></div>
                             </li>
                             <li style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                                <span style={{ fontSize: '1.2rem' }}>ðŸ“±</span>
+                                <FiSmartphone size={20} />
                                 <div><strong style={{ display: 'block', color: 'var(--color-error)' }}>No Mobile Phones or Tablets</strong><span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>If a phone, tablet, or external remote is detected in your frame, the session will be immediately flagged and terminated.</span></div>
                             </li>
                             <li style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                                <span style={{ fontSize: '1.2rem' }}>ðŸ–¥ï¸</span>
+                                <FiMonitor size={20} />
                                 <div><strong style={{ display: 'block', color: 'var(--color-error)' }}>No Tab Switching</strong><span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Any attempt to switch tabs, copy-paste, or minimize the browser window will terminate the test instantly.</span></div>
                             </li>
                             <li style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                                <span style={{ fontSize: '1.2rem' }}>ðŸ‘¥</span>
+                                <FiUsers size={20} />
                                 <div><strong style={{ display: 'block' }}>Solo Interview</strong><span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Only ONE person must be in the frame. The presence of multiple faces will trigger termination.</span></div>
                             </li>
                         </ul>

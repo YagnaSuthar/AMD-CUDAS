@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
 import { toast } from 'react-toastify';
 import api from '../../../../utils/api';
@@ -171,7 +171,7 @@ export default function Skills() {
       {/* Main Grid */}
       <div className="skills-layout" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
 
-        {/* â”€â”€ Skills Management â”€â”€ */}
+        {/* Skills Management */}
         <div className="dashboard-card fade-in-up skills-card">
           <div className="skills-header">
             <h3><FiAward /> Skills Management</h3>
@@ -234,7 +234,7 @@ export default function Skills() {
           </button>
         </div>
 
-        {/* â”€â”€ Resume Upload â€” Professional â”€â”€ */}
+        {/* Resume Upload — Professional */}
         <div className="dashboard-card action-card fade-in-delay-1">
           <h3><FiFileText /> Resume Upload</h3>
           <p className="text-muted" style={{ marginBottom: '14px', fontSize: '0.82rem' }}>
@@ -263,7 +263,7 @@ export default function Skills() {
           {/* Upload form */}
           <form id="resume-upload-form" onSubmit={handleResumeUpload} className="resume-form">
 
-            {/* Custom drop zone â€” hides native file input */}
+            {/* Custom drop zone — hides native file input */}
             <label className={`resume-dropzone${resumeFile ? ' has-file' : ''}`}>
               <input
                 type="file"

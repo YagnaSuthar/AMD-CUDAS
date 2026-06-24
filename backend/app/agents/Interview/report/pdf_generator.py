@@ -304,6 +304,7 @@ def _build_cover_page(
     usable_w: float,
     candidate_name: str,
     job_role: str,
+    interview_type: str,
     interview_date: str,
     duration_min,
     total_q: int,
@@ -327,6 +328,7 @@ def _build_cover_page(
     # ── Candidate Summary Card (horizontal, single row) ─────────────────────
     info_items = [
         ("Candidate", candidate_name),
+        ("Interview Type", interview_type),
         ("Role",      job_role),
         ("Date",      interview_date),
         ("Duration",  f"{duration_min} min"),
@@ -464,28 +466,61 @@ def _build_question_card(
 
     # ── Header row ──────────────────────────────────────────────────────────
     header_t = Table(
-        [[
-            Paragraph(f"<b>Question {idx + 1}</b>", S_Q_TITLE),
-            Paragraph(
-                f'<font color="{diff_color.hexval()}"><b>{difficulty.capitalize()}</b></font>',
-                ParagraphStyle("qdiff", parent=S_METRIC_LABEL, alignment=TA_CENTER),
+    [[
+        Paragraph(
+            f"<b>Question {idx + 1}</b>",
+            ParagraphStyle(
+                "qtitle",
+                parent=S_Q_TITLE,
+                fontSize=10,
             ),
-            Paragraph(
-                f'<font color="{sc.hexval()}"><b>{correctness}</b></font>'
-                f'<font color="#94A3B8"> / 10</font>',
-                ParagraphStyle("qsc", parent=S_BODY, fontSize=10.5, alignment=TA_RIGHT),
+        ),
+
+        Paragraph(
+            f'<font color="{diff_color.hexval()}"><b>{difficulty.capitalize()}</b></font>',
+            ParagraphStyle(
+                "qdiff",
+                parent=S_METRIC_LABEL,
+                alignment=TA_CENTER,
+                fontSize=8,
             ),
-        ]],
-        colWidths=[card_w * 0.60, card_w * 0.18, card_w * 0.22],
-    )
+        ),
+
+        Paragraph(
+            f'<para align="right">'
+            f'<font color="{sc.hexval()}" size="9"><b>{correctness}</b></font>'
+            f'<font color="#94A3B8" size="8"> / 10</font>'
+            f'</para>',
+            ParagraphStyle(
+                "qscore",
+                parent=S_BODY,
+                alignment=TA_RIGHT,
+                leading=10,
+            ),
+        ),
+    ]],
+
+    # Give more width to score column
+    colWidths=[
+        card_w * 0.55,
+        card_w * 0.15,
+        card_w * 0.30,
+    ],
+)
+    
     header_t.setStyle(TableStyle([
-        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-        ("LINEBELOW",     (0, 0), (-1, 0),  0.5, C_BORDER),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-        ("TOPPADDING",    (0, 0), (-1, -1), 0),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
-    ]))
+    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+
+    ("LINEBELOW", (0, 0), (-1, 0), 0.5, C_BORDER),
+
+    ("TOPPADDING", (0, 0), (-1, -1), 4),
+
+    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+
+    ("LEFTPADDING", (0, 0), (-1, -1), 2),
+
+    ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+]))
 
     card_rows = [[header_t], [Spacer(1, 8)]]
 
@@ -589,6 +624,7 @@ def generate_report_pdf(
     improvement_roadmap= report.get("improvement_roadmap", [])
     hiring_readiness   = report.get("hiring_readiness", {})
     interviewer_remarks= report.get("interviewer_remarks", "")
+    proctoring_violations = report.get("proctoring_violations", [])
     verdict_label      = report.get("verdict_label", summary.get("verdict", ""))
     recommendations    = report.get("improvement_plan", [])
 
@@ -603,6 +639,7 @@ def generate_report_pdf(
     interview_date = meta.get("interview_date", datetime.now().strftime("%B %d, %Y"))
     duration_min   = meta.get("duration_minutes", "—")
     total_q        = len(questions) or meta.get("total_questions", 0)
+    interview_type = meta.get("interview_type", "Role-Based Interview")
 
     buf = BytesIO()
     doc = SimpleDocTemplate(
@@ -619,7 +656,7 @@ def generate_report_pdf(
     # ───────────────────────────────────────────────────────────────────────
     _build_cover_page(
         elements, usable_w,
-        candidate_name, job_role, interview_date, duration_min, total_q,
+        candidate_name, job_role, interview_type, interview_date, duration_min, total_q,
         overall_score, verdict_label, hiring_readiness,
         avg_corr, avg_depth, avg_comm, avg_conf,
     )
@@ -694,18 +731,18 @@ def generate_report_pdf(
     # ───────────────────────────────────────────────────────────────────────
     # IMPROVEMENT AREAS  (replaces Roadmap + Recommendations)
     # ───────────────────────────────────────────────────────────────────────
-    if recommendations:
-        elements.append(Paragraph("Improvement Areas", S_SECTION))
-        rec_rows = [
-            [Paragraph(
-                f'<font color="{C_WARNING.hexval()}">•</font>  {r}', S_BULLET,
-            )]
-            for r in recommendations[:5]
-            if r and r.strip()
-        ]
-        if rec_rows:
-            elements.append(KeepTogether(_card(rec_rows, col_widths=[usable_w - PAD_INTERNAL * 2])))
-        elements.append(Spacer(1, GAP_CARD))
+    # if recommendations:
+    #     elements.append(Paragraph("Improvement Areas", S_SECTION))
+    #     rec_rows = [
+    #         [Paragraph(
+    #             f'<font color="{C_WARNING.hexval()}">•</font>  {r}', S_BULLET,
+    #         )]
+    #         for r in recommendations[:5]
+    #         if r and r.strip()
+    #     ]
+    #     if rec_rows:
+    #         elements.append(KeepTogether(_card(rec_rows, col_widths=[usable_w - PAD_INTERNAL * 2])))
+    #     elements.append(Spacer(1, GAP_CARD))
 
     # ───────────────────────────────────────────────────────────────────────
     # INTERVIEWER REMARKS
@@ -716,6 +753,44 @@ def generate_report_pdf(
             [[Paragraph(f'<i>"{interviewer_remarks}"</i>', S_BODY)]],
             col_widths=[usable_w - PAD_INTERNAL * 2],
         )))
+        elements.append(Spacer(1, GAP_CARD))
+
+    # ───────────────────────────────────────────────────────────────
+    # PROCTORING SUMMARY
+    # ───────────────────────────────────────────────────────────────
+    if proctoring_violations:
+        elements.append(Paragraph("Proctoring Summary", S_SECTION))
+        rows = []
+        for idx, violation in enumerate(proctoring_violations, start=1):
+            if isinstance(violation, dict):
+                violation_type = violation.get(
+                    "type",
+                    violation.get("violation", "Unknown"),
+                )
+                timestamp = violation.get("timestamp", "")
+                count = violation.get("count", 1)
+            else:
+                violation_type = str(violation)
+                timestamp = ""
+                count = 1
+
+            text = f"<b>{idx}.</b> {violation_type}"
+            if count > 1:
+                text += f" (Occurred {count} times)"
+            if timestamp:
+                text += f"<br/><font size='8' color='#6B7280'>{timestamp}</font>"
+
+            rows.append([Paragraph(text, S_BODY)])
+
+        elements.append(
+            KeepTogether(
+                _card(
+                    rows,
+                    col_widths=[usable_w - PAD_INTERNAL * 2],
+                )
+            )
+        )
+        elements.append(Spacer(1, GAP_CARD))
 
     # ───────────────────────────────────────────────────────────────────────
     # FOOTER

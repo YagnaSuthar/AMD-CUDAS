@@ -122,7 +122,7 @@ export default function Messages() {
             )}
 
             <div className="messages-grid">
-                {/* Left Panel â€” Compose */}
+                {/* Left Panel — Compose */}
                 <div className="messages-compose-panel fade-in-up">
                     {/* Tab Switcher */}
                     <div className="msg-tab-switcher">
@@ -269,7 +269,7 @@ export default function Messages() {
                     )}
                 </div>
 
-                {/* Right Panel â€” Sent Messages */}
+                {/* Right Panel — Sent Messages */}
                 <div className="messages-sent-panel fade-in-up fade-in-delay-2">
                     <div className="msg-sent-header">
                         <h3>

@@ -70,7 +70,7 @@ export default function CertificateManagement() {
         } catch (err) { console.error('Failed to fetch projects:', err); }
     };
 
-    /* â”€â”€ GitHub validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+    /* GitHub validation */
     const validateGithubUrl = (url) => {
         if (!url) { setGithubError(''); return true; }
         if (!url.startsWith('https://github.com/')) {
@@ -328,10 +328,10 @@ export default function CertificateManagement() {
                 </div>
             </div>
 
-            {/* Upload Forms â€” Side by Side Grid */}
+            {/* Upload Forms Side by Side Grid */}
             <div className="cert-upload-duo-grid fade-in-up fade-in-delay-1">
 
-                {/* â•â•â• Upload Certificate Card â•â•â• */}
+                {/* Upload Certificate Card */}
                 <div className="cert-upload-card">
                     <div className="cert-upload-card-header">
                         <div className="cert-upload-card-icon">
@@ -345,7 +345,7 @@ export default function CertificateManagement() {
 
                     <form onSubmit={handleUpload} className="cert-upload-form-inner">
                         <div className="cert-upload-grid">
-                            {/* LEFT â€” Drop Zone */}
+                            {/* LEFT — Drop Zone */}
                             <label htmlFor="cert-file" className={`cert-drop-zone ${file ? 'cert-drop-zone-active' : ''}`}>
                                 <input
                                     type="file"
@@ -382,7 +382,7 @@ export default function CertificateManagement() {
                                 )}
                             </label>
 
-                            {/* RIGHT â€” Title + Description + Button */}
+                            {/* RIGHT — Title + Description + Button */}
                             <div className="cert-upload-fields">
                                 <div className="cert-upload-field">
                                     <label>Certificate Title *</label>
@@ -430,7 +430,7 @@ export default function CertificateManagement() {
                     </form>
                 </div>
 
-                {/* â•â•â• Upload Project Card â•â•â• */}
+                {/* Upload Project Card */}
                 <div className="cert-upload-card">
                     <div className="cert-upload-card-header">
                         <div className="cert-upload-card-icon" style={{ background: 'var(--gradient-secondary)' }}>
@@ -438,13 +438,13 @@ export default function CertificateManagement() {
                         </div>
                         <div>
                             <h3>Upload Project</h3>
-                            <p>Add your projects â€” AI verification agent will analyze them</p>
+                            <p>Add your projects — AI verification agent will analyze them</p>
                         </div>
                     </div>
 
                     <form onSubmit={handleProjectUpload} className="cert-upload-form-inner">
                         <div className="cert-proj-form-grid">
-                            {/* LEFT â€” Project Name + Description */}
+                            {/* LEFT — Project Name + Description */}
                             <div className="cert-upload-field">
                                 <label>Project Name *</label>
                                 <div className="cert-title-input-wrap">
@@ -459,7 +459,7 @@ export default function CertificateManagement() {
                                 </div>
                             </div>
 
-                            {/* RIGHT â€” GitHub Link */}
+                            {/* RIGHT — GitHub Link */}
                             <div className="cert-upload-field">
                                 <label>GitHub Link *</label>
                                 <div className="cert-title-input-wrap">
@@ -482,7 +482,7 @@ export default function CertificateManagement() {
                                 )}
                             </div>
 
-                            {/* LEFT â€” Description */}
+                            {/* LEFT — Description */}
                             <div className="cert-upload-field">
                                 <label>Technical Project Description *</label>
                                 <textarea
@@ -495,7 +495,7 @@ export default function CertificateManagement() {
                                 />
                             </div>
 
-                            {/* RIGHT â€” Tech Stack */}
+                            {/* RIGHT — Tech Stack */}
                             <div className="cert-upload-field">
                                 <label>Tech Stack</label>
                                 <div className="cert-title-input-wrap">
@@ -509,7 +509,7 @@ export default function CertificateManagement() {
                                 </div>
                             </div>
 
-                            {/* FULL WIDTH â€” Button + Hint */}
+                            {/* FULL WIDTH — Button + Hint */}
                             <div className="cert-upload-field full-width">
                                 <button
                                     type="submit"
@@ -549,7 +549,7 @@ export default function CertificateManagement() {
                 )}
             </div>
 
-            {/* Certificates List â€” Clickable for Popup */}
+            {/* Certificates List — Clickable for Popup */}
             <div className="cert-grid fade-in-up fade-in-delay-2">
                 {certs.length === 0 ? (
                     <div className="empty-state">
@@ -572,13 +572,13 @@ export default function CertificateManagement() {
                                 <h4>{c.title}</h4>
                                 <div className="cert-card-meta">
                                     <span className={`status-badge ${c.is_verified ? 'status-badge-approved' : 'status-badge-pending'}`}>
-                                        {c.is_verified ? 'âœ“ Verified' : 'â³ Pending'}
+                                        {c.is_verified ? 'Verified' : 'Pending'}
                                     </span>
                                     {c.points > 0 && (
                                         <span className="cert-points">+{c.points} pts</span>
                                     )}
                                 </div>
-                                <span className="cert-view-link">View Details â†’</span>
+                                <span className="cert-view-link">View Details →</span>
                             </div>
                         </div>
                     ))
@@ -622,10 +622,10 @@ export default function CertificateManagement() {
                                         p.verification_status === 'suspicious' ? 'status-badge-pending' :
                                         'status-badge-pending'
                                     }`}>
-                                        {p.verification_status === 'verified' ? 'âœ“ Verified' :
-                                         p.verification_status === 'failed' ? 'âœ— Failed' :
-                                         p.verification_status === 'suspicious' ? 'âš  Suspicious' :
-                                         'â³ Pending'}
+                                        {p.verification_status === 'verified' ? 'Verified' :
+                                         p.verification_status === 'failed' ? 'Failed' :
+                                         p.verification_status === 'suspicious' ? 'Suspicious' :
+                                         'Pending'}
                                     </span>
                                     {p.verification_score != null && (
                                         <span className="cert-points" style={{
@@ -637,14 +637,14 @@ export default function CertificateManagement() {
                                         </span>
                                     )}
                                 </div>
-                                <span className="cert-view-link" style={{ marginTop: '8px', display: 'inline-block' }}>View Details â†’</span>
+                                <span className="cert-view-link" style={{ marginTop: '8px', display: 'inline-block' }}>View Details →</span>
                             </div>
                         </div>
                     ))
                 )}
             </div>
 
-            {/* â•â•â• Popups â•â•â• */}
+            {/* Popups */}
             {selectedCert && (
                 <CertificatePopup
                     cert={selectedCert}

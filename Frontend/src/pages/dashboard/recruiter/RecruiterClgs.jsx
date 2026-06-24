@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import api from '../../../utils/api';
 import { FiX, FiArrowLeft, FiBriefcase, FiAward, FiLayers, FiGithub, FiStar, FiCheckCircle, FiClock, FiExternalLink } from 'react-icons/fi';
@@ -368,7 +368,7 @@ export default function RecruiterClgs() {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h4>Departments</h4>
                                 <button className="btn btn-sm btn-secondary" onClick={backToColleges}>
-                                    â† Back to Colleges
+                                    ← Back to Colleges
                                 </button>
                             </div>
                         </div>
@@ -411,7 +411,7 @@ export default function RecruiterClgs() {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h4>Students</h4>
                                 <button className="btn btn-sm btn-secondary" onClick={backToDepartments}>
-                                    â† Back to Departments
+                                    ← Back to Departments
                                 </button>
                             </div>
                         </div>
@@ -619,7 +619,7 @@ export default function RecruiterClgs() {
                                                                 <div style={{ color: 'var(--color-text-muted)' }}>status: {it.status}</div>
                                                                 <div style={{ color: 'var(--color-text-muted)' }}>score: {it.final_score ?? '-'}</div>
                                                                 <div style={{ color: 'var(--color-text-muted)' }}>
-                                                                    {it.recommendation ? it.recommendation.slice(0, 160) + (it.recommendation.length > 160 ? 'â€¦' : '') : '-'}
+                                                                    {it.recommendation ? it.recommendation.slice(0, 160) + (it.recommendation.length > 160 ? '...' : '') : '-'}
                                                                 </div>
                                                             </div>
                                                         ))}

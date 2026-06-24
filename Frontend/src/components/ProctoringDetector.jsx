@@ -179,7 +179,7 @@ export default function ProctoringDetector({ videoRef, sessionId, active, onViol
         const cls = pred.class.toLowerCase();
 
         if (cls === 'cell phone' && pred.score > 0.5) {
-          const msg = '📱 Phone detected! Interview will be terminated.';
+          const msg = 'Phone detected! Interview will be terminated.';
           onViolation?.(VIOLATION_TYPES.PHONE_DETECTED, msg);
           reportToBackend(VIOLATION_TYPES.PHONE_DETECTED, msg, 'critical');
           onAutoEnd?.('PHONE_DETECTED');
@@ -187,7 +187,7 @@ export default function ProctoringDetector({ videoRef, sessionId, active, onViol
         }
 
         if ((cls === 'tablet' || cls === 'ipad') && pred.score > 0.5) {
-          const msg = '📱 Tablet/iPad detected! Interview will be terminated.';
+          const msg = 'Tablet/iPad detected! Interview will be terminated.';
           onViolation?.(VIOLATION_TYPES.TABLET_DETECTED, msg);
           reportToBackend(VIOLATION_TYPES.TABLET_DETECTED, msg, 'critical');
           onAutoEnd?.('TABLET_DETECTED');

@@ -51,7 +51,7 @@ export default function FacultyDashboard() {
     }
 
     const chartData = (data?.subject_stats || []).map(s => ({
-        name: s.subject_name.length > 12 ? s.subject_name.slice(0, 12) + 'â€¦' : s.subject_name,
+        name: s.subject_name.length > 12 ? s.subject_name.slice(0, 12) + '...' : s.subject_name,
         'Avg %': s.average_marks,
         Students: s.student_count,
     }));
@@ -75,7 +75,7 @@ export default function FacultyDashboard() {
                             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 {mentors.map((m, i) => (
                                     <li key={i} style={{ fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>â€¢</span>
+                                        <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>•</span>
                                         Semester {m.semester}
                                     </li>
                                 ))}
@@ -97,7 +97,7 @@ export default function FacultyDashboard() {
                             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 {subjects.map((s, i) => (
                                     <li key={i} style={{ fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <span style={{ color: 'var(--color-secondary)', fontWeight: 'bold' }}>â€¢</span>
+                                        <span style={{ color: 'var(--color-secondary)', fontWeight: 'bold' }}>•</span>
                                         {s.subject_name} (Sem {s.semester})
                                     </li>
                                 ))}

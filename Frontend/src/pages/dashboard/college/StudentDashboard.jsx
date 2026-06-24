@@ -119,49 +119,36 @@ export default function StudentDashboard() {
     useEffect(() => {
         (async () => {
             try {
-                console.log('ðŸ”„ Fetching student dashboard data...');
+                console.log('[DASHBOARD] Fetching student dashboard data...');
                 
-                // Try each API call separately to isolate the issue
                 try {
                     const acaRes = await api.get('/college/student/academic');
-                    console.log('âœ… Academic API success:', acaRes.data);
+                    console.log('[API] Academic API success:', acaRes.data);
                     setData(acaRes.data);
                 } catch (acaErr) {
-                    console.error('âŒ Academic API failed:', acaErr);
-                    if (acaErr.response) {
-                        console.error('Status:', acaErr.response.status);
-                        console.error('Error data:', acaErr.response.data);
-                    }
-                    setData(null); // Explicitly set to null on error
+                    console.error('[API] Academic API failed:', acaErr);
+                    setData(null);
                 }
                 
                 try {
                     const ttRes = await api.get('/college/student/timetable');
-                    console.log('âœ… Timetable API success:', ttRes.data);
+                    console.log('[API] Timetable API success:', ttRes.data);
                     setTimetable(ttRes.data);
                 } catch (ttErr) {
-                    console.error('âŒ Timetable API failed:', ttErr);
-                    if (ttErr.response) {
-                        console.error('Status:', ttErr.response.status);
-                        console.error('Error data:', ttErr.response.data);
-                    }
+                    console.error('[API] Timetable API failed:', ttErr);
                 }
                 
                 try {
                     const pipelineRes = await api.get('/pipeline/student');
-                    console.log('âœ… Pipeline API success:', pipelineRes.data);
+                    console.log('[API] Pipeline API success:', pipelineRes.data);
                     setPipelines(pipelineRes.data || []);
                 } catch (pipelineErr) {
-                    console.error('âŒ Pipeline API failed:', pipelineErr);
-                    if (pipelineErr.response) {
-                        console.error('Status:', pipelineErr.response.status);
-                        console.error('Error data:', pipelineErr.response.data);
-                    }
+                    console.error('[API] Pipeline API failed:', pipelineErr);
                     setPipelines([]);
                 }
                 
             } catch (err) { 
-                console.error('âŒ General error in dashboard data fetch:', err);
+                console.error('[DASHBOARD] General error in data fetch:', err);
                 setData(null);
             }
             finally { 
@@ -200,24 +187,24 @@ export default function StudentDashboard() {
 
     // Radar data for subject performance
     const radarData = (data?.marks || []).map(m => ({
-        subject: m.subject_name.length > 10 ? m.subject_name.slice(0, 10) + 'â€¦' : m.subject_name,
+        subject: m.subject_name.length > 10 ? m.subject_name.slice(0, 10) + '...' : m.subject_name,
         percentage: m.percentage,
         fullMark: 100,
     }));
 
     // Bar chart data
     const barData = (data?.marks || []).map(m => ({
-        name: m.subject_name.length > 10 ? m.subject_name.slice(0, 10) + 'â€¦' : m.subject_name,
+        name: m.subject_name.length > 10 ? m.subject_name.slice(0, 10) + '...' : m.subject_name,
         Marks: m.marks_obtained,
         Max: m.max_marks,
     }));
 
     // Debug: Log current data state
-    console.log('ðŸŽ¯ Current data state:', data);
-    console.log('ðŸ“ˆ GPA:', data?.gpa);
-    console.log('ðŸ“Š Marks count:', data?.marks?.length);
-    console.log('ðŸŽ¨ Radar data length:', radarData.length);
-    console.log('ðŸ“Š Bar data length:', barData.length);
+    console.log('[DEBUG] Current data state:', data);
+    console.log('[DEBUG] GPA:', data?.gpa);
+    console.log('[DEBUG] Marks count:', data?.marks?.length);
+    console.log('[DEBUG] Radar data length:', radarData.length);
+    console.log('[DEBUG] Bar data length:', barData.length);
 
     // Countdown to next exam
     const now = new Date();
@@ -353,7 +340,7 @@ export default function StudentDashboard() {
                                             </span>
                                         </div>
                                         <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-                                            {pipeline.company_name ? `${pipeline.company_name} â€¢ ` : ''}
+                                            {pipeline.company_name ? `${pipeline.company_name} • ` : ''}
                                             {pipeline.job_title ? `${pipeline.job_title}` : `Job ID: ${pipeline.job_id?.slice(0, 8)}...`}
                                         </span>
                                     </div>
@@ -397,7 +384,7 @@ export default function StudentDashboard() {
                                     {pipeline.status === 'AI_COMPLETED' && (
                                         <div style={{ marginTop: '10px' }}>
                                             <p style={{ fontSize: '0.9rem', color: 'var(--color-success)', marginBottom: '5px', fontWeight: '600' }}>
-                                                âœ“ Submitted
+                                                <FiCheckCircle size={16} style={{ marginRight: '4px' }} /> Submitted
                                             </p>
                                             <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '8px' }}>
                                                 Your AI interview has been submitted successfully. The recruiter will review it.
@@ -446,7 +433,7 @@ export default function StudentDashboard() {
                                     {pipeline.status === 'HIRED' && (
                                         <div style={{ marginTop: '10px' }}>
                                             <p style={{ fontSize: '0.9rem', color: 'var(--color-success)', fontWeight: '600' }}>
-                                                ðŸŽ‰ Congratulations! You've been hired by {pipeline.hired_company_name}!
+                                                <FiAward size={20} style={{ marginRight: '8px', color: 'var(--color-primary)' }} /> Congratulations! You've been hired by {pipeline.hired_company_name}!
                                             </p>
                                         </div>
                                     )}

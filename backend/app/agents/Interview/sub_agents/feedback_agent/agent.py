@@ -35,6 +35,16 @@ async def generate_report(
     """
     logger.info("FeedbackAgent: generating deterministic report for session %s", session_id)
 
+    # Fetch session with violations
+    from sqlalchemy.orm import selectinload
+    sess_result = await db.execute(
+        select(InterviewSession)
+        .options(selectinload(InterviewSession.violations))
+        .where(InterviewSession.session_id == session_id)
+    )
+    session = sess_result.scalar_one_or_none()
+    proctoring_violations = session.proctoring_violations if session else []
+
     # 1. Fetch all turns (source of truth)
     turn_result = await db.execute(
         select(InterviewTurn)
@@ -46,14 +56,21 @@ async def generate_report(
     # 2. Build turn dicts for report_builder
     turn_dicts = []
     for t in turns:
+        ev = t.evaluation or {}
+        qm = ev.get("question_meta", {}) if isinstance(ev, dict) else {}
         turn_dicts.append({
             "question": t.question or "",
             "answer": t.answer or "",
-            "evaluation": t.evaluation or {}
+            "evaluation": ev,
+            "topic": qm.get("topic") or qm.get("concept") or t.phase or "Technical",
+            "concept": qm.get("concept") or "",
+            "difficulty": qm.get("difficulty") or t.difficulty or "medium",
+            "phase": qm.get("phase") or t.phase or "core_technical",
+            "project": qm.get("project") or "",
         })
 
     # 3. Use deterministic builder
-    report_dict = build_report(turn_dicts)
+    report_dict = build_report(turn_dicts, proctoring_violations)
 
     # 3.5. LLM Refinement Step (optional, non-blocking with timeout)
     if llm:
@@ -178,6 +195,16 @@ async def generate_report(
             0,
             f"Session terminated early due to proctoring violation: {ended_reason}",
         )
+
+    # 4.5. Get proctoring summary from DetectorAgent
+    try:
+        from app.agents.Interview.sub_agents.detector_agent.agent import DetectorAgent
+        detector = DetectorAgent(db)
+        proctoring_summary = await detector.get_proctoring_summary(session_id)
+        report_dict["proctoring_summary"] = proctoring_summary
+    except Exception as exc:
+        logger.warning("FeedbackAgent: Proctoring summary failed (non-fatal): %s", exc)
+        report_dict["proctoring_summary"] = None
 
     # 5. Persist to DB for UI/Recruiter/Student consistency
     existing = await db.execute(

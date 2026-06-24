@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiFileText, FiShield } from 'react-icons/fi';
+import { FiFileText, FiShield, FiCamera, FiSmartphone, FiMonitor, FiUsers, FiCheck, FiX } from 'react-icons/fi';
 import { useAuth } from '../../../../context/AuthContext';
 import api from '../../../../utils/api';
 import SkeletonText from '../../../../components/common/skeleton/SkeletonText';
@@ -563,7 +563,7 @@ export default function Interviews() {
                                                         onClick={() => onHireReject(p.id, 'hire')}
                                                         title="Hire Candidate"
                                                     >
-                                                        âœ“
+                                                        <FiCheck size={16} />
                                                     </button>
                                                     <button 
                                                         className="btn btn-sm btn-error"
@@ -573,7 +573,7 @@ export default function Interviews() {
                                                         }}
                                                         title="Reject Candidate"
                                                     >
-                                                        âœ—
+                                                        <FiX size={16} />
                                                     </button>
                                                 </div>
                                             ) : (
@@ -705,7 +705,7 @@ export default function Interviews() {
                             </button>
                         </div>
 
-                        <div className="popup-body" style={{ padding: '22px 24px' }}>
+                        <div className="popup-body report-body">
                             {reportLoading ? (
                                 <div style={{ padding: '16px 0' }}>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
@@ -832,29 +832,6 @@ export default function Interviews() {
                                                             <div style={{ marginTop: 10 }}>
                                                                 <ProgressBar value={avgCommunication} tone={scoreTone(avgCommunication).color} />
                                                             </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Strengths & Weaknesses */}
-                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '4px' }}>
-                                                        <div className="report-section" style={{ marginBottom: 0 }}>
-                                                            <h4 className="report-section-title" style={{ color: 'var(--color-success)' }}>Strengths</h4>
-                                                            <ul className="report-list">
-                                                                {strengths.map((t, i) => <li key={i}>{t}</li>)}
-                                                                {strengths.length === 0 && (
-                                                                    <li style={{ color: 'var(--color-text-muted)' }}>No strong areas identified</li>
-                                                                )}
-                                                            </ul>
-                                                        </div>
-
-                                                        <div className="report-section" style={{ marginBottom: 0 }}>
-                                                            <h4 className="report-section-title" style={{ color: 'var(--color-error)' }}>Areas to improve</h4>
-                                                            <ul className="report-list">
-                                                                {weaknesses.map((t, i) => <li key={i}>{t}</li>)}
-                                                                {weaknesses.length === 0 && (
-                                                                    <li style={{ color: 'var(--color-text-muted)' }}>No improvement areas listed</li>
-                                                                )}
-                                                            </ul>
                                                         </div>
                                                     </div>
 
@@ -1369,19 +1346,19 @@ export default function Interviews() {
                         </p>
                         <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                             <li style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                                <span style={{ fontSize: '1.2rem' }}>ðŸ“¹</span>
+                                <FiCamera size={20} />
                                 <div><strong style={{ display: 'block' }}>Camera Required</strong><span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>You must keep your webcam enabled. If your face is out of view, the interview will terminate instantly.</span></div>
                             </li>
                             <li style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                                <span style={{ fontSize: '1.2rem' }}>ðŸ“±</span>
+                                <FiSmartphone size={20} />
                                 <div><strong style={{ display: 'block', color: 'var(--color-error)' }}>No Mobile Phones or Tablets</strong><span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>If a phone, tablet, or external remote is detected in your frame, the session will be immediately flagged and terminated.</span></div>
                             </li>
                             <li style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                                <span style={{ fontSize: '1.2rem' }}>ðŸ–¥ï¸</span>
+                                <FiMonitor size={20} />
                                 <div><strong style={{ display: 'block', color: 'var(--color-error)' }}>No Tab Switching</strong><span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Any attempt to switch tabs, copy-paste, or minimize the browser window will terminate the test instantly.</span></div>
                             </li>
                             <li style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                                <span style={{ fontSize: '1.2rem' }}>ðŸ‘¥</span>
+                                <FiUsers size={20} />
                                 <div><strong style={{ display: 'block' }}>Solo Interview</strong><span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Only ONE person must be in the frame. The presence of multiple faces will trigger termination.</span></div>
                             </li>
                         </ul>

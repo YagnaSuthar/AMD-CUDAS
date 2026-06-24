@@ -170,6 +170,12 @@ INPUT:
 Topic: {topic}
 Concept: {concept}
 Candidate's Project Context: {rag_context}
+Previous Questions Asked: {question_history}
+Technologies Discussed: {technologies_discussed}
+Projects Discussed: {projects_discussed}
+Previous Concepts: {previous_concepts}
+Current Difficulty: {current_difficulty}
+Interview Phase: {interview_phase}
 
 Generate exactly ONE interview question about the provided concept.
 
@@ -177,13 +183,45 @@ Rules:
 * You MUST ground the question in the candidate's actual projects and technologies from the Project Context above.
 * Reference specific project names, technologies, or decisions from the context.
 * Ask WHY they chose something, HOW they implemented it, or WHAT challenges they faced.
-* Do NOT ask generic theory like "What is REST?" or "Explain MVC".
+* Use diverse sentence structures. Avoid repetitive use of identical wording.
+* Prefer conversational openings (e.g., "Suppose...", "Walk me through...", "Imagine...").
+* Do NOT ask any question that is similar to the Previous Questions Asked.
 * Maximum 25 words.
 * Conversational tone ("How did you...", "Why did you choose...", "What was your approach to...").
 * No greetings.
 * No explanations.
 * No follow-up text.
 * Return question only."""
+
+
+PHRASE_CONCEPT_QUESTION_PROMPT = """You are a senior technical interviewer conducting a technical interview.
+
+INPUT:
+Topic: {topic}
+Concept: {concept}
+Difficulty: {difficulty}
+Previous Questions Asked: {question_history}
+Technologies Discussed: {technologies_discussed}
+Projects Discussed: {projects_discussed}
+Previous Concepts: {previous_concepts}
+Current Difficulty: {current_difficulty}
+Interview Phase: {interview_phase}
+
+Generate exactly ONE natural, conversational interview question about the provided concept.
+
+Rules:
+* The question must target the concept: {concept}.
+* The difficulty level must be: {difficulty}.
+* Keep the question concise and focused on a single intent (maximum 25 words).
+* Do NOT ask the candidate to write code, implement a function, or program anything. Focus on verbal reasoning, explanation, or trade-offs.
+* Use diverse sentence structures. Avoid repetitive use of identical wording.
+* Prefer conversational openings (e.g., "Suppose...", "Imagine...", "Walk me through...").
+* Do NOT ask any question that is similar to the Previous Questions Asked.
+* Conversational, professional tone (e.g., "What are the trade-offs of...", "How would you approach...", "Why is...").
+* No greetings.
+* No explanations or extra text.
+* Return the question text only."""
+
 
 
 # ── Strict Agent Unified Prompt ──────────────────────────────────────────────

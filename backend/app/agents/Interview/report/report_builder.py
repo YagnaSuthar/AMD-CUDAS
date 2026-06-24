@@ -531,7 +531,10 @@ def _build_verdict_label(verdict: str, overall_score: float) -> str:
 
 
 
-def build_report(turns: List[Dict[str, Any]]) -> Dict[str, Any]:
+def build_report(
+    turns: List[Dict[str, Any]],
+    proctoring_violations: List[Dict[str, Any]] | None = None,
+) -> Dict[str, Any]:
     """
     Build a human-like, fair deterministic report.
     - Strengths logic: correctness >= 7 (Strong), >= 5 (Developing)
@@ -539,6 +542,27 @@ def build_report(turns: List[Dict[str, Any]]) -> Dict[str, Any]:
     - Includes confidence gap detection
     - Comprehensive per-question feedback fallbacks
     """
+    proctoring_violations = proctoring_violations or []
+
+    # Convert any SQLAlchemy model instances of ProctoringViolation to dictionaries
+    mapped_violations = []
+    for v in proctoring_violations:
+        if isinstance(v, dict):
+            mapped_violations.append(v)
+        elif hasattr(v, "violation_type"):
+            ts = ""
+            if hasattr(v, "detected_at") and v.detected_at:
+                ts = v.detected_at.strftime("%H:%M:%S")
+            mapped_violations.append({
+                "type": v.violation_type,
+                "timestamp": ts,
+                "count": 1,
+                "message": getattr(v, "message", ""),
+            })
+        else:
+            mapped_violations.append(v)
+    proctoring_violations = mapped_violations
+
     if not turns:
         return {
             "summary": {
@@ -575,6 +599,7 @@ def build_report(turns: List[Dict[str, Any]]) -> Dict[str, Any]:
             },
             "interviewer_remarks": "No interview data available.",
             "verdict_label": "Needs Improvement",
+            "proctoring_violations": proctoring_violations,
         }
 
     valid_evals = []
@@ -582,11 +607,12 @@ def build_report(turns: List[Dict[str, Any]]) -> Dict[str, Any]:
     
     for t in turns:
         ev = t.get("evaluation") or {}
+        qm = ev.get("question_meta", {}) if isinstance(ev, dict) else {}
         
         turn_data = {
             "question": t.get("question", "N/A"),
             "answer": t.get("answer", "No answer provided."),
-            "topic": t.get("topic") or "Technical",
+            "topic": t.get("topic") or qm.get("topic") or qm.get("concept") or "Technical",
             "correctness": _safe_int(ev.get("correctness")),
             "concept_depth": _safe_int(ev.get("concept_depth")),
             "communication": _safe_int(ev.get("communication")),
@@ -597,7 +623,7 @@ def build_report(turns: List[Dict[str, Any]]) -> Dict[str, Any]:
             "misconceptions": ev.get("misconceptions", []) if isinstance(ev.get("misconceptions"), list) else [],
             "severity": (ev.get("severity") or "low").lower(),
             "final_feedback": (ev.get("final_feedback") or "Improve clarity and provide more detailed explanation.").strip(),
-            "difficulty": t.get("difficulty") or (ev.get("difficulty") or "medium"),
+            "difficulty": t.get("difficulty") or qm.get("difficulty") or (ev.get("difficulty") or "medium"),
         }
         
         valid_evals.append(turn_data)
@@ -720,7 +746,7 @@ def build_report(turns: List[Dict[str, Any]]) -> Dict[str, Any]:
     communication_analysis = _build_communication_analysis(
         avg_corr, avg_depth, avg_comm, avg_conf
     )
-    improvement_roadmap: List[Dict[str, Any]] = []   # Removed
+    # Proctoring violations are included via critical_issues
     hiring_readiness = _build_hiring_readiness(overall_score)
     interviewer_remarks = _build_interviewer_remarks(
         overall_score, valid_evals=valid_evals,
@@ -728,19 +754,21 @@ def build_report(turns: List[Dict[str, Any]]) -> Dict[str, Any]:
     verdict_label = _build_verdict_label(verdict, overall_score)
 
     return {
-        "summary": summary,
-        "final_score": float(overall_score),
-        "strengths": strengths,
-        "weaknesses": weaknesses,
-        "critical_issues": critical_issues,
-        "weakness_patterns": patterns,
-        "questions": q_analysis,
-        "improvement_plan": improvement_plan,
-        # --- New presentation fields ---
-        "executive_summary": executive_summary,
-        "communication_analysis": communication_analysis,
-        "improvement_roadmap": improvement_roadmap,
-        "hiring_readiness": hiring_readiness,
-        "interviewer_remarks": interviewer_remarks,
-        "verdict_label": verdict_label,
-    }
+    "summary": summary,
+    "final_score": float(overall_score),
+    "strengths": strengths,
+    "weaknesses": weaknesses,
+    "critical_issues": critical_issues,
+    "weakness_patterns": patterns,
+    "questions": q_analysis,
+    "improvement_plan": improvement_plan,
+
+    "executive_summary": executive_summary,
+    "communication_analysis": communication_analysis,
+    "hiring_readiness": hiring_readiness,
+    "interviewer_remarks": interviewer_remarks,
+    "verdict_label": verdict_label,
+
+    # Final violations list
+    "proctoring_violations": proctoring_violations,
+}

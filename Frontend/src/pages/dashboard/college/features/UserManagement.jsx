@@ -333,7 +333,7 @@ export default function UserManagement({ allUsers = false, colleges = false }) {
                                         </td>
                                         <td>
                                             <span className="cell-department">
-                                                {usr.department || <span className="text-muted">â€”</span>}
+                                                {usr.department || <span className="text-muted">—</span>}
                                             </span>
                                         </td>
                                         <td>
@@ -348,7 +348,7 @@ export default function UserManagement({ allUsers = false, colleges = false }) {
                                         </td>
                                         <td>
                                             <span className="cell-phone">
-                                                {usr.phone_number || <span className="text-muted">â€”</span>}
+                                                {usr.phone_number || <span className="text-muted">—</span>}
                                             </span>
                                         </td>
                                         <td>

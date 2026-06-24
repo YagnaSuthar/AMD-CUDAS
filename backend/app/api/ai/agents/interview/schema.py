@@ -102,6 +102,7 @@ class InterviewReportResponse(BaseModel):
     behavior_summary: str = ""
     recommendation: str = ""
     status: str = "READY"
+    proctoring_summary: Optional[dict] = None
 
 
 class InterviewConfigResponse(BaseModel):
@@ -172,6 +173,7 @@ class InterviewSessionReportResponse(BaseModel):
     summary: str = ""
     questions: List[InterviewReportQuestionItem] = []
     pdf_url: str = ""
+    proctoring_summary: Optional[dict] = None
 
 
 # ── Proctoring / Detector Agent ───────────────────────────────────────────

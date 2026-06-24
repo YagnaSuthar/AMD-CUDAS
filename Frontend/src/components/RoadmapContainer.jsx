@@ -377,7 +377,7 @@ export default function RoadmapContainer({ roadmap, onStepComplete, phaseBranche
             {/* Footer */}
             <div className="snake-footer">
                 <span className="snake-finish-badge">
-                    <FiFlag /> Goal Achieved! 🎉
+                    <FiFlag /> Goal Achieved!
                 </span>
             </div>
         </div>

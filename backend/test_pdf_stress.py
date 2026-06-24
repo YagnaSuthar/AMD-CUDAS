@@ -92,12 +92,13 @@ def _make_turns(n: int, long_answer: bool = False) -> list:
     return turns
 
 
-def _write_pdf(name: str, n_questions: int, long_answer: bool = False):
+def _write_pdf(name: str, n_questions: int, long_answer: bool = False, proctoring_violations: list = None):
     turns = _make_turns(n_questions, long_answer=long_answer)
-    report = build_report(turns)
+    report = build_report(turns, proctoring_violations)
     meta = {
         "candidate_name": "Nirja Patel",
         "job_role": "Backend Developer",
+        "interview_type": "Role-Based Interview",
         "interview_date": "June 13, 2026",
         "duration_minutes": 25 + n_questions * 3,
         "total_questions": n_questions,
@@ -117,7 +118,11 @@ def _write_pdf(name: str, n_questions: int, long_answer: bool = False):
 
 if __name__ == "__main__":
     print("Phase 4B – PDF Stress Test\n")
-    _write_pdf("case1_4q",       4)
+    _write_pdf("case1_4q",       4, proctoring_violations=[
+        {"type": "Tab Switch", "timestamp": "00:04:12", "count": 2},
+        {"type": "Phone Detected", "timestamp": "00:08:45", "count": 1},
+        {"type": "No Face Detected", "timestamp": "00:10:15", "count": 1},
+    ])
     _write_pdf("case2_10q",     10)
     _write_pdf("case3_20q",     20)
     _write_pdf("case4_long_ans", 4, long_answer=True)
