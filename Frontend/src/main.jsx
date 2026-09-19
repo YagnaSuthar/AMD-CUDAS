@@ -9,6 +9,7 @@ import './style/dashboard.css'
 import './style/notifications.css'
 import './style/popup.css'
 import './style/landing.css'
+import './style/neo.css'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
