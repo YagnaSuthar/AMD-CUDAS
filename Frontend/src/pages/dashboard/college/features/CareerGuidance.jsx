@@ -749,7 +749,12 @@ export default function CareerGuidance() {
                                 onChange={(e) => setGuidanceQuery(e.target.value)}
                                 placeholder="Ask about skills, projects, jobs or interviews…"
                                 className="cg-composer-input"
-                                rows={2}
+                                rows={1}
+                                onInput={(e) => {
+                                    // Grow with the text, up to ~5 lines
+                                    e.target.style.height = 'auto';
+                                    e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
+                                }}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && !e.shiftKey) {
                                         e.preventDefault();
