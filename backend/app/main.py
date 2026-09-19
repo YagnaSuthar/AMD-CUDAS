@@ -13,6 +13,7 @@ from sqlalchemy import text
 
 from app.api.router import api_router
 from app.core.database import engine, Base, async_session_factory
+from app.core.config import settings
 
 # ── Router Imports ────────────────────────────────────────────────────────
 from app.routers.auth import router as auth_router
@@ -45,6 +46,9 @@ from app.services.embedding_service import warm_up_embedding_model  # noqa: E402
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
+
+        # STEP 0: pgvector extension (required by RAG embedding tables)
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
         # STEP 1: CREATE TABLES FIRST
         await conn.run_sync(Base.metadata.create_all)
@@ -260,6 +264,8 @@ async def lifespan(app: FastAPI):
     try:
         import logging as _logging
         _log = _logging.getLogger(__name__)
+        if settings.SKIP_EMBEDDING_WARMUP:
+            raise RuntimeError("skipped via SKIP_EMBEDDING_WARMUP")
         _log.info("[RAG] Pre-loading embedding model at server startup…")
         warm_up_embedding_model()
         _log.info("[RAG] Embedding model warm-up complete")
@@ -282,7 +288,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"]
+    + [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

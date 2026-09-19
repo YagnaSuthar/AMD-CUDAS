@@ -4,6 +4,7 @@ Provides the ``get_db`` dependency for FastAPI route injection.
 """
 
 from typing import AsyncGenerator
+from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -20,6 +21,12 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DATABASE_ECHO,
     future=True,
+    pool_pre_ping=True,
+    # Compatible with PgBouncer (e.g. Neon's pooled connection string)
+    connect_args={
+        "statement_cache_size": 0,
+        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__",
+    },
 )
 
 async_session_factory = async_sessionmaker(

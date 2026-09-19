@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://cudas-backend.onrender.com/:path*" },
+    { "source": "/certificates/:path*", "destination": "https://cudas-backend.onrender.com/certificates/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

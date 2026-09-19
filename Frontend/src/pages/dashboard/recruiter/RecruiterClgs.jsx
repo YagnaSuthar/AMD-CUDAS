@@ -777,7 +777,7 @@ export default function RecruiterClgs() {
                                                 </div>
                                             </div>
                                             {cert.file_path && (
-                                                <a href={`http://localhost:8000/${cert.file_path}`} target="_blank" rel="noreferrer" className="btn btn-sm btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                                                <a href={`/certificates/${cert.file_name || cert.file_path.split(/[\/]/).pop()}`} target="_blank" rel="noreferrer" className="btn btn-sm btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
                                                     <FiExternalLink /> View File
                                                 </a>
                                             )}

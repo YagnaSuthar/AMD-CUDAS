@@ -4,6 +4,7 @@ Uses pydantic-settings for type-safe config with .env file support.
 """
 
 from pathlib import Path
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,6 +25,27 @@ class Settings(BaseSettings):
     # ── Database ──────────────────────────────────────────────────────────
     DATABASE_URL: str = "postgresql+asyncpg://postgres:yagna@localhost:5432/CUDAS"
     DATABASE_ECHO: bool = False
+
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def _normalize_database_url(cls, url: str) -> str:
+        """Accept a plain Neon/Postgres URL and adapt it for asyncpg."""
+        if url.startswith("postgres://"):
+            url = "postgresql://" + url[len("postgres://"):]
+        if url.startswith("postgresql://"):
+            url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+        if "?" in url:
+            base, query = url.split("?", 1)
+            params = [p for p in query.split("&") if p and not p.startswith("channel_binding=")]
+            params = ["ssl=require" if p.startswith("sslmode=") else p for p in params]
+            url = base + ("?" + "&".join(params) if params else "")
+        return url
+
+    # ── Deployment ────────────────────────────────────────────────────────
+    # Comma-separated extra CORS origins, e.g. "https://cudas.vercel.app"
+    CORS_ORIGINS: str = ""
+    # Skip loading the embedding model at startup (saves RAM on small hosts)
+    SKIP_EMBEDDING_WARMUP: bool = False
 
     # ── LLM Configuration ──────────────────────────────────────────────────
     # GEMINI_API_KEY: str = ""

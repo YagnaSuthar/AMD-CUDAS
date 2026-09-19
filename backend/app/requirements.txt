@@ -1,3 +1,6 @@
+# CPU-only PyTorch (much smaller; no GPU on free hosting)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
 fastapi
 uvicorn[standard]
 pydantic-settings
