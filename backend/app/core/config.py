@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = ""  # "nvidia" | "groq" | "" (auto)
     NVIDIA_API_KEY: str = ""
     NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
-    NVIDIA_MODEL_NAME: str = "nvidia/nemotron-3.5-lightning-30b-a3b"
+    NVIDIA_MODEL_NAME: str = "nvidia/nemotron-3-ultra-550b-a55b"
     NVIDIA_ENABLE_THINKING: bool = False
     LLM_TIMEOUT_SECONDS: int = 120
     LLM_TEMPERATURE: float = 0.4
