@@ -1026,6 +1026,19 @@
     margin-bottom: 32px;
 }
 
+.snake-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px 24px;
+}
+
+.snake-header-text {
+    flex: 1;
+    min-width: 0;
+}
+
 .snake-start-badge,
 .snake-finish-badge {
     display: inline-flex;
@@ -1553,18 +1566,40 @@
         grid-template-columns: 44px 1fr;
     }
 
-    /* Hide the left column entirely on mobile — cards always render in right col */
-    .snake-col-left {
-        display: none;
+    /* Dot column on the left; the badge and card stack in the second column
+       (cards used to vanish for even phases because the left column was hidden) */
+    .snake-track {
+        padding: 0 4px;
+    }
+
+    .snake-row {
+        grid-template-rows: auto 1fr;
     }
 
     .snake-col-center {
-        order: -1;
+        grid-column: 1;
+        grid-row: 1 / span 2;
     }
 
+    .snake-col-left,
     .snake-col-right {
-        padding-left: 14px;
+        grid-column: 2;
+        padding: 0 0 0 12px;
         justify-content: flex-start;
+    }
+
+    .snake-col-badge {
+        grid-row: 1;
+        padding-top: 6px;
+    }
+
+    .snake-col-card {
+        grid-row: 2;
+        padding-bottom: 18px;
+    }
+
+    .snake-col-card .snake-card {
+        width: 100%;
     }
 
     /* Badge always shows above its card on mobile */

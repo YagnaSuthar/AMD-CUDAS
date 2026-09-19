@@ -643,8 +643,11 @@ export default function CareerGuidance() {
                     ) : goal ? (
                         <div className="cg-goal-body">
                             <div className="cg-goal-statement">
-                                <span className="cg-goal-kicker">Current goal</span>
-                                <p>{goal}</p>
+                                <span className="cg-goal-mark"><FiTarget /></span>
+                                <div className="cg-goal-copy">
+                                    <span className="cg-goal-kicker">Current goal</span>
+                                    <p>{goal}</p>
+                                </div>
                             </div>
 
                             {goalChangeInfo && (

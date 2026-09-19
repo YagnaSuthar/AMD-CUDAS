@@ -261,14 +261,14 @@ export default function RoadmapContainer({ roadmap, onStepComplete, phaseBranche
         <div className="snake-timeline">
             {/* Header */}
             <div className="snake-header">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-                    <div>
+                <div className="snake-header-row">
+                    <div className="snake-header-text">
                         <span className="snake-start-badge">
                             <FiTarget /> Start
                         </span>
                         <h3 className="snake-title">{roadmap.title}</h3>
                         {roadmap.summary && (
-                            <p className="snake-subtitle" style={{ marginTop: '8px' }}>{roadmap.summary}</p>
+                            <p className="snake-subtitle">{roadmap.summary}</p>
                         )}
                     </div>
                     {/* Progress Component */}
@@ -307,7 +307,7 @@ export default function RoadmapContainer({ roadmap, onStepComplete, phaseBranche
                                 style={{ animationDelay: `${index * 0.1}s` }}
                             >
                                 {/* LEFT column */}
-                                <div className="snake-col snake-col-left">
+                                <div className={`snake-col snake-col-left ${isLeft ? 'snake-col-card' : 'snake-col-badge'}`}>
                                     {isLeft && (
                                         <RoadmapNode
                                             step={step}
@@ -341,7 +341,7 @@ export default function RoadmapContainer({ roadmap, onStepComplete, phaseBranche
                                 </div>
 
                                 {/* RIGHT column */}
-                                <div className="snake-col snake-col-right">
+                                <div className={`snake-col snake-col-right ${isLeft ? 'snake-col-badge' : 'snake-col-card'}`}>
                                     {!isLeft && (
                                         <RoadmapNode
                                             step={step}
