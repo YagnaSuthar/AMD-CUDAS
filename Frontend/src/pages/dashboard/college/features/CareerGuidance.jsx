@@ -758,7 +758,6 @@ export default function CareerGuidance() {
                                 }}
                             />
                             <div className="cg-composer-bar">
-                                <span className="cg-composer-hint">Enter to send · Shift + Enter for a new line</span>
                                 <button
                                     className="btn btn-primary cg-send-btn"
                                     onClick={handleGuidanceQuery}
