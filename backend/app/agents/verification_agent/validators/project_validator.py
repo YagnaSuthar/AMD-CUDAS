@@ -34,34 +34,19 @@ async def verify_github_project(
 
     if not link:
         print("[Verification Agent] ✗ No project link provided")
-        return {
-            "format_score": 0.0,
-            "metadata_score": 0.0,
-            "source_score": 0.0,
-            "contribution_data": {},
-            "issues": ["No project link provided"],
-            "verified_fields": [],
-            "recommendations": ["Provide a GitHub repository URL"],
-            "scraped_data": {},
-        }
+        return _empty_result(0.0, "No project link provided", "Provide a GitHub repository URL")
 
-    m = re.match(r"https?://github\.com/(?P<owner>[^/]+)/(?P<repo>[^/#?]+)(?:/tree/[^/]+/(?P<sub_path>.*))?", link.strip(), flags=re.IGNORECASE)
-    if not m:
+    from app.agents.verification_agent.utils.github_api import GitHubError, parse_github_url
+
+    parsed = parse_github_url(link)
+    if not parsed:
         print("[Verification Agent] ✗ Invalid GitHub URL format")
-        return {
-            "format_score": 0.2,
-            "metadata_score": 0.2,
-            "source_score": 0.0,
-            "contribution_data": {},
-            "issues": ["Link does not look like a GitHub repository URL"],
-            "verified_fields": [],
-            "recommendations": ["Use format: https://github.com/<owner>/<repo> and optionally /tree/<branch>/<path>"],
-            "scraped_data": {},
-        }
+        return _empty_result(
+            0.2, "Link does not look like a GitHub repository URL",
+            "Use https://github.com/<owner>/<repo> (optionally /tree/<branch>/<folder>)",
+        )
 
-    owner = m.group("owner")
-    repo = m.group("repo")
-    sub_path = m.group("sub_path")
+    owner, repo = parsed["owner"], parsed["repo"]
     format_score = 1.0
     verified_fields.append("url_format")
     print(f"[Verification Agent] ✔ Valid URL format: {owner}/{repo}")
@@ -71,99 +56,110 @@ async def verify_github_project(
         github_username = owner
         print(f"[Verification Agent] ℹ Using URL owner as username: {github_username}")
 
-    # --- Web Scraping ---
+    # --- Repository data ---
     scraped_data: dict[str, Any] = {}
     source_score = 0.0
     metadata_score = 0.5
     contribution_data: dict[str, Any] = {}
+    sub_path: str | None = None
 
     try:
         from app.agents.verification_agent.utils.github_scraper import (
-            scrape_github_repo,
+            fetch_repository_snapshot,
             scrape_contributors,
             scrape_user_commits,
-            scrape_repo_tree,
         )
 
-        # ── Step 1: Main repo page ────────────────────────────────────────
-        scraped_data = await scrape_github_repo(owner, repo)
+        # ── Step 1: Repository metadata + folder tree (GitHub API) ────────
+        try:
+            scraped_data = await fetch_repository_snapshot(
+                owner, repo,
+                ref_and_path=parsed["ref_and_path"],
+                link_kind=parsed["kind"],
+                tech_stack=tech_stack,
+            )
+        except GitHubError as gh_err:
+            scraped_data = {"exists": False, "error": str(gh_err), "error_kind": gh_err.kind}
 
         if scraped_data.get("error"):
             error_msg = scraped_data["error"]
-            if "404" in error_msg:
-                issues.append("GitHub repo not found (404)")
+            kind = scraped_data.get("error_kind")
+            if kind == "not_found":
+                issues.append(f"GitHub repository not accessible: {error_msg}")
+                recommendations.append("Make sure the repository is public and the link is correct")
                 source_score = 0.0
-                recommendations.append("Double-check repo URL or ensure it's public")
-                print(f"[Verification Agent] ✗ Repo not found")
-            elif "Rate limited" in error_msg:
-                issues.append("GitHub rate limited — try again later")
+            elif kind == "rate_limited":
+                issues.append("GitHub rate limit reached — verification could not read the repository")
+                recommendations.append("Try again later")
                 source_score = 0.3
-                recommendations.append("Wait a few minutes and try again")
-                print(f"[Verification Agent] ⚠ Rate limited")
             else:
-                issues.append(f"Scraping error: {error_msg}")
+                issues.append(f"Could not read repository: {error_msg}")
                 source_score = 0.2
-                print(f"[Verification Agent] ⚠ Scraping error: {error_msg}")
+            print(f"[Verification Agent] ✗ {error_msg}")
         elif scraped_data.get("exists"):
             source_score = 1.0
             verified_fields.append("repo_exists")
-            print(f"[Verification Agent] ✔ Repo exists")
+            tree = scraped_data.get("repo_tree", {})
+            sub_path = scraped_data.get("sub_path")
+            print(f"[Verification Agent] ✔ Repo exists (branch {scraped_data.get('branch')}"
+                  f"{', folder ' + sub_path if sub_path else ''})")
 
-            # --- Validate scraped data ---
-            stars = scraped_data.get("stars", 0)
-            forks = scraped_data.get("forks", 0)
+            if scraped_data.get("is_fork"):
+                parent = scraped_data.get("fork_parent") or "another repository"
+                issues.append(f"Repository is a fork of {parent} — only the student's own commits count as their work")
+                source_score = 0.6
+            if scraped_data.get("is_archived"):
+                issues.append("Repository is archived (read-only)")
+
+            # --- Folder-tree verification ---
+            if not tree.get("scope_found", True):
+                issues.extend(tree.get("red_flags", []))
+                recommendations.extend(tree.get("recommendations", []))
+                source_score = min(source_score, 0.3)
+            else:
+                verified_fields.append("repo_structure_analyzed")
+                issues.extend(tree.get("red_flags", []))
+                recommendations.extend(tree.get("recommendations", []))
+                if tree.get("truncated"):
+                    issues.append("Repository is very large — GitHub returned a partial file tree")
+                if tree.get("code_files", 0) >= 3:
+                    verified_fields.append("source_code")
+                if tree.get("key_markers", {}).get("has_tests"):
+                    verified_fields.append("tests")
+                if tree.get("project_types"):
+                    verified_fields.append("project_type")
+
+                tech_check = tree.get("tech_stack_check") or {}
+                if tech_check.get("verified"):
+                    verified_fields.append("tech_stack_evidence")
+                if tech_check.get("missing"):
+                    issues.append("Claimed technologies with no evidence in the code: "
+                                  + ", ".join(tech_check["missing"][:8]))
+
+            # Metadata scoring (documentation & discoverability)
+            description = scraped_data.get("description", "")
             readme_len = len(scraped_data.get("readme_content", ""))
             languages = scraped_data.get("languages", [])
-            file_count = len(scraped_data.get("file_names", []))
-            description = scraped_data.get("description", "")
-
-            # Metadata scoring
-            metadata_score = 0.3  # Base for existing
+            metadata_score = 0.3
             if description:
                 metadata_score += 0.1
                 verified_fields.append("description")
-            if readme_len > 100:
-                metadata_score += 0.2
+            if readme_len > 300:
+                metadata_score += 0.3
                 verified_fields.append("readme")
             elif readme_len > 0:
-                metadata_score += 0.1
+                metadata_score += 0.15
             if languages:
                 metadata_score += 0.15
                 verified_fields.append("languages")
-            if stars > 0:
-                metadata_score += 0.1
-            if forks > 0:
+            if scraped_data.get("topics"):
                 metadata_score += 0.05
-            if file_count > 3:
+            if scraped_data.get("stars", 0) > 0 or scraped_data.get("forks", 0) > 0:
                 metadata_score += 0.1
-                verified_fields.append("file_structure")
-
             metadata_score = min(1.0, metadata_score)
-
-            # --- Quality checks ---
-            print(f"\n[Verification Agent] ── Quality Checks ──")
 
             if readme_len < 50:
                 issues.append("Weak or missing README documentation")
-                recommendations.append("Add a comprehensive README with project description, setup instructions, and usage")
-                print(f"[Verification Agent] ⚠ Weak README ({readme_len} chars)")
-            else:
-                print(f"[Verification Agent] ✔ README present ({readme_len} chars)")
-
-            if file_count < 3:
-                issues.append("Very few files in repository — may be incomplete")
-                recommendations.append("Add more project files to demonstrate substance")
-                print(f"[Verification Agent] ⚠ Low file count ({file_count})")
-            else:
-                print(f"[Verification Agent] ✔ File count: {file_count}")
-
-            if not languages:
-                issues.append("No programming languages detected")
-                print(f"[Verification Agent] ⚠ No languages detected")
-            else:
-                print(f"[Verification Agent] ✔ Languages: {', '.join(languages)}")
-
-            print(f"[Verification Agent] ✔ Stars: {stars} | Forks: {forks}")
 
             # ── Step 2: Contributors Analysis ─────────────────────────────
             print(f"\n[Verification Agent] ── Deep Analysis: Contributors ──")
@@ -200,7 +196,10 @@ async def verify_github_project(
             print(f"\n[Verification Agent] ── Deep Analysis: User Commits ──")
             user_commits = []
             try:
-                user_commits = await scrape_user_commits(owner, repo, github_username)
+                user_commits = await scrape_user_commits(
+                    owner, repo, github_username,
+                    sub_path=sub_path, ref=scraped_data.get("branch"),
+                )
                 scraped_data["user_commits_detail"] = user_commits
 
                 if user_commits:
@@ -220,22 +219,7 @@ async def verify_github_project(
             except Exception as commit_err:
                 print(f"[Verification Agent] ⚠ Commit analysis failed: {commit_err}")
 
-            # ── Step 4: Repository Tree Analysis ──────────────────────────
-            print(f"\n[Verification Agent] ── Deep Analysis: Repo Structure ──")
-            repo_tree = {}
-            try:
-                if sub_path:
-                    print(f"[Verification Agent] Focusing analysis on folder: {sub_path}")
-                repo_tree = await scrape_repo_tree(owner, repo, max_depth=3, sub_path=sub_path)
-                scraped_data["repo_tree"] = repo_tree
-
-                if repo_tree.get("total_files", 0) > 0:
-                    verified_fields.append("repo_structure_analyzed")
-                    print(f"[Verification Agent] ✔ Tree: {repo_tree['total_files']} files, "
-                          f"{len(repo_tree.get('directories', []))} dirs")
-
-            except Exception as tree_err:
-                print(f"[Verification Agent] ⚠ Tree analysis failed: {tree_err}")
+            repo_tree = scraped_data.get("repo_tree", {})
 
             # ── Step 5: Contribution Authenticity ─────────────────────────
             print(f"\n[Verification Agent] ── Contribution Authenticity ──")
@@ -287,11 +271,21 @@ async def verify_github_project(
             if desc_match < 0.3:
                 issues.append("Project description does not match repository content")
             scraped_data["description_match_score"] = desc_match
-        if ai_feedback.get("tech_stack_match_score") is not None:
-            tech_match = ai_feedback["tech_stack_match_score"]
-            if tech_match < 0.3:
-                issues.append("Tech stack mismatch between submission and repository")
-            scraped_data["tech_stack_match_score"] = tech_match
+
+    # Tech-stack match: evidence from the folder tree outweighs the AI's opinion
+    evidence_score = ((scraped_data.get("repo_tree") or {}).get("tech_stack_check") or {}).get("score")
+    ai_tech = (ai_feedback or {}).get("tech_stack_match_score")
+    tech_match = None
+    if evidence_score is not None and ai_tech is not None:
+        tech_match = round(0.7 * float(evidence_score) + 0.3 * float(ai_tech), 3)
+    elif evidence_score is not None:
+        tech_match = float(evidence_score)
+    elif ai_tech is not None:
+        tech_match = float(ai_tech)
+    if tech_match is not None:
+        if tech_match < 0.3:
+            issues.append("Tech stack mismatch between submission and repository")
+        scraped_data["tech_stack_match_score"] = tech_match
 
     print(f"\n[Verification Agent] ── Scores ──")
     print(f"[Verification Agent] Format:   {round(format_score, 2)}")
@@ -304,11 +298,25 @@ async def verify_github_project(
         "format_score": round(format_score, 4),
         "metadata_score": round(metadata_score, 4),
         "source_score": round(source_score, 4),
+        "structure_score": (scraped_data.get("repo_tree") or {}).get("structure_score"),
         "contribution_data": contribution_data,
         "issues": issues,
         "verified_fields": verified_fields,
         "recommendations": recommendations,
         "scraped_data": scraped_data,
+    }
+
+
+def _empty_result(format_score: float, issue: str, recommendation: str) -> dict[str, Any]:
+    return {
+        "format_score": format_score,
+        "metadata_score": format_score,
+        "source_score": 0.0,
+        "contribution_data": {},
+        "issues": [issue],
+        "verified_fields": [],
+        "recommendations": [recommendation],
+        "scraped_data": {},
     }
 
 
@@ -334,12 +342,13 @@ async def _run_ai_analysis(
         system_prompt = (
             "You are a strict project verification AI. Analyze the provided GitHub project data "
             "and return ONLY a compact JSON object with these keys:\n"
-            "- description_match_score: float 0.0-1.0 (how well user description matches actual repo structure and features)\n"
-            "- tech_stack_match_score: float 0.0-1.0 (how well user tech stack matches repo languages)\n"
+            "- description_match_score: float 0.0-1.0 (how well the user description matches the actual folder structure, dependencies and README)\n"
+            "- tech_stack_match_score: float 0.0-1.0 (how well the claimed tech stack matches the dependencies and file types found)\n"
             "- authenticity_score: float 0.0-1.0 (is this a real, substantial project?)\n"
             "- complexity_level: string (beginner/intermediate/advanced)\n"
             "- internal_feedback: string (detailed technical analysis for admin, frank assessment including contribution analysis)\n"
             "- student_feedback: string (friendly feedback for the student with appreciation + tips)\n"
+            "The 'folder_tree' section contains verified facts from the repository; base your judgement on it.\n"
             "Do NOT include markdown. Return ONLY valid JSON."
         )
 
@@ -351,13 +360,29 @@ async def _run_ai_analysis(
             "topics": scraped_data.get("topics", []),
             "stars": scraped_data.get("stars", 0),
             "forks": scraped_data.get("forks", 0),
-            "file_count": len(scraped_data.get("file_names", [])),
-            "file_names": scraped_data.get("file_names", [])[:15],
             "user_description": project_description or "Not provided",
             "user_tech_stack": tech_stack or "Not provided",
             "contributor_count": scraped_data.get("contributor_count", 0),
-            "tree_directories": scraped_data.get("repo_tree", {}).get("directories", [])[:100],
+            "is_fork": scraped_data.get("is_fork", False),
         }
+
+        # Deterministic folder-tree facts — the AI must not contradict these
+        tree = scraped_data.get("repo_tree") or {}
+        if tree:
+            context["folder_tree"] = {
+                "analyzed_folder": tree.get("scope"),
+                "branch": tree.get("branch"),
+                "total_files": tree.get("total_files"),
+                "code_files": tree.get("code_files"),
+                "languages_by_files": tree.get("languages_by_files"),
+                "project_types": tree.get("project_types"),
+                "top_level": [e["name"] + ("/" if e["type"] == "dir" else "") for e in tree.get("top_level", [])][:40],
+                "directories": tree.get("directories", [])[:80],
+                "dependencies": {k: v[:25] for k, v in (tree.get("dependencies") or {}).items()},
+                "tech_stack_evidence": tree.get("tech_stack_check"),
+                "red_flags": tree.get("red_flags"),
+                "strengths": tree.get("strengths"),
+            }
 
         # Include contribution analysis if available
         if contribution_data and contribution_data.get("details", {}).get("user_found"):

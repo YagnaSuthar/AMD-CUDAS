@@ -15,8 +15,26 @@ def compute_final_score(scores: dict[str, Any]) -> dict[str, Any]:
     ml_score = _clamp01(scores.get("ml_score", 0.5))
     contribution_score = scores.get("contribution_score")
     description_match_score = scores.get("description_match_score")
+    structure_score = scores.get("structure_score")
 
-    if contribution_score is not None:
+    if structure_score is not None:
+        # Project verification with folder-tree analysis. Weights are
+        # renormalised over the signals that are actually available.
+        weights = {
+            "format": (0.05, format_score),
+            "metadata": (0.05, metadata_score),
+            "structure": (0.20, _clamp01(structure_score)),
+            "source": (0.10, source_score),
+            "consistency": (0.10, consistency_score),
+            "ml": (0.05, ml_score),
+        }
+        if contribution_score is not None:
+            weights["contribution"] = (0.30, _clamp01(contribution_score))
+        if description_match_score is not None:
+            weights["description"] = (0.15, _clamp01(description_match_score))
+        total_w = sum(w for w, _ in weights.values())
+        confidence = sum(w * v for w, v in weights.values()) / total_w
+    elif contribution_score is not None:
         # Enhanced scoring with contribution analysis
         contribution_score = _clamp01(contribution_score)
         
@@ -55,6 +73,9 @@ def compute_final_score(scores: dict[str, Any]) -> dict[str, Any]:
         )
 
     confidence = _clamp01(confidence)
+    cap = scores.get("confidence_cap")
+    if cap is not None:
+        confidence = min(confidence, float(cap))
 
     if confidence >= 0.55:
         status = "verified"

@@ -98,6 +98,11 @@ class Settings(BaseSettings):
         """Tolerate stray spaces/newlines pasted into hosting dashboards."""
         return value.strip()
 
+    # ── GitHub (project verification) ─────────────────────────────────────
+    # Optional personal access token (no scopes needed for public repos).
+    # Raises the GitHub API limit from 60 to 5,000 requests/hour.
+    GITHUB_TOKEN: str = ""
+
     # ── RAG / Embedding ──────────────────────────────────────────────────
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
     EMBEDDING_DIMENSION: int = 384

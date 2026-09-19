@@ -62,7 +62,13 @@ async def run_project_pipeline(
         "topics": scraped_data.get("topics", []),
         "stars": scraped_data.get("stars", 0),
         "forks": scraped_data.get("forks", 0),
-        "file_count": len(scraped_data.get("file_names", [])),
+        "file_count": (scraped_data.get("repo_tree") or {}).get("total_files", 0),
+        "branch": scraped_data.get("branch"),
+        "analyzed_folder": scraped_data.get("sub_path"),
+        "is_fork": scraped_data.get("is_fork", False),
+        "fork_parent": scraped_data.get("fork_parent"),
+        # Full folder-tree analysis (saved to projects.project_structure)
+        "repo_tree": scraped_data.get("repo_tree"),
         "complexity_level": scraped_data.get("complexity_level"),
         "internal_feedback": scraped_data.get("internal_feedback"),
         "student_feedback": scraped_data.get("student_feedback"),
@@ -103,6 +109,18 @@ async def run_project_pipeline(
         "ml_score": ml_res["score"],
         "contribution_score": round(contribution_score, 4),
     }
+    if project_res.get("structure_score") is not None:
+        scores["structure_score"] = project_res["structure_score"]
+    if scraped_data.get("description_match_score") is not None:
+        scores["description_match_score"] = scraped_data["description_match_score"]
+
+    # Hard ceiling: without real, reachable source code a project can't be "verified"
+    tree = scraped_data.get("repo_tree") or {}
+    if (not scraped_data.get("exists")
+            or not tree.get("scope_found", True)
+            or tree.get("code_files", 1) == 0
+            or tree.get("looks_like_template")):
+        scores["confidence_cap"] = 0.45
 
     verified_fields.extend(project_res.get("verified_fields", []))
     recommendations.extend(project_res.get("recommendations", []))
