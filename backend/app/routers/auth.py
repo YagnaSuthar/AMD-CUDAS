@@ -48,10 +48,10 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     # Check static CUDAS admin first
     if (
-        body.email == settings.CUDAS_ADMIN_EMAIL
+        body.email.strip().lower() == settings.CUDAS_ADMIN_EMAIL.lower()
         and body.password == settings.CUDAS_ADMIN_PASSWORD
     ):
-        token_data = {"sub": body.email, "role": "CUDAS_ADMIN"}
+        token_data = {"sub": settings.CUDAS_ADMIN_EMAIL, "role": "CUDAS_ADMIN"}
         return TokenResponse(
             access_token=create_access_token(token_data),
             refresh_token=create_refresh_token(token_data),

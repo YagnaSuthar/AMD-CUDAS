@@ -99,7 +99,7 @@ async def get_current_user(
 
     # Static CUDAS admin — no DB lookup
     if role == "CUDAS_ADMIN":
-        if email == settings.CUDAS_ADMIN_EMAIL:
+        if email.lower() == settings.CUDAS_ADMIN_EMAIL.lower():
             return {
                 "id": None,
                 "name": "CUDAS Admin",
