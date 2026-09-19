@@ -34,3 +34,6 @@ tiktoken
 langchain-text-splitters
 langchain_text_splitters
 bs4
+reportlab
+openpyxl
+bcrypt
