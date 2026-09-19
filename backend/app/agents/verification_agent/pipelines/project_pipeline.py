@@ -114,6 +114,13 @@ async def run_project_pipeline(
     if scraped_data.get("description_match_score") is not None:
         scores["description_match_score"] = scraped_data["description_match_score"]
 
+    # GitHub could not be read at all — report "pending", do not judge the student
+    if project_res.get("verification_unavailable"):
+        scores["verification_unavailable"] = True
+        verified_fields.extend(project_res.get("verified_fields", []))
+        recommendations.extend(project_res.get("recommendations", []))
+        return extracted, scores, issues, verified_fields, recommendations
+
     # Hard ceiling: without real, reachable source code a project can't be "verified"
     tree = scraped_data.get("repo_tree") or {}
     if (not scraped_data.get("exists")

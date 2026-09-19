@@ -55,9 +55,14 @@ def _raise_for(r: httpx.Response, what: str) -> None:
         raise GitHubError(f"{what} not found — it may be private, renamed or deleted", "not_found")
     if r.status_code in (403, 429) and (r.headers.get("x-ratelimit-remaining") == "0" or r.status_code == 429):
         reset = r.headers.get("x-ratelimit-reset")
+        wait = ""
+        if reset and reset.isdigit():
+            import time
+            mins = max(1, int((int(reset) - time.time()) // 60) + 1)
+            wait = f" Try again in about {mins} minute{'s' if mins != 1 else ''}."
         raise GitHubError(
-            "GitHub API rate limit reached" + (f" (resets at unix time {reset})" if reset else "")
-            + ". Set GITHUB_TOKEN on the server to raise the limit.",
+            "GitHub is temporarily refusing requests from this server (API rate limit)." + wait
+            + " Set GITHUB_TOKEN on the server to raise the limit from 60 to 5,000 requests/hour.",
             "rate_limited",
         )
     if r.status_code >= 400:

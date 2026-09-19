@@ -62,6 +62,9 @@ async def verify_github_project(
     metadata_score = 0.5
     contribution_data: dict[str, Any] = {}
     sub_path: str | None = None
+    # True when GitHub itself could not be read (rate limit / outage) — that is
+    # an infrastructure problem, not evidence against the student.
+    unavailable = False
 
     try:
         from app.agents.verification_agent.utils.github_scraper import (
@@ -89,12 +92,14 @@ async def verify_github_project(
                 recommendations.append("Make sure the repository is public and the link is correct")
                 source_score = 0.0
             elif kind == "rate_limited":
-                issues.append("GitHub rate limit reached — verification could not read the repository")
-                recommendations.append("Try again later")
+                issues.append(error_msg)
+                recommendations.append("Re-submit the project once GitHub allows requests again")
                 source_score = 0.3
+                unavailable = True
             else:
                 issues.append(f"Could not read repository: {error_msg}")
                 source_score = 0.2
+                unavailable = True
             print(f"[Verification Agent] ✗ {error_msg}")
         elif scraped_data.get("exists"):
             source_score = 1.0
@@ -299,6 +304,7 @@ async def verify_github_project(
         "metadata_score": round(metadata_score, 4),
         "source_score": round(source_score, 4),
         "structure_score": (scraped_data.get("repo_tree") or {}).get("structure_score"),
+        "verification_unavailable": unavailable,
         "contribution_data": contribution_data,
         "issues": issues,
         "verified_fields": verified_fields,

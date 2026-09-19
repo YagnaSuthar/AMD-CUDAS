@@ -77,6 +77,14 @@ def compute_final_score(scores: dict[str, Any]) -> dict[str, Any]:
     if cap is not None:
         confidence = min(confidence, float(cap))
 
+    if scores.get("verification_unavailable"):
+        # The repository could not be read (rate limit / outage): neither pass nor fail.
+        return {
+            "confidence_score": round(confidence, 4),
+            "trust_score": int(round(confidence * 100)),
+            "status": "pending",
+        }
+
     if confidence >= 0.55:
         status = "verified"
     elif confidence >= 0.35:
