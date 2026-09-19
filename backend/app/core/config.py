@@ -55,6 +55,14 @@ class Settings(BaseSettings):
     # GEMINI_MODEL_NAME: str = "gemini-2.5-flash"
     GROQ_API_KEY: str = ""
     GROQ_MODEL_NAME: str = "llama-3.1-8b-instant"
+    # NVIDIA NIM (OpenAI-compatible). Used when LLM_PROVIDER=nvidia, or when
+    # LLM_PROVIDER is empty and NVIDIA_API_KEY is set.
+    LLM_PROVIDER: str = ""  # "nvidia" | "groq" | "" (auto)
+    NVIDIA_API_KEY: str = ""
+    NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
+    NVIDIA_MODEL_NAME: str = "nvidia/nemotron-3.5-lightning-30b-a3b"
+    NVIDIA_ENABLE_THINKING: bool = False
+    LLM_TIMEOUT_SECONDS: int = 120
     LLM_TEMPERATURE: float = 0.4
     LLM_MAX_TOKENS: int = 1024
 
