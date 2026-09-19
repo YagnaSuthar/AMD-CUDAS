@@ -6,6 +6,7 @@ import { toast } from 'react-toastify';
 import { useAuth } from '../../../../context/AuthContext';
 import api from '../../../../utils/api';
 import RoadmapContainer from '../../../../components/RoadmapContainer';
+import ThinkingStatus from '../../../../components/ThinkingStatus';
 import { FiTarget, FiBookOpen, FiAward, FiBriefcase, FiTrendingUp, FiLoader, FiEdit2, FiSave, FiX, FiCheck, FiCompass, FiZap, FiShield, FiSend, FiMessageCircle, FiLock, FiCheckCircle, FiClock, FiBarChart2, FiCode, FiCpu, FiFileText, FiFolder } from 'react-icons/fi';
 import '../../../../style/roadmap.css';
 
@@ -592,15 +593,7 @@ export default function CareerGuidance() {
                     </div>
 
                     {guidanceLoading && (
-                        <div className="guidance-syncing" style={{
-                            display: 'flex', alignItems: 'center', gap: '10px',
-                            padding: '12px 16px', borderRadius: '8px',
-                            backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)',
-                            marginTop: '12px', fontSize: '14px', color: 'var(--color-text-muted)'
-                        }}>
-                            <FiLoader className="spinning" />
-                            <span>Syncing your profile data & generating personalized response...</span>
-                        </div>
+                        <ThinkingStatus className="guidance-syncing" />
                     )}
 
                     {guidanceResponse && (
