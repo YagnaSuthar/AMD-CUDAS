@@ -7,8 +7,10 @@ import { useAuth } from '../../../../context/AuthContext';
 import api from '../../../../utils/api';
 import RoadmapContainer from '../../../../components/RoadmapContainer';
 import ThinkingStatus from '../../../../components/ThinkingStatus';
-import { FiTarget, FiBookOpen, FiAward, FiBriefcase, FiTrendingUp, FiLoader, FiEdit2, FiSave, FiX, FiCheck, FiCompass, FiZap, FiShield, FiSend, FiMessageCircle, FiLock, FiCheckCircle, FiClock, FiBarChart2, FiCode, FiCpu, FiFileText, FiFolder } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
+import { FiAlertTriangle, FiArrowRight, FiTarget, FiBookOpen, FiAward, FiBriefcase, FiTrendingUp, FiLoader, FiEdit2, FiSave, FiX, FiCheck, FiCompass, FiZap, FiShield, FiSend, FiMessageCircle, FiLock, FiCheckCircle, FiClock, FiBarChart2, FiCode, FiCpu, FiFileText, FiFolder } from 'react-icons/fi';
 import '../../../../style/roadmap.css';
+import '../../../../style/careerGuidance.css';
 
 export default function CareerGuidance() {
     const { user } = useAuth();
@@ -409,296 +411,10 @@ export default function CareerGuidance() {
         setIsEditingGoal(false);
     };
 
-    return (
-        <div className="dashboard-content">
-            <div className="page-header slide-in-left">
-                <h1 className="gradient-text">Career Guidance</h1>
-                <p>Plan your path to success with AI-powered personalized career guidance</p>
-            </div>
+    // Progress card (equal-weight phases). Returns null when there is no roadmap yet.
+    const renderProgressCard = () => {
+        if (!(goal && roadmap && roadmap.steps && roadmap.steps.length > 0)) return null;
 
-            {/* Error Message — top level for visibility */}
-            {error && (
-                <div className="roadmap-error-banner">
-                    <p><FiAlertTriangle style={{ marginRight: '8px' }} /> {error}</p>
-                    <button onClick={() => setError('')} className="error-dismiss"><FiX /></button>
-                </div>
-            )}
-
-            {/* Goal Section */}
-            <div className="career-goal-section">
-                <div className="goal-header">
-                    <div className="goal-icon-wrapper">
-                        <FiTarget className="goal-main-icon" />
-                    </div>
-                    <div className="goal-title-section">
-                        <h2 className="goal-main-title">Your Career Aspiration</h2>
-                        <p className="goal-subtitle">Define your dream and we'll create your path to success</p>
-                    </div>
-                </div>
-
-                {isEditingGoal ? (
-                    <div className="goal-editor-container">
-                        <div className="goal-input-wrapper">
-                            <textarea
-                                value={tempGoal}
-                                onChange={(e) => setTempGoal(e.target.value)}
-                                placeholder="What's your dream career? Be specific! (e.g., 'Become a senior full-stack developer at a FAANG company')"
-                                className="goal-textarea"
-                                maxLength={500}
-                            />
-                            <div className="goal-input-footer">
-                                <span className="goal-char-count">{tempGoal.length}/500</span>
-                                <div className="goal-suggestions">
-                                    <span className="suggestions-label">Popular goals:</span>
-                                    {['Full-stack Developer', 'Data Scientist', 'Product Manager', 'AI Engineer', 'DevOps Engineer'].map((suggestion) => (
-                                        <button
-                                            key={suggestion}
-                                            onClick={() => setTempGoal(`Become a ${suggestion}`)}
-                                            className="suggestion-chip"
-                                        >
-                                            {suggestion}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                        <div className="goal-editor-actions">
-                            <button
-                                className="btn btn-primary goal-save-btn"
-                                onClick={handleSaveGoal}
-                                disabled={!tempGoal.trim()}
-                            >
-                                <FiSave /> Save Goal
-                            </button>
-                            <button
-                                className="btn btn-secondary goal-cancel-btn"
-                                onClick={cancelEditingGoal}
-                            >
-                                <FiX /> Cancel
-                            </button>
-                        </div>
-                    </div>
-                ) : goal ? (
-                    <div className="goal-display-container">
-                        <div className="goal-content">
-                            <div className="goal-text">
-                                <FiTarget className="goal-display-icon" />
-                                <p>{goal}</p>
-                            </div>
-                            <div className="goal-actions">
-                                <button 
-                                    className="btn btn-secondary goal-edit-btn" 
-                                    onClick={startEditingGoal}
-                                    disabled={isGoalLocked()}
-                                    title={isGoalLocked() ? getLockoutMessage() : 'Edit goal'}
-                                >
-                                    {isGoalLocked() ? <FiLock /> : <FiEdit2 />} 
-                                    {isGoalLocked() ? 'Locked' : 'Edit Goal'}
-                                </button>
-                                <button
-                                    className="btn btn-primary goal-roadmap-btn"
-                                    onClick={() => generateRoadmap(false)}
-                                    disabled={loading}
-                                >
-                                    {loading ? <FiLoader className="spinning" /> : <FiCompass />}
-                                    {loading ? 'Generating...' : 'Generate Roadmap'}
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Goal Change Info */}
-                        {goalChangeInfo && (
-                            <div className="goal-change-info">
-                                <div className="goal-stats">
-                                    <div className="goal-stat">
-                                        <FiCheckCircle className="stat-icon" />
-                                        <span className="stat-label">Discipline Score:</span>
-                                        <span className="stat-value">{goalChangeInfo.discipline_score}</span>
-                                    </div>
-                                    <div className="goal-stat">
-                                        <FiEdit2 className="stat-icon" />
-                                        <span className="stat-label">Goal Changes:</span>
-                                        <span className="stat-value">{goalChangeInfo.goal_change_count}</span>
-                                    </div>
-                                    {goalChangeInfo.last_goal_updated_at && (
-                                        <div className="goal-stat">
-                                            <FiClock className="stat-icon" />
-                                            <span className="stat-label">Last Updated:</span>
-                                            <span className="stat-value">{new Date(goalChangeInfo.last_goal_updated_at).toLocaleDateString()}</span>
-                                        </div>
-                                    )}
-                                </div>
-                                {isGoalLocked() && (
-                                    <div className="goal-lockout-notice">
-                                        <FiLock className="lock-icon" />
-                                        <span>{getLockoutMessage()}</span>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Quick Career Insights */}
-                        <div className="career-insights">
-                            <h4 className="insights-title"><FiZap /> Quick Career Insights</h4>
-                            <div className="insights-grid">
-                                <div className="insight-card">
-                                    <div className="insight-icon"><FiTrendingUp /></div>
-                                    <div className="insight-content">
-                                        <h5>Growth Potential</h5>
-                                        <p>High demand in tech industry with 22% projected growth</p>
-                                    </div>
-                                </div>
-                                <div className="insight-card">
-                                    <div className="insight-icon"><FiAward /></div>
-                                    <div className="insight-content">
-                                        <h5>Salary Range</h5>
-                                        <p>₹6L - ₹25L+ depending on experience and location</p>
-                                    </div>
-                                </div>
-                                <div className="insight-card">
-                                    <div className="insight-icon"><FiBookOpen /></div>
-                                    <div className="insight-content">
-                                        <h5>Key Skills</h5>
-                                        <p>JavaScript, Python, Cloud, System Design</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="goal-empty-state">
-                        <div className="empty-icon"><FiTarget /></div>
-                        <h3>What's Your Career Dream?</h3>
-                        <p>Set your career goal to get personalized guidance, skill recommendations, and a step-by-step roadmap.</p>
-                        <button className="btn btn-primary goal-set-btn" onClick={startEditingGoal}>
-                            <FiTarget /> Set My Career Goal
-                        </button>
-                        <div className="career-suggestions">
-                            <h4>Popular Career Paths</h4>
-                            <div className="suggestion-cards">
-                                {[
-                                    { title: 'Full-Stack Developer', desc: 'Build complete web applications', icon: <FiCode size={24} /> },
-                                    { title: 'Data Scientist', desc: 'Analyze data and drive insights', icon: <FiBarChart2 size={24} /> },
-                                    { title: 'Product Manager', desc: 'Lead product strategy and teams', icon: <FiBriefcase size={24} /> },
-                                    { title: 'AI/ML Engineer', desc: 'Create intelligent systems', icon: <FiCpu size={24} /> }
-                                ].map((career) => (
-                                    <div key={career.title} className="career-card" onClick={() => { setTempGoal(`Become a ${career.title}`); setIsEditingGoal(true); }}>
-                                        <div className="career-card-icon">{career.icon}</div>
-                                        <h5>{career.title}</h5>
-                                        <p>{career.desc}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* AI Career Guidance Chat */}
-            {goal && (
-                <div className="guidance-chat-section">
-                    <div className="guidance-chat-header">
-                        <div className="chat-header-icon"><FiMessageCircle /></div>
-                        <div>
-                            <h3>AI Career Advisor</h3>
-                            <p>Ask anything about your career path — powered by your profile data + RAG</p>
-                        </div>
-                    </div>
-
-                    <div className="guidance-chat-input">
-                        <textarea
-                            value={guidanceQuery}
-                            onChange={(e) => setGuidanceQuery(e.target.value)}
-                            placeholder="Ask me about your career... (e.g., 'What projects should I build?' or 'What jobs suit my profile?')"
-                            className="guidance-textarea"
-                            rows={3}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    handleGuidanceQuery();
-                                }
-                            }}
-                        />
-                        <button
-                            className="btn btn-primary guidance-send-btn"
-                            onClick={handleGuidanceQuery}
-                            disabled={guidanceLoading || !guidanceQuery.trim()}
-                        >
-                            {guidanceLoading ? <FiLoader className="spinning" /> : <FiSend />}
-                        </button>
-                    </div>
-
-                    <div className="guidance-suggestions">
-                        {[
-                            'Analyze my skill gaps',
-                            'What projects should I build?',
-                            'What jobs suit my profile?',
-                            'How to prepare for interviews?',
-                            'Recommend learning resources',
-                            'Career switch advice'
-                        ].map((s) => (
-                            <button key={s} className="guidance-suggestion-chip" onClick={() => setGuidanceQuery(s)}>
-                                {s}
-                            </button>
-                        ))}
-                    </div>
-
-                    {guidanceLoading && (
-                        <ThinkingStatus className="guidance-syncing" />
-                    )}
-
-                    {guidanceResponse && (
-                        <div className="guidance-response">
-                            <div className="response-header">
-                                <div className="response-badge">
-                                    <FiShield />
-                                    <span>{guidanceResponse.used_rag ? 'RAG-Enhanced' : 'Direct AI'}</span>
-                                </div>
-                                <span className="response-intent">{guidanceResponse.intent?.replace(/_/g, ' ')}</span>
-                            </div>
-
-                            {/* Data Sources Badges */}
-                            {guidanceResponse.data_sources && guidanceResponse.data_sources.length > 0 && (
-                                <div style={{
-                                    display: 'flex', flexWrap: 'wrap', gap: '6px',
-                                    marginBottom: '12px', paddingBottom: '12px',
-                                    borderBottom: '1px solid var(--color-border)'
-                                }}>
-                                    <span style={{ fontSize: '12px', color: 'var(--color-text-primary)', marginRight: '4px', display: 'flex', alignItems: 'center', fontWeight: 600 }}>
-                                        <FiBarChart2 size={16} style={{ marginRight: '6px' }} /> Data used:
-                                    </span>
-                                    {guidanceResponse.data_sources.map((source) => (
-                                        <span key={source} style={{
-                                            fontSize: '11px', padding: '2px 8px',
-                                            borderRadius: '12px', fontWeight: 600,
-                                            backgroundColor: 'rgba(0, 188, 212, 0.1)',
-                                            color: 'var(--color-text-primary)',
-                                            border: '1px solid rgba(0, 188, 212, 0.25)',
-                                        }}>
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                {source === 'Skills' ? <FiZap size={14} /> :
-                                                 source === 'Certificates' ? <FiAward size={14} /> :
-                                                 source === 'Projects' ? <FiFolder size={14} /> :
-                                                 source === 'Interviews' ? <FiMessageCircle size={14} /> :
-                                                 source === 'Academics' ? <FiBookOpen size={14} /> :
-                                                 source === 'Resume' ? <FiFileText size={14} /> : <FiFileText size={14} />} {source}
-                                            </span>
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-
-                            <div className={`response-content markdown-body ${guidanceResponse.streaming ? 'is-streaming' : ''}`}>
-                                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{guidanceResponse.response || ''}</ReactMarkdown>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-
-
-            {/* Career Roadmap Progress Overview (equal-weight phases) */}
-            {goal && roadmap && roadmap.steps && roadmap.steps.length > 0 && (() => {
                 const totalPhases = roadmap.steps.length;
                 const phaseWeight = 1 / totalPhases; // each phase = equal slice
 
@@ -785,11 +501,11 @@ export default function CareerGuidance() {
                 };
                 const msg = getMessage();
                 return (
-                    <div className="career-progress-overview">
+                    <div className="cg-card career-progress-overview">
                         <div className="cpo-header">
                             <div className="cpo-icon-wrap"><FiBarChart2 /></div>
                             <div className="cpo-title-area">
-                                <h3>Career Roadmap Progress</h3>
+                                <h3>Roadmap Progress</h3>
                                 <p>Track your journey towards <strong>{roadmap.title}</strong></p>
                             </div>
                             <div className="cpo-pct-badge" style={{ borderColor: msg.color }}>
@@ -814,11 +530,336 @@ export default function CareerGuidance() {
                         </div>
                     </div>
                 );
-            })()}
+    };
 
-            {/* Generate Roadmap Section */}
+    const DATA_SOURCE_ICONS = {
+        Skills: <FiZap size={13} />,
+        Certificates: <FiAward size={13} />,
+        Projects: <FiFolder size={13} />,
+        Interviews: <FiMessageCircle size={13} />,
+        Academics: <FiBookOpen size={13} />,
+        Resume: <FiFileText size={13} />,
+    };
+
+    const QUICK_LINKS = [
+        { to: '/dashboard/jobs', icon: <FiBriefcase />, title: 'Job Opportunities', desc: 'Openings that match your goal and skills' },
+        { to: '/dashboard/skills', icon: <FiAward />, title: 'Skill Development', desc: 'Build the skills your target role needs' },
+        { to: '/dashboard/interview', icon: <FiTrendingUp />, title: 'Interview Preparation', desc: 'Practice with AI-powered mock interviews' },
+    ];
+
+    const progressCard = renderProgressCard();
+
+    return (
+        <div className="dashboard-content cg-page">
+            {/* ── Page header ─────────────────────────────────────────── */}
+            <header className="cg-page-header slide-in-left">
+                <div className="cg-page-title">
+                    <h1 className="gradient-text">Career Guidance</h1>
+                    <p>Plan your path to success with AI-powered, personalized career guidance</p>
+                </div>
+                {goal && !isEditingGoal && (
+                    <div className="cg-target-pill" title={goal}>
+                        <FiTarget />
+                        <span className="cg-target-label">Target</span>
+                        <span className="cg-target-value">{goal}</span>
+                    </div>
+                )}
+            </header>
+
+            {error && (
+                <div className="roadmap-error-banner">
+                    <p><FiAlertTriangle style={{ marginRight: '8px' }} /> {error}</p>
+                    <button onClick={() => setError('')} className="error-dismiss" aria-label="Dismiss error"><FiX /></button>
+                </div>
+            )}
+
+            {/* ── Row 1: Goal + Progress ──────────────────────────────── */}
+            <section className={`cg-row cg-row-top ${goal && !isEditingGoal ? '' : 'is-single'}`}>
+                <div className="cg-card career-goal-section">
+                    <div className="cg-card-head">
+                        <div className="cg-card-icon"><FiTarget /></div>
+                        <div className="cg-card-title">
+                            <h2>Your Career Aspiration</h2>
+                            <p>Define your dream and we&apos;ll create your path to success</p>
+                        </div>
+                        {goal && !isEditingGoal && (
+                            <div className="cg-card-actions">
+                                <button
+                                    className="btn btn-secondary goal-edit-btn"
+                                    onClick={startEditingGoal}
+                                    disabled={isGoalLocked()}
+                                    title={isGoalLocked() ? getLockoutMessage() : 'Edit goal'}
+                                >
+                                    {isGoalLocked() ? <FiLock /> : <FiEdit2 />}
+                                    {isGoalLocked() ? 'Locked' : 'Edit'}
+                                </button>
+                                <button
+                                    className="btn btn-primary goal-roadmap-btn"
+                                    onClick={() => generateRoadmap(false)}
+                                    disabled={loading}
+                                >
+                                    {loading ? <FiLoader className="spinning" /> : <FiCompass />}
+                                    {loading ? 'Generating...' : 'Generate Roadmap'}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {isEditingGoal ? (
+                        <div className="goal-editor-container">
+                            <div className="goal-input-wrapper">
+                                <textarea
+                                    value={tempGoal}
+                                    onChange={(e) => setTempGoal(e.target.value)}
+                                    placeholder="What's your dream career? Be specific! (e.g., 'Become a senior full-stack developer at a FAANG company')"
+                                    className="goal-textarea"
+                                    maxLength={500}
+                                />
+                                <div className="goal-input-footer">
+                                    <span className="goal-char-count">{tempGoal.length}/500</span>
+                                    <div className="goal-suggestions">
+                                        <span className="suggestions-label">Popular goals:</span>
+                                        {['Full-stack Developer', 'Data Scientist', 'Product Manager', 'AI Engineer', 'DevOps Engineer'].map((suggestion) => (
+                                            <button
+                                                key={suggestion}
+                                                onClick={() => setTempGoal(`Become a ${suggestion}`)}
+                                                className="suggestion-chip"
+                                            >
+                                                {suggestion}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="goal-editor-actions">
+                                <button className="btn btn-primary goal-save-btn" onClick={handleSaveGoal} disabled={!tempGoal.trim()}>
+                                    <FiSave /> Save Goal
+                                </button>
+                                <button className="btn btn-secondary goal-cancel-btn" onClick={cancelEditingGoal}>
+                                    <FiX /> Cancel
+                                </button>
+                            </div>
+                        </div>
+                    ) : goal ? (
+                        <div className="cg-goal-body">
+                            <div className="cg-goal-statement">
+                                <span className="cg-goal-kicker">Current goal</span>
+                                <p>{goal}</p>
+                            </div>
+
+                            {goalChangeInfo && (
+                                <div className="cg-stat-grid">
+                                    <div className="cg-stat">
+                                        <span className="cg-stat-icon"><FiCheckCircle /></span>
+                                        <div>
+                                            <span className="cg-stat-value">{goalChangeInfo.discipline_score}</span>
+                                            <span className="cg-stat-label">Discipline score</span>
+                                        </div>
+                                    </div>
+                                    <div className="cg-stat">
+                                        <span className="cg-stat-icon"><FiEdit2 /></span>
+                                        <div>
+                                            <span className="cg-stat-value">{goalChangeInfo.goal_change_count}</span>
+                                            <span className="cg-stat-label">Goal changes</span>
+                                        </div>
+                                    </div>
+                                    <div className="cg-stat">
+                                        <span className="cg-stat-icon"><FiClock /></span>
+                                        <div>
+                                            <span className="cg-stat-value">
+                                                {goalChangeInfo.last_goal_updated_at
+                                                    ? new Date(goalChangeInfo.last_goal_updated_at).toLocaleDateString()
+                                                    : '—'}
+                                            </span>
+                                            <span className="cg-stat-label">Last updated</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {isGoalLocked() && (
+                                <div className="goal-lockout-notice">
+                                    <FiLock className="lock-icon" />
+                                    <span>{getLockoutMessage()}</span>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="goal-empty-state">
+                            <div className="empty-icon"><FiTarget /></div>
+                            <h3>What&apos;s Your Career Dream?</h3>
+                            <p>Set your career goal to get personalized guidance, skill recommendations, and a step-by-step roadmap.</p>
+                            <button className="btn btn-primary goal-set-btn" onClick={startEditingGoal}>
+                                <FiTarget /> Set My Career Goal
+                            </button>
+                            <div className="career-suggestions">
+                                <h4>Popular Career Paths</h4>
+                                <div className="suggestion-cards">
+                                    {[
+                                        { title: 'Full-Stack Developer', desc: 'Build complete web applications', icon: <FiCode size={24} /> },
+                                        { title: 'Data Scientist', desc: 'Analyze data and drive insights', icon: <FiBarChart2 size={24} /> },
+                                        { title: 'Product Manager', desc: 'Lead product strategy and teams', icon: <FiBriefcase size={24} /> },
+                                        { title: 'AI/ML Engineer', desc: 'Create intelligent systems', icon: <FiCpu size={24} /> }
+                                    ].map((career) => (
+                                        <div key={career.title} className="career-card" onClick={() => { setTempGoal(`Become a ${career.title}`); setIsEditingGoal(true); }}>
+                                            <div className="career-card-icon">{career.icon}</div>
+                                            <h5>{career.title}</h5>
+                                            <p>{career.desc}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {goal && !isEditingGoal && (
+                    progressCard || (
+                        <div className="cg-card cg-progress-empty">
+                            <div className="cg-card-icon"><FiBarChart2 /></div>
+                            <h3>Roadmap Progress</h3>
+                            <p>Generate your roadmap to start tracking phases and weekly milestones.</p>
+                            <button className="btn btn-primary" onClick={() => generateRoadmap(false)} disabled={loading}>
+                                {loading ? <FiLoader className="spinning" /> : <FiCompass />}
+                                {loading ? 'Generating...' : 'Generate Roadmap'}
+                            </button>
+                        </div>
+                    )
+                )}
+            </section>
+
+            {/* ── Row 2: AI Advisor + sidebar ─────────────────────────── */}
             {goal && (
-                <div className="roadmap-main-section">
+                <section className="cg-row cg-row-main">
+                    <div className="cg-card guidance-chat-section">
+                        <div className="cg-card-head">
+                            <div className="cg-card-icon"><FiMessageCircle /></div>
+                            <div className="cg-card-title">
+                                <h2>AI Career Advisor</h2>
+                                <p>Ask anything about your career path, answered from your own profile data</p>
+                            </div>
+                            <span className="cg-live-badge"><i /> Live AI</span>
+                        </div>
+
+                        <div className="cg-composer">
+                            <textarea
+                                value={guidanceQuery}
+                                onChange={(e) => setGuidanceQuery(e.target.value)}
+                                placeholder="Ask about skills, projects, jobs or interviews…"
+                                className="cg-composer-input"
+                                rows={2}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleGuidanceQuery();
+                                    }
+                                }}
+                            />
+                            <div className="cg-composer-bar">
+                                <span className="cg-composer-hint">Enter to send · Shift + Enter for a new line</span>
+                                <button
+                                    className="btn btn-primary cg-send-btn"
+                                    onClick={handleGuidanceQuery}
+                                    disabled={guidanceLoading || !guidanceQuery.trim()}
+                                    aria-label="Ask the AI advisor"
+                                >
+                                    {guidanceLoading ? <FiLoader className="spinning" /> : <FiSend />}
+                                    <span>Ask</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="cg-chips">
+                            {[
+                                'Analyze my skill gaps',
+                                'What projects should I build?',
+                                'What jobs suit my profile?',
+                                'How to prepare for interviews?',
+                                'Recommend learning resources',
+                                'Career switch advice'
+                            ].map((s) => (
+                                <button key={s} className="cg-chip" onClick={() => setGuidanceQuery(s)}>
+                                    {s}
+                                </button>
+                            ))}
+                        </div>
+
+                        {guidanceLoading && <ThinkingStatus className="guidance-syncing" />}
+
+                        {guidanceResponse && (
+                            <div className="cg-answer">
+                                <div className="cg-answer-head">
+                                    <span className="cg-answer-badge">
+                                        <FiShield /> {guidanceResponse.used_rag ? 'Personalized' : 'General advice'}
+                                    </span>
+                                    {guidanceResponse.intent && (
+                                        <span className="cg-answer-intent">{guidanceResponse.intent.replace(/_/g, ' ').toLowerCase()}</span>
+                                    )}
+                                </div>
+
+                                {guidanceResponse.data_sources?.length > 0 && (
+                                    <div className="cg-sources">
+                                        <span className="cg-sources-label">Based on</span>
+                                        {guidanceResponse.data_sources.map((source) => (
+                                            <span key={source} className="cg-source">
+                                                {DATA_SOURCE_ICONS[source] || <FiFileText size={13} />} {source}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className={`response-content markdown-body ${guidanceResponse.streaming ? 'is-streaming' : ''}`}>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{guidanceResponse.response || ''}</ReactMarkdown>
+                                </div>
+                            </div>
+                        )}
+
+                        {!guidanceLoading && !guidanceResponse && (
+                            <div className="cg-answer-empty">
+                                <FiCompass />
+                                <p>Pick a suggestion or type a question. Answers use your skills, projects, certificates and marks.</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <aside className="cg-side">
+                        <div className="cg-card cg-side-card">
+                            <h3 className="cg-side-title"><FiZap /> Quick Career Insights</h3>
+                            <ul className="cg-insights">
+                                <li>
+                                    <span className="cg-insight-icon"><FiTrendingUp /></span>
+                                    <div><strong>Growth potential</strong><p>High demand in tech with 22% projected growth</p></div>
+                                </li>
+                                <li>
+                                    <span className="cg-insight-icon"><FiAward /></span>
+                                    <div><strong>Salary range</strong><p>₹6L – ₹25L+ depending on experience and location</p></div>
+                                </li>
+                                <li>
+                                    <span className="cg-insight-icon"><FiBookOpen /></span>
+                                    <div><strong>Key skills</strong><p>JavaScript, Python, Cloud, System Design</p></div>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div className="cg-card cg-side-card">
+                            <h3 className="cg-side-title"><FiCompass /> Next Steps</h3>
+                            <div className="cg-links">
+                                {QUICK_LINKS.map((r) => (
+                                    <Link key={r.to} to={r.to} className="cg-link">
+                                        <span className="cg-link-icon">{r.icon}</span>
+                                        <span className="cg-link-text"><strong>{r.title}</strong><small>{r.desc}</small></span>
+                                        <FiArrowRight className="cg-link-arrow" />
+                                    </Link>
+                                ))}
+                            </div>
+                        </div>
+                    </aside>
+                </section>
+            )}
+
+            {/* ── Row 3: Roadmap ──────────────────────────────────────── */}
+            {goal && (
+                <section className="roadmap-main-section">
                     {!roadmap ? (
                         <div className="roadmap-generator">
                             <div className="generator-content">
@@ -839,15 +880,14 @@ export default function CareerGuidance() {
                             </div>
                         </div>
                     ) : (
-                        <div className="roadmap-display">
-                            <div className="roadmap-header-actions">
-                                <div className="roadmap-title-section">
-                                    <h3>Your Career Roadmap</h3>
+                        <div className="cg-card roadmap-display">
+                            <div className="cg-card-head">
+                                <div className="cg-card-icon"><FiCompass /></div>
+                                <div className="cg-card-title">
+                                    <h2>Your Career Roadmap</h2>
                                     <p>Personalized path to achieve your career goals</p>
                                 </div>
                             </div>
-
-                            {/* Snake/Zig-Zag Roadmap UI */}
                             <RoadmapContainer
                                 roadmap={roadmap}
                                 onStepComplete={markStepComplete}
@@ -858,26 +898,24 @@ export default function CareerGuidance() {
                             />
                         </div>
                     )}
-                </div>
+                </section>
             )}
 
-            {/* Additional Resources */}
-            <div className="dashboard-card fade-in-up fade-in-delay-2">
-                <h3><FiBookOpen style={{ marginRight: '8px' }} /> Additional Resources</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
-                    {[
-                        { icon: <FiBriefcase />, title: 'Job Opportunities', desc: 'Explore job listings that match your career goals and skills.', color: 'var(--color-secondary)' },
-                        { icon: <FiAward />, title: 'Skill Development', desc: 'Identify and develop key skills needed for your target career.', color: 'var(--color-warning)' },
-                        { icon: <FiTrendingUp />, title: 'Interview Preparation', desc: 'Practice AI-powered interviews tailored to your career goals.', color: 'var(--color-success)' }
-                    ].map((r) => (
-                        <div key={r.title} style={{ padding: '15px', backgroundColor: 'var(--color-bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
-                            <div style={{ marginBottom: '10px', color: r.color }}>{r.icon}</div>
-                            <h4 style={{ marginBottom: '8px' }}>{r.title}</h4>
-                            <p style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>{r.desc}</p>
-                        </div>
-                    ))}
-                </div>
-            </div>
+            {/* Quick links when no goal is set yet */}
+            {!goal && (
+                <section className="cg-card">
+                    <h3 className="cg-side-title"><FiBookOpen /> Explore While You Decide</h3>
+                    <div className="cg-links cg-links-row">
+                        {QUICK_LINKS.map((r) => (
+                            <Link key={r.to} to={r.to} className="cg-link">
+                                <span className="cg-link-icon">{r.icon}</span>
+                                <span className="cg-link-text"><strong>{r.title}</strong><small>{r.desc}</small></span>
+                                <FiArrowRight className="cg-link-arrow" />
+                            </Link>
+                        ))}
+                    </div>
+                </section>
+            )}
         </div>
     );
 }
