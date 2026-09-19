@@ -11,7 +11,7 @@ Automatically ensures user data is indexed in pgvector before retrieval.
 import asyncio
 import logging
 import uuid
-from typing import Any, Optional
+from typing import Any, AsyncIterator, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,54 +38,80 @@ class CareerGuidanceAgent:
         self.db = db
         self._retrieval = RetrievalService(db)
 
+    # Short answers are much faster to generate and easier to read.
+    MAX_ANSWER_TOKENS = 900
+
+    async def prepare(
+        self,
+        user_id: uuid.UUID,
+        query: str,
+    ) -> tuple[list, dict[str, Any]]:
+        """
+        Classify the query, gather profile/RAG context and build the LLM messages.
+
+        Returns ``(messages, meta)`` where meta has 'intent', 'used_rag', 'data_sources'.
+        """
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        # 1) Classify intent
+        intent = classify_intent(query)
+        logger.info("CareerGuidanceAgent: user=%s intent=%s query='%s…'",
+                     user_id, intent.value, query[:60])
+
+        if intent == IntentType.GENERAL_QUERY:
+            messages = [
+                SystemMessage(content=prompts.GENERAL_QUERY_SYSTEM + prompts.BREVITY_RULES),
+                HumanMessage(content=query),
+            ]
+            return messages, {"intent": intent.value, "used_rag": False, "data_sources": []}
+
+        # 2) Profile + make sure the user's data is indexed (same DB session,
+        #    so these run sequentially)
+        profile = await build_user_profile(user_id, self.db)
+        data_sources = await self._ensure_data_indexed(user_id)
+
+        # 3) Retrieve relevant context (search ALL user documents)
+        retrieved = await self._retrieval.search(
+            query=query,
+            user_id=user_id,
+            agent_type=None,
+            top_k=6,
+        )
+
+        system_content = self._get_prompt_for_intent(intent).format(
+            profile=self._format_profile(profile),
+            context=self._format_context(retrieved),
+        ) + prompts.BREVITY_RULES
+
+        messages = [
+            SystemMessage(content=system_content),
+            HumanMessage(content=query),
+        ]
+        return messages, {"intent": intent.value, "used_rag": True, "data_sources": data_sources}
+
     async def handle_query(
         self,
         user_id: uuid.UUID,
         query: str,
     ) -> dict[str, Any]:
         """
-        Main entry point.
+        Main entry point (non-streaming).
 
-        Parameters
-        ----------
-        user_id : uuid.UUID
-            The authenticated user's ID.
-        query : str
-            The user's natural-language question.
-
-        Returns
-        -------
-        dict with keys 'response', 'intent', 'used_rag', 'data_sources'.
+        Returns a dict with keys 'response', 'intent', 'used_rag', 'data_sources'.
         """
-        # 1) Classify intent
-        intent = classify_intent(query)
-        logger.info("CareerGuidanceAgent: user=%s intent=%s query='%s…'",
-                     user_id, intent.value, query[:60])
+        messages, meta = await self.prepare(user_id, query)
+        llm = get_llm(max_tokens=self.MAX_ANSWER_TOKENS)
+        response = await llm.ainvoke(messages)
+        content = response.content if hasattr(response, "content") else str(response)
+        return {"response": content, **meta}
 
-        # 2) Build user profile (needed for all personalized intents)
-        profile = await build_user_profile(user_id, self.db)
-
-        # 3) Route by intent
-        if intent == IntentType.GENERAL_QUERY:
-            response = await self._handle_general(query)
-            return {
-                "response": response,
-                "intent": intent.value,
-                "used_rag": False,
-                "data_sources": [],
-            }
-
-        # 4) For all personalized intents, ensure user data is indexed first
-        data_sources = await self._ensure_data_indexed(user_id)
-
-        # 5) Use RAG
-        response = await self._handle_with_rag(query, profile, intent, user_id)
-        return {
-            "response": response,
-            "intent": intent.value,
-            "used_rag": True,
-            "data_sources": data_sources,
-        }
+    async def stream_answer(self, messages: list) -> AsyncIterator[str]:
+        """Yield the answer text chunk by chunk as the LLM generates it."""
+        llm = get_llm(max_tokens=self.MAX_ANSWER_TOKENS)
+        async for chunk in llm.astream(messages):
+            text = chunk.content if hasattr(chunk, "content") else str(chunk)
+            if text:
+                yield text
 
     # ── Private methods ─────────────────────────────────────────────────────
 
@@ -122,56 +148,6 @@ class CareerGuidanceAgent:
                 "User data indexing failed (non-fatal): %s", e
             )
             return []
-
-    async def _handle_general(self, query: str) -> str:
-        """Handle a general career query with direct LLM call."""
-        from langchain_core.messages import HumanMessage, SystemMessage
-
-        messages = [
-            SystemMessage(content=prompts.GENERAL_QUERY_SYSTEM),
-            HumanMessage(content=query),
-        ]
-        llm = get_llm()
-        response = await asyncio.to_thread(llm.invoke, messages)
-        return response.content if hasattr(response, "content") else str(response)
-
-    async def _handle_with_rag(
-        self,
-        query: str,
-        profile: dict[str, Any],
-        intent: IntentType,
-        user_id: uuid.UUID,
-    ) -> str:
-        """Handle queries that benefit from RAG-enhanced context."""
-        from langchain_core.messages import HumanMessage, SystemMessage
-
-        # 1) Retrieve relevant context (search ALL user documents, more chunks)
-        retrieved = await self._retrieval.search(
-            query=query,
-            user_id=user_id,
-            agent_type=None,  # Search ALL agent types for comprehensive context
-            top_k=8,
-        )
-
-        # 2) Format context and profile
-        context_str = self._format_context(retrieved)
-        profile_str = self._format_profile(profile)
-
-        # 3) Select prompt template based on intent
-        system_template = self._get_prompt_for_intent(intent)
-        system_content = system_template.format(
-            profile=profile_str,
-            context=context_str,
-        )
-
-        # 4) Call LLM
-        messages = [
-            SystemMessage(content=system_content),
-            HumanMessage(content=query),
-        ]
-        llm = get_llm()
-        response = await asyncio.to_thread(llm.invoke, messages)
-        return response.content if hasattr(response, "content") else str(response)
 
     def _get_prompt_for_intent(self, intent: IntentType) -> str:
         """Return the system prompt template for the given intent."""

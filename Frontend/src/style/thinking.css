@@ -98,3 +98,17 @@
   .thinking-orb, .thinking-text, .thinking-dots i { animation: none; }
   .thinking-text { -webkit-mask-image: none; mask-image: none; }
 }
+
+/* Blinking cursor after the last streamed word */
+.response-content.is-streaming > *:last-child::after {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 1em;
+  margin-left: 3px;
+  vertical-align: text-bottom;
+  border-radius: 2px;
+  background: var(--color-secondary, #00bcd4);
+  animation: thinking-caret 0.9s steps(2) infinite;
+}
+@keyframes thinking-caret { 50% { opacity: 0; } }

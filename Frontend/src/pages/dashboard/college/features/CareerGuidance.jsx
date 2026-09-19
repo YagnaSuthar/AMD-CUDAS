@@ -181,22 +181,73 @@ export default function CareerGuidance() {
         setGuidanceLoading(true);
         setGuidanceResponse(null);
         try {
-            const response = await api.post('/rag/query-career-guidance', {
-                query: guidanceQuery
-            });
-            console.log('=== GUIDANCE API RESPONSE ===', response.data);
-
-            if (response.data.success) {
-                setGuidanceResponse(response.data.data);
-            } else {
-                setError(response.data.error || 'Failed to get career guidance');
+            await streamGuidance(guidanceQuery);
+        } catch (streamErr) {
+            // Fall back to the classic (non-streaming) endpoint
+            console.warn('Streaming guidance failed, falling back:', streamErr);
+            try {
+                const response = await api.post('/rag/query-career-guidance', {
+                    query: guidanceQuery
+                });
+                if (response.data.success) {
+                    setGuidanceResponse(response.data.data);
+                } else {
+                    setError(response.data.error || 'Failed to get career guidance');
+                }
+            } catch (err) {
+                setError('Failed to get career guidance');
+                console.error(err);
             }
-        } catch (err) {
-            setError('Failed to get career guidance');
-            console.error(err);
         } finally {
             setGuidanceLoading(false);
         }
+    };
+
+    // Streams the answer (NDJSON) so words appear as soon as the AI writes them
+    const streamGuidance = async (query) => {
+        const res = await fetch(`${api.defaults.baseURL}/rag/query-career-guidance/stream`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+            },
+            body: JSON.stringify({ query }),
+        });
+        if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let meta = {};
+        let text = '';
+        let gotAnything = false;
+
+        for (;;) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+            for (const raw of lines) {
+                if (!raw.trim()) continue;
+                const evt = JSON.parse(raw);
+                if (evt.type === 'meta') {
+                    meta = evt;
+                } else if (evt.type === 'delta') {
+                    text += evt.text;
+                    if (!gotAnything) {
+                        gotAnything = true;
+                        setGuidanceLoading(false); // first words arrived — hide the loader
+                    }
+                    setGuidanceResponse({ ...meta, response: text, streaming: true });
+                } else if (evt.type === 'error') {
+                    if (!gotAnything) throw new Error(evt.error);
+                    setError(evt.error);
+                }
+            }
+        }
+        if (!gotAnything) throw new Error('Empty response');
+        setGuidanceResponse({ ...meta, response: text, streaming: false });
     };
 
     const markStepComplete = async (stepId) => {
@@ -637,7 +688,7 @@ export default function CareerGuidance() {
                                 </div>
                             )}
 
-                            <div className="response-content markdown-body">
+                            <div className={`response-content markdown-body ${guidanceResponse.streaming ? 'is-streaming' : ''}`}>
                                 <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{guidanceResponse.response || ''}</ReactMarkdown>
                             </div>
                         </div>

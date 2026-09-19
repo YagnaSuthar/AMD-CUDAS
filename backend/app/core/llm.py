@@ -19,10 +19,12 @@ def _provider() -> str:
     return "nvidia" if settings.NVIDIA_API_KEY else "groq"
 
 
-def get_llm():
+def get_llm(max_tokens: int | None = None):
     """
     Build and return the configured chat model.
+    ``max_tokens`` overrides LLM_MAX_TOKENS (use it to keep answers short and fast).
     """
+    max_tokens = max_tokens or settings.LLM_MAX_TOKENS
     if _provider() == "nvidia":
         from langchain_openai import ChatOpenAI
 
@@ -31,7 +33,7 @@ def get_llm():
             api_key=settings.NVIDIA_API_KEY,
             model=settings.NVIDIA_MODEL_NAME,
             temperature=settings.LLM_TEMPERATURE,
-            max_tokens=settings.LLM_MAX_TOKENS,
+            max_tokens=max_tokens,
             timeout=settings.LLM_TIMEOUT_SECONDS,
             max_retries=3,
             # Reasoning output goes to a separate field; the app needs plain answers
@@ -47,6 +49,6 @@ def get_llm():
         model=settings.GROQ_MODEL_NAME,
         api_key=settings.GROQ_API_KEY,
         temperature=settings.LLM_TEMPERATURE,
-        max_tokens=settings.LLM_MAX_TOKENS,
+        max_tokens=max_tokens,
         max_retries=6,  # Exponential backoff: ~1s, 2s, 4s, 8s, 16s, 32s ≈ 63s total
     )

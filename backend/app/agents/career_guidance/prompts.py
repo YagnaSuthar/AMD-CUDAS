@@ -135,3 +135,14 @@ Provide:
 Reference their interview scores, project portfolio, certifications,
 and academic performance in your analysis.
 """
+
+
+# Appended to every career-advisor prompt: short answers arrive much faster.
+BREVITY_RULES = """
+
+RESPONSE LENGTH (strict):
+- Answer in at most ~250 words.
+- Use short markdown headings and bullet points; no long paragraphs.
+- Give the 3-5 most useful points only, most important first.
+- Skip generic introductions and closing summaries.
+"""

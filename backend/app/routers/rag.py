@@ -216,6 +216,75 @@ async def query_career_guidance(
         return {"success": False, "error": f"Career guidance failed: {str(e)}"}
 
 
+@router.post("/query-career-guidance/stream")
+async def query_career_guidance_stream(
+    body: CareerGuidanceRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Streaming version of /query-career-guidance.
+
+    Emits newline-delimited JSON:
+      {"type": "meta", "intent": ..., "used_rag": ..., "data_sources": [...]}
+      {"type": "delta", "text": "..."}   (repeated)
+      {"type": "done"}  or  {"type": "error", "error": "..."}
+    """
+    import json
+    from fastapi.responses import StreamingResponse
+    from app.agents.career_guidance.agent import CareerGuidanceAgent
+
+    user_id = current_user.id if not isinstance(current_user, dict) else None
+
+    async def events():
+        def line(obj) -> str:
+            return json.dumps(obj) + "\n"
+
+        if user_id is None:
+            yield line({"type": "error", "error": "Admin cannot use career guidance"})
+            return
+
+        logger.info("Career guidance (stream) from user %s: '%s'", user_id, body.query[:80])
+        from app.core.database import async_session_factory
+
+        # Own session: the request-scoped one may close before streaming finishes
+        async with async_session_factory() as stream_db:
+          try:
+            agent = CareerGuidanceAgent(stream_db)
+            messages, meta = await agent.prepare(user_id=user_id, query=body.query)
+            yield line({"type": "meta", **meta})
+
+            parts: list[str] = []
+            async for text in agent.stream_answer(messages):
+                parts.append(text)
+                yield line({"type": "delta", "text": text})
+
+            try:
+                from app.models.career_advisory import CareerAdvisoryLog
+                stream_db.add(CareerAdvisoryLog(
+                    user_id=user_id,
+                    query=body.query,
+                    response="".join(parts),
+                    intent=meta.get("intent"),
+                    used_rag=meta.get("used_rag", False),
+                ))
+                await stream_db.commit()
+            except Exception as log_err:
+                logger.warning("Career advisory log save failed (non-fatal): %s", log_err)
+
+            yield line({"type": "done"})
+          except Exception as e:
+            logger.error("Career guidance stream error: %s", e)
+            yield line({"type": "error", "error": f"Career guidance failed: {str(e)}"})
+
+    return StreamingResponse(
+        events(),
+        media_type="application/x-ndjson",
+        # Stop proxies from buffering so words reach the browser immediately
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 # ── Sync User Data to Vector DB ──────────────────────────────────────────────
 
 
