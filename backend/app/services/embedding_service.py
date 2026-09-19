@@ -14,9 +14,49 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
+class _HostedEmbeddings:
+    """Same model via the Hugging Face Inference API — no local PyTorch/RAM cost."""
+
+    _URL = "https://router.huggingface.co/hf-inference/models/{model}/pipeline/feature-extraction"
+
+    def __init__(self, model_name: str, token: str):
+        import httpx
+
+        self._url = self._URL.format(model=model_name)
+        self._client = httpx.Client(
+            headers={"Authorization": f"Bearer {token}"}, timeout=60.0
+        )
+
+    def _embed(self, texts: list[str]) -> list[list[float]]:
+        resp = self._client.post(
+            self._url,
+            json={"inputs": texts, "options": {"wait_for_model": True}},
+        )
+        resp.raise_for_status()
+        vectors = resp.json()
+        normalized = []
+        for vec in vectors:
+            norm = sum(v * v for v in vec) ** 0.5 or 1.0
+            normalized.append([v / norm for v in vec])
+        return normalized
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._embed([text])[0]
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        out: list[list[float]] = []
+        for i in range(0, len(texts), 32):
+            out.extend(self._embed(texts[i:i + 32]))
+        return out
+
+
 @lru_cache(maxsize=1)
 def _get_embedding_model():
     """Load the HuggingFace embedding model once and cache it (singleton)."""
+    if settings.HF_TOKEN:
+        logger.info("[RAG] Using hosted embeddings (HF Inference API): %s", settings.EMBEDDING_MODEL)
+        return _HostedEmbeddings(settings.EMBEDDING_MODEL, settings.HF_TOKEN)
+
     from langchain_huggingface import HuggingFaceEmbeddings
 
     logger.info("[RAG] Loading embedding model: %s", settings.EMBEDDING_MODEL)

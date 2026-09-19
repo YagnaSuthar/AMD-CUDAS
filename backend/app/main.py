@@ -264,7 +264,7 @@ async def lifespan(app: FastAPI):
     try:
         import logging as _logging
         _log = _logging.getLogger(__name__)
-        if settings.SKIP_EMBEDDING_WARMUP:
+        if settings.SKIP_EMBEDDING_WARMUP or settings.HF_TOKEN:
             raise RuntimeError("skipped via SKIP_EMBEDDING_WARMUP")
         _log.info("[RAG] Pre-loading embedding model at server startup…")
         warm_up_embedding_model()

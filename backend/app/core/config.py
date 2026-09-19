@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = ""
     # Skip loading the embedding model at startup (saves RAM on small hosts)
     SKIP_EMBEDDING_WARMUP: bool = False
+    # If set, embeddings are computed via the Hugging Face Inference API
+    # instead of loading the model locally (needed on 512 MB hosts)
+    HF_TOKEN: str = ""
 
     # ── LLM Configuration ──────────────────────────────────────────────────
     # GEMINI_API_KEY: str = ""

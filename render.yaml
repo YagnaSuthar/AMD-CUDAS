@@ -28,5 +28,7 @@ services:
         sync: false
       - key: SKIP_EMBEDDING_WARMUP
         value: "true"
+      - key: HF_TOKEN
+        sync: false
       - key: CORS_ORIGINS
         sync: false
