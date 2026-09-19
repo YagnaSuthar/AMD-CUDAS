@@ -8,7 +8,7 @@ import api from '../../../../utils/api';
 import RoadmapContainer from '../../../../components/RoadmapContainer';
 import ThinkingStatus from '../../../../components/ThinkingStatus';
 import { Link } from 'react-router-dom';
-import { FiAlertTriangle, FiArrowRight, FiTarget, FiBookOpen, FiAward, FiBriefcase, FiTrendingUp, FiLoader, FiEdit2, FiSave, FiX, FiCheck, FiCompass, FiZap, FiShield, FiSend, FiMessageCircle, FiLock, FiCheckCircle, FiClock, FiBarChart2, FiCode, FiCpu, FiFileText, FiFolder } from 'react-icons/fi';
+import { FiAlertTriangle, FiArrowRight, FiFlag, FiTarget, FiBookOpen, FiAward, FiBriefcase, FiTrendingUp, FiLoader, FiEdit2, FiSave, FiX, FiCheck, FiCompass, FiZap, FiShield, FiSend, FiMessageCircle, FiLock, FiCheckCircle, FiClock, FiBarChart2, FiCode, FiCpu, FiFileText, FiFolder } from 'react-icons/fi';
 import '../../../../style/roadmap.css';
 import '../../../../style/careerGuidance.css';
 
@@ -577,7 +577,7 @@ export default function CareerGuidance() {
             <section className={`cg-row cg-row-top ${goal && !isEditingGoal ? '' : 'is-single'}`}>
                 <div className="cg-card career-goal-section">
                     <div className="cg-card-head">
-                        <div className="cg-card-icon"><FiTarget /></div>
+                        <div className="cg-card-icon"><FiFlag /></div>
                         <div className="cg-card-title">
                             <h2>Your Career Aspiration</h2>
                             <p>Define your dream and we&apos;ll create your path to success</p>
