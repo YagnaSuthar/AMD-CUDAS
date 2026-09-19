@@ -429,7 +429,7 @@
   border: 1px solid var(--color-border);
 }
 .cg-page .snake-start-badge { padding: 5px 12px; font-size: 12px; }
-.cg-page .snake-title { font-size: 1.3rem; margin: 10px 0 4px; }
+.cg-page .snake-title { font-size: 1.3rem; margin: 0 0 4px; }
 .cg-page .roadmap-progress-widget { min-width: 240px; box-shadow: none; }
 @media (max-width: 720px) {
   .cg-page .roadmap-display.cg-card { padding: 16px 12px; }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import RoadmapNode from './RoadmapNode';
-import { FiTarget, FiFlag, FiCheck, FiZap, FiBookOpen, FiCheckCircle, FiExternalLink, FiSend, FiGithub, FiLock } from 'react-icons/fi';
+import { FiFlag, FiCheck, FiZap, FiBookOpen, FiCheckCircle, FiExternalLink, FiSend, FiGithub, FiLock } from 'react-icons/fi';
 
 function WeekCardsRow({ branchSteps, step, onSubmitProject, onMarkBranchStepComplete }) {
     const [submitLink, setSubmitLink] = useState('');
@@ -263,9 +263,6 @@ export default function RoadmapContainer({ roadmap, onStepComplete, phaseBranche
             <div className="snake-header">
                 <div className="snake-header-row">
                     <div className="snake-header-text">
-                        <span className="snake-start-badge">
-                            <FiTarget /> Start
-                        </span>
                         <h3 className="snake-title">{roadmap.title}</h3>
                         {roadmap.summary && (
                             <p className="snake-subtitle">{roadmap.summary}</p>
