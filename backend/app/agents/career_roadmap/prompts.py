@@ -49,15 +49,15 @@ USER CONTEXT:
 
 INSTRUCTIONS:
 - Treat "phase_goal" as short-term goal
-- Break it into WEEK-BY-WEEK plan matching EXACTLY the phase_duration specified
-- If phase_duration is "12 weeks", generate 12 weeks (Week 1 to Week 12)
-- If phase_duration is "8 weeks", generate 8 weeks (Week 1 to Week 8)
-- If phase_duration is "4 weeks", generate 4 weeks (Week 1 to Week 4)
+- Break it into a WEEK-BY-WEEK plan covering the phase_duration
+- Generate between 4 and 8 weeks (never more than 8). If the phase is longer,
+  group the work so that each week is a meaningful block
 - Each week must include:
-    - Topics to learn
-    - Practical tasks
-    - Resources (YouTube, docs, tutorials)
-    - Mini goals
+    - Topics to learn (max 3, short phrases)
+    - Practical tasks (max 3, one line each)
+    - Resources (max 2)
+    - A one-line mini goal
+- Keep every string short — this must fit in a single response
 - Include hands-on work wherever applicable
 - If phase involves project:
     - Ask user to build project
@@ -73,7 +73,7 @@ CRITICAL OUTPUT RULES:
 - Do NOT include markdown fences
 - Do NOT include explanations, headings, or extra text
 - The response must start with '{{' and end with '}}'
-- Generate EXACT number of weeks matching phase_duration
+- Generate between 4 and 8 weeks; never truncate the JSON
 
 OUTPUT FORMAT (JSON):
 

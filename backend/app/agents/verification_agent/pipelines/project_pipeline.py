@@ -121,6 +121,29 @@ async def run_project_pipeline(
         recommendations.extend(project_res.get("recommendations", []))
         return extracted, scores, issues, verified_fields, recommendations
 
+    # ── Authorship gate ───────────────────────────────────────────────────
+    # A polished repository proves nothing if the student never contributed to
+    # it. Without commits (and without owning the repo) it cannot be "verified".
+    contributors = scraped_data.get("contributors") or []
+    user_found = bool((contribution_data.get("details") or {}).get("user_found"))
+    user_commits = scraped_data.get("user_commits_count", 0) or len(scraped_data.get("user_commits_detail") or [])
+    repo_owner = (scraped_data.get("repo_name") or "/").split("/")[0].lower()
+    owns_repo = bool(github_username) and repo_owner == github_username.lower()
+
+    if contributors and not user_found and not user_commits and not owns_repo:
+        issues.append(
+            f"No commits by '{github_username}' in this repository — "
+            "the student does not appear to have contributed to it"
+        )
+        recommendations.append(
+            "Submit a repository you contributed to, or set the GitHub username on your profile "
+            "to the account you commit with"
+        )
+        scores["confidence_cap"] = 0.40
+    elif not contributors and not user_commits and not owns_repo:
+        issues.append(f"Could not confirm any commits by '{github_username}' in this repository")
+        scores["confidence_cap"] = 0.54  # cannot reach "verified" without proof of authorship
+
     # Hard ceiling: without real, reachable source code a project can't be "verified"
     tree = scraped_data.get("repo_tree") or {}
     if (not scraped_data.get("exists")

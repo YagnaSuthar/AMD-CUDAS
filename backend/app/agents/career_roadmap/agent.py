@@ -72,6 +72,102 @@ def _extract_json(text: str) -> dict:
     raise ValueError(f"Could not extract valid JSON from LLM response: {text[:200]}...")
 
 
+def _repair_truncated_json(text: str) -> str | None:
+    """
+    Best-effort repair of a JSON object/array that was cut off mid-way
+    (the model hit its output limit). Drops the incomplete trailing item and
+    closes any open strings, objects and arrays.
+    """
+    text = (text or "").strip()
+    if "```" in text:
+        text = text.split("```")[1] if text.count("```") >= 2 else text.replace("```", "")
+        if text.lstrip().startswith("json"):
+            text = text.lstrip()[4:]
+    start = min([i for i in (text.find("{"), text.find("[")) if i != -1], default=-1)
+    if start == -1:
+        return None
+    text = text[start:]
+
+    # Walk the text, tracking structure, and remember the last position where
+    # the document could be closed cleanly (i.e. just after a complete item).
+    stack: list[str] = []
+    in_string = False
+    escaped = False
+    safe_cut = None
+    for i, ch in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch in "{[":
+            stack.append("}" if ch == "{" else "]")
+        elif ch in "}]":
+            if stack:
+                stack.pop()
+            if not stack:
+                safe_cut = i + 1
+        elif ch == "," and len(stack) <= 2:
+            safe_cut = i  # cut before this comma and close the structure
+
+    if safe_cut is None:
+        return None
+    candidate = text[:safe_cut].rstrip().rstrip(",")
+
+    # Re-derive what still needs closing for the truncated candidate
+    stack = []
+    in_string = False
+    escaped = False
+    for ch in candidate:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch in "{[":
+            stack.append("}" if ch == "{" else "]")
+        elif ch in "}]" and stack:
+            stack.pop()
+    if in_string:
+        candidate += '"'
+    candidate += "".join(reversed(stack))
+    try:
+        parsed = json.loads(candidate)
+    except json.JSONDecodeError:
+        return None
+    return json.dumps(_drop_incomplete_tail(parsed))
+
+
+def _drop_incomplete_tail(parsed: Any) -> Any:
+    """Remove a trailing list item that was cut off (fewer keys than its siblings)."""
+    def clean(items: list) -> list:
+        if len(items) >= 2 and isinstance(items[-1], dict) and isinstance(items[-2], dict):
+            if set(items[-1]) < set(items[-2]):
+                return items[:-1]
+        return items
+
+    if isinstance(parsed, list):
+        return clean(parsed)
+    if isinstance(parsed, dict):
+        return {k: (clean(v) if isinstance(v, list) else v) for k, v in parsed.items()}
+    return parsed
+
+
+def _finish_reason(response) -> str | None:
+    meta = getattr(response, "response_metadata", None) or {}
+    return meta.get("finish_reason") or meta.get("stop_reason")
+
+
 def _extract_json_array(text: str) -> list[dict[str, Any]]:
     """Extract a JSON array from LLM output that may contain fences or surrounding text."""
     text = (text or "").strip()
@@ -360,9 +456,8 @@ class CareerRoadmapAgent:
         ]
 
         # ── Step 9: LLM call with retry ───────────────────────────────────
-        llm = get_llm()
-        # Override max_tokens for roadmap — needs more output space
-        llm.max_tokens = 2048
+        # Roadmaps with many phases need plenty of output space
+        llm = get_llm(max_tokens=6000)
         last_error: Exception | None = None
 
         for attempt in range(1, 4):
@@ -374,7 +469,14 @@ class CareerRoadmapAgent:
                 logger.debug("Raw LLM output: %s", content[:500])
 
                 # ── Step 10: Parse JSON array ─────────────────────────────
-                phases = _extract_json_array(content)
+                try:
+                    phases = _extract_json_array(content)
+                except Exception:
+                    repaired = _repair_truncated_json(content)
+                    phases = json.loads(repaired) if repaired else []
+                    if phases:
+                        print(f"[Roadmap] Recovered truncated roadmap "
+                              f"(finish_reason={_finish_reason(response)})")
 
                 if not phases:
                     raise ValueError("Roadmap output must be a non-empty JSON array")
@@ -593,8 +695,8 @@ class CareerRoadmapAgent:
             ),
         ]
 
-        llm = get_llm()
-        llm.max_tokens = 2048
+        # Weekly plans are long; too small a budget truncates the JSON mid-way
+        llm = get_llm(max_tokens=8000)
 
         last_error: Exception | None = None
         parsed: dict[str, Any] | None = None
@@ -602,7 +704,16 @@ class CareerRoadmapAgent:
             try:
                 response = await asyncio.to_thread(llm.invoke, messages)
                 content = response.content if hasattr(response, "content") else str(response)
-                parsed = _extract_json(content)
+                try:
+                    parsed = _extract_json(content)
+                except Exception:
+                    # The model ran out of output space — keep the weeks we got
+                    repaired = _repair_truncated_json(content)
+                    if not repaired:
+                        raise
+                    parsed = json.loads(repaired)
+                    print(f"[Roadmap] Recovered truncated weekly plan "
+                          f"(finish_reason={_finish_reason(response)})")
                 break
             except Exception as exc:
                 last_error = exc
