@@ -634,6 +634,7 @@
   min-height: calc(100vh - 100px);
 }
 .neo-auth-grid.is-wide { grid-template-columns: 1fr 560px; }
+.neo-auth-grid > * { min-width: 0; }
 
 .neo-auth-showcase { padding: 12px; }
 .neo-orb-sm { width: 190px; margin-bottom: 36px; }
@@ -868,7 +869,6 @@
 
 @media (max-width: 720px) {
   .neo-nav { padding: 12px 16px; }
-  .neo-brand-name { display: none; }
   .neo-hide-xs { display: none; }
   .neo-hero, .neo-section, .neo-auth-grid { padding-left: 16px; padding-right: 16px; }
   .neo-stats { display: flex; justify-content: center; }
@@ -884,8 +884,13 @@
   .neo-role-panel { padding: 28px 4px 4px; gap: 24px; }
   .neo-flow { grid-template-columns: 1fr 1fr; }
   .neo-cta { flex-direction: column; align-items: flex-start; padding: 32px 24px; }
-  .neo-auth-card { padding: 30px 20px; border-radius: 26px; }
+  .neo-auth-card { padding: 26px 18px; border-radius: 26px; }
   .neo-form-grid { grid-template-columns: 1fr; }
+  /* Long labels must wrap instead of stretching the card off-screen */
+  .neo-btn { white-space: normal; text-align: center; line-height: 1.35; }
+  .neo-btn-block { padding-left: 14px; padding-right: 14px; }
+  .neo-card-head h1 { font-size: 1.5rem; }
+  .neo-brand-name { display: inline; font-size: 1.05rem; }
   .neo-footer { justify-content: center; text-align: center; }
 }
 
