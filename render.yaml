@@ -9,7 +9,7 @@ services:
     healthCheckPath: /docs
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.9
+        value: 3.12.3
       - key: DATABASE_URL
         sync: false
       - key: GROQ_API_KEY
